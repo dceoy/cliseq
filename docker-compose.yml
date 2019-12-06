@@ -1,0 +1,20 @@
+---
+version: '3'
+
+services:
+  bwa:
+    build:
+      context: bwa
+    image: dceoy/bwa:latest
+  gatk:
+    build:
+      context: gatk
+    image: dceoy/gatk:latest
+  picard:
+    build:
+      context: picard
+    image: dceoy/picard:latest
+  samtools:
+    build:
+      context: samtools
+    image: dceoy/samtools:latest
