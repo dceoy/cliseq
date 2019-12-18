@@ -2,19 +2,13 @@
 version: '3'
 
 services:
-  bwa:
+  wgs-pipeline:
     build:
-      context: bwa
-    image: dceoy/bwa:latest
-  gatk:
-    build:
-      context: gatk
-    image: dceoy/gatk:latest
-  picard:
-    build:
-      context: picard
-    image: dceoy/picard:latest
-  samtools:
-    build:
-      context: samtools
-    image: dceoy/samtools:latest
+      context: .
+      dockerfile: Dockerfile
+    image: dceoy/wgs-pipeline:latest
+    user: ${UID}:${GID}
+    userns_mode: host
+    volumes:
+      - .:/wd
+    working_dir: /wd
