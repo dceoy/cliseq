@@ -37,6 +37,7 @@ FROM ubuntu:latest
 ENV DEBIAN_FRONTEND noninteractive
 
 COPY --from=builder /usr/local /usr/local
+COPY --from=builder /opt /opt
 
 RUN set -e \
       && ln -sf /bin/bash /bin/sh
