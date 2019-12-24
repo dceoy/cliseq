@@ -2,7 +2,8 @@
 version: '3'
 
 services:
-  wgs-pipeline:
+  cliseq:
+    container_name: cliseq
     build:
       context: .
       dockerfile: Dockerfile
@@ -12,3 +13,5 @@ services:
     volumes:
       - .:/wd
     working_dir: /wd
+    entrypoint:
+      - /opt/conda/bin/cliseq
