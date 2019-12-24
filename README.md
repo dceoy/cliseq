@@ -1,2 +1,2 @@
-# wgs-pipeline
-Analytical pipeline for whole genome DNA sequencing
+# cliseq
+Analytical pipeline for clinical DNA sequencing data

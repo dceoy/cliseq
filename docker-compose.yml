@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: dceoy/wgs-pipeline:latest
+    image: dceoy/cliseq:latest
     user: ${UID}:${GID}
     userns_mode: host
     volumes:
