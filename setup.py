@@ -17,10 +17,10 @@ setup(
     long_description_content_type='text/markdown',
     url='git@github.com:dceoy/cliseq.git',
     packages=find_packages(),
-    include_package_data=False,
-    install_requires=['docopt', 'luigi'],
+    include_package_data=True,
+    install_requires=['docopt', 'jinja2'],
     entry_points={
-        'console_scripts': ['cliseq=cliseq.cli:main']
+        'console_scripts': ['cliseq=cliseq.cli.main:main']
     },
     classifiers=[
         'Development Status :: 3 - Alpha',

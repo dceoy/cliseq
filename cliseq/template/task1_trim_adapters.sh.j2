@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+set -eux
+
+RAW_FASTQ_DIR_PATH='{{ raw_fastq_dir_path }}'
+TRIM_DIR_PATH='{{ trim_dir_path }}'
+N_CPU={{ n_cpu }}
+
+mkdir -p "${TRIM_DIR_PATH}"
+cd "${TRIM_DIR_PATH}"
+
+trim_galore --version
+cutadapt --version
+fastqc --version
+
+INPUT_FQ_PREFIX=$(
+  find "${RAW_FASTQ_DIR_PATH}" \
+    -type f \
+    -name '*_R2.fastq.gz' \
+    -exec basename {} \; \
+    | awk -F '_R2.fastq.gz' '{print $1}'
+)
+
+for id in ${INPUT_FQ_PREFIX}; do
+  trim_galore \
+    --cores="${N_CPU}" \
+    --output_dir=. \
+    --illumina \
+    --paired \
+    "${RAW_FASTQ_DIR_PATH}/${id}_R1.fastq.gz" \
+    "${RAW_FASTQ_DIR_PATH}/${id}_R2.fastq.gz"
+done
