@@ -30,7 +30,7 @@ RUN set -e \
       && make install
 
 RUN set -e \
-      && /opt/conda/bin/python3.7 -m pip install -U --no-cache-dir \
+      && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
         cutadapt /tmp/cliseq
 
 FROM ubuntu:latest
