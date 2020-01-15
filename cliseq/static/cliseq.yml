@@ -1,0 +1,16 @@
+---
+genome_fa: /path/to/hg38.gz
+runs:
+  - id: sample01
+    fg_fq:
+      - /path/to/sample01.tumor_FFPE.R1.fq.gz
+      - /path/to/sample01.tumor_FFPE.R2.fq.gz
+    bg_fq:
+      - /path/to/sample01.blood_frozen.R1.fq.gz
+      - /path/to/sample01.blood_frozen.R2.fq.gz
+  - id: sample02
+    fg_sam: /path/to/sample02.tumor_FFPE.cram
+    bg_sam: /path/to/sample02.blood_frozen.cram
+  - id: sample03
+    fg_sam: /path/to/sample03.tumor_FFPE.bam
+    bg_sam: /path/to/sample03.blood_frozen.bam

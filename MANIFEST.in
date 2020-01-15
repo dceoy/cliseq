@@ -1,1 +1,2 @@
 include cliseq/template/*
+include cliseq/static/*
