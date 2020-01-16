@@ -1,5 +1,9 @@
 ---
-genome_fa: /path/to/hg38.gz
+ref_fa:
+  urls:
+    - https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/latest/hg38.fa.gz
+# paths:
+#   - /path/to/hg38.fa.gz
 runs:
   - id: sample01
     fg_fq:

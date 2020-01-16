@@ -3,9 +3,10 @@
 Analytical pipeline for clinical DNA sequencing data
 
 Usage:
-    cliseq init [--debug|--info] [--file=<yaml>]
-    cliseq download [--debug|--info] [--hg19] [<dir>]
-    cliseq run [--debug|--info] [--file=<yaml>] [--ref-dir=<dir>] [<dir>]
+    cliseq init [--debug|--info] [--yml=<path>]
+    cliseq download [--debug|--info] [--hg19] [<work_dir_path>]
+    cliseq run [--debug|--info] [--yml=<path>] [--ref-dir=<path>]
+        [<work_dir_path>]
     cliseq -h|--help
     cliseq --version
 
@@ -18,12 +19,12 @@ Options:
     -h, --help          Print help and exit
     --version           Print version and exit
     --debug, --info     Execute a command with debug|info messages
-    --file=<yaml>       Specify a config YAML path [default: cliseq.yml]
+    --yml=<path>        Specify a config YAML path [default: cliseq.yml]
     --hg19              Use hg19 instead of hg38
-    --ref-dir=<dir>     Specify a reference directory path
+    --ref-dir=<path>    Specify a reference directory path
 
 Args:
-    <dir>               Working directory path [default: .]
+    <work_dir_path>     Working directory path [default: .]
 """
 
 import logging
@@ -42,13 +43,14 @@ def main():
     logger = logging.getLogger(__name__)
     logger.debug('args:{0}{1}'.format(os.linesep, args))
     if args['init']:
-        write_config_yml(path=args['--file'])
+        write_config_yml(path=args['--yml'])
     elif args['download']:
         download_hg(
-            ver=('hg19' if args['--hg19'] else 'hg38'), work_dir=args['<dir>']
+            hg_ver=('hg19' if args['--hg19'] else 'hg38'),
+            work_dir_path=args['<work_dir_path>']
         )
     elif args['run']:
         run_analytical_pipeline(
-            config_yml_path=args['--file'], ref_dir_path=args['--ref-dir'],
-            work_dir=args['<dir>']
+            config_yml_path=args['--yml'], ref_dir_path=args['--ref-dir'],
+            work_dir_path=args['<work_dir_path>']
         )
