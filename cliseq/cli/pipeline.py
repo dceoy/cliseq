@@ -2,40 +2,51 @@
 
 import logging
 import os
+from multiprocessing import cpu_count
 from pathlib import Path
 from pprint import pformat
 
-from ..task.ref import CreateBWAIndexes, CreateFASTAIndex
+import luigi
+
+from ..task.ref import PrepareReferences
 from .util import fetch_executable, print_log, read_yml
 
 
-def run_analytical_pipeline(config_yml_path, ref_dir_path=None,
-                            work_dir_path='.'):
+def run_analytical_pipeline(config_yml_path, work_dir_path=None,
+                            ref_dir_path=None, n_cpu=None):
     logger = logging.getLogger(__name__)
-    print_log('Run the analytical pipeline: {}'.format(work_dir_path))
-    work_dir = Path(work_dir_path)
+    work_dir = Path(work_dir_path or '.').resolve()
+    print_log('Run the analytical pipeline:\t{}'.format(work_dir))
     assert work_dir.is_dir()
 
-    cf = read_yml(path=Path(config_yml_path).resolve())
+    config_yml_abspath = str(Path(config_yml_path).resolve())
+    cf = read_yml(path=config_yml_abspath)
     logger.debug('cf:' + os.linesep + pformat(cf))
     assert 'ref_fa' in cf
     assert set(cf['ref_fa']).intersection({'urls', 'paths'})
 
-    cmd_paths = {
-        c: fetch_executable(c) for c in
-        ['samtools', 'bwa', 'fastqc', 'cutadapt', 'trim_galore']
-    }
-    ref_dir_path = (
-        Path(ref_dir_path).resolve()
-        if ref_dir_path else work_dir.joinpath('ref').resolve()
-    )
     param_dict = {
-        **config_dict, **cmd_paths, 'ref_dir_path': ref_dir_path
+        **cf,
+        **{
+            c: fetch_executable(c) for c in [
+                'samtools', 'bwa', 'fastqc', 'cutadapt', 'trim_galore', 'pigz'
+            ]
+        },
+        'ref_dir_path': str(
+            Path(ref_dir_path).resolve()
+            if ref_dir_path else work_dir.joinpath('ref')
+        ),
+        'n_cpu': int(n_cpu or cpu_count())
     }
+    logger.debug('param_dict:' + os.linesep + pformat(param_dict))
+
     luigi.build(
         [
-            CreateFASTAIndex(param_dict=param_dict),
-            CreateBWAIndexes(param_dict=param_dict)
+            PrepareReferences(**{
+                k: v for k, v in param_dict.items() if k in [
+                    'ref_fa', 'ref_dir_path', 'samtools', 'bwa'
+                ]
+            })
         ],
         workers=2, local_scheduler=True
     )
