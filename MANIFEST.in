@@ -1,2 +1,2 @@
-include cliseq/template/*
-include cliseq/static/*
+include vcline/template/*
+include vcline/static/*

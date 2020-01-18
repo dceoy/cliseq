@@ -2,16 +2,16 @@
 version: '3'
 
 services:
-  cliseq:
-    container_name: cliseq
+  vcline:
+    container_name: vcline
     build:
       context: .
       dockerfile: Dockerfile
-    image: dceoy/cliseq:latest
+    image: dceoy/vcline:latest
     user: ${UID}:${GID}
     userns_mode: host
     volumes:
       - .:/wd
     working_dir: /wd
     entrypoint:
-      - /opt/conda/bin/cliseq
+      - /opt/conda/bin/vcline

@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """
-Analytical pipeline for clinical DNA sequencing data
+Variant Calling Pipeline for Clinical Sequencing
 
 Usage:
-    cliseq init [--debug|--info] [--yml=<path>]
-    cliseq download [--debug|--info] [--hg19] [<work_dir_path>]
-    cliseq run [--debug|--info] [--yml=<path>] [--cpus=<int>]
+    vcline init [--debug|--info] [--yml=<path>]
+    vcline download [--debug|--info] [--hg19] [<work_dir_path>]
+    vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
         [--ref-dir=<path>] [<work_dir_path>]
-    cliseq -h|--help
-    cliseq --version
+    vcline -h|--help
+    vcline --version
 
 Commands:
     init                Create a config YAML template
@@ -20,7 +20,7 @@ Options:
     --version           Print version and exit
     --debug, --info     Execute a command with debug|info messages
     --cpus=<int>        Limit CPU cores used
-    --yml=<path>        Specify a config YAML path [default: cliseq.yml]
+    --yml=<path>        Specify a config YAML path [default: vcline.yml]
     --hg19              Use hg19 instead of hg38
     --ref-dir=<path>    Specify a reference directory path
 
@@ -78,7 +78,7 @@ def _write_config_yml(path):
     else:
         print_log('Create a config YAML:\t{}'.format(path))
         shutil.copyfile(
-            str(Path(__file__).parent.joinpath('../static/cliseq.yml')),
+            str(Path(__file__).parent.joinpath('../static/vcline.yml')),
             Path(path).resolve()
         )
 

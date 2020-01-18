@@ -9,7 +9,7 @@ COPY --from=dceoy/samtools:latest /usr/local/src/samtools /usr/local/src/samtool
 COPY --from=dceoy/bwa:latest /usr/local/src/bwa /usr/local/src/bwa
 COPY --from=dceoy/trim_galore:latest /usr/local/src/FastQC /usr/local/src/FastQC
 COPY --from=dceoy/trim_galore:latest /usr/local/src/TrimGalore /usr/local/src/TrimGalore
-ADD . /tmp/cliseq
+ADD . /tmp/vcline
 
 RUN set -e \
       && apt-get -y update \
@@ -31,7 +31,7 @@ RUN set -e \
 
 RUN set -e \
       && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
-        cutadapt /tmp/cliseq
+        cutadapt /tmp/vcline
 
 FROM ubuntu:latest
 
@@ -60,4 +60,4 @@ RUN set -e \
 
 ENV PATH /opt/conda/envs/gatk/bin:/opt/conda/bin:${PATH}
 
-ENTRYPOINT ["/opt/conda/bin/cliseq"]
+ENTRYPOINT ["/opt/conda/bin/vcline"]
