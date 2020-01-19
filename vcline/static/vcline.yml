@@ -1,20 +1,24 @@
 ---
 ref_fa:
-  urls:
-    - https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/latest/hg38.fa.gz
-# paths:
-#   - /path/to/hg38.fa.gz
+  - https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/latest/hg38.fa.gz
+# - /path/to/hg38.fa.gz
 runs:
   - id: sample01
-    fg_fq:
-      - /path/to/sample01.tumor_FFPE.R1.fq.gz
-      - /path/to/sample01.tumor_FFPE.R2.fq.gz
-    bg_fq:
-      - /path/to/sample01.blood_frozen.R1.fq.gz
-      - /path/to/sample01.blood_frozen.R2.fq.gz
+    foreground:
+      fq:
+        - /path/to/sample01.tumor_FFPE.R1.fq.gz
+        - /path/to/sample01.tumor_FFPE.R2.fq.gz
+    background:
+      fq:
+        - /path/to/sample01.blood_frozen.R1.fq.gz
+        - /path/to/sample01.blood_frozen.R2.fq.gz
   - id: sample02
-    fg_sam: /path/to/sample02.tumor_FFPE.cram
-    bg_sam: /path/to/sample02.blood_frozen.cram
+    foreground:
+      sam: /path/to/sample02.tumor_FFPE.cram
+    background:
+      sam: /path/to/sample02.blood_frozen.cram
   - id: sample03
-    fg_sam: /path/to/sample03.tumor_FFPE.bam
-    bg_sam: /path/to/sample03.blood_frozen.bam
+    foreground:
+      sam: /path/to/sample03.tumor_FFPE.bam
+    background:
+      sam: /path/to/sample03.blood_frozen.bam

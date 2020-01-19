@@ -8,24 +8,26 @@ import luigi
 from luigi.util import requires
 from shoper.shelloperator import ShellOperator
 
-from ..cli.util import (download_file, open_readable_file, print_log,
-                        remove_files_if_they_exists)
+from ..cli.util import print_log
 
 
 class FetchGenomeFASTA(luigi.Task):
     ref_fa = luigi.DictParameter()
     ref_dir_path = luigi.Parameter()
+    pigz = luigi.Parameter()
+    pbzip2 = luigi.Parameter()
+    n_cpu = luigi.IntParameter()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.__log_dir = Path(self.log_dir_path)
         self.__ref_dir = Path(self.ref_dir_path)
         fa_suffixes = tuple([
             ''.join(t) for t in product(['.fa', '.fasta'], ['', '.gz', 'bz2'])
         ])
-        ref_paths = self.ref_fa.get('urls') or self.ref_fa.get('paths')
-        assert all([p.endswith(fa_suffixes) for p in ref_paths])
+        assert all([p.endswith(fa_suffixes) for p in self.ref_fa])
         self.__ref_fa_path = self.__ref_dir.joinpath(
-            '.'.join([Path(Path(Path(p).name).stem).stem for p in ref_paths])
+            '.'.join([Path(Path(Path(p).name).stem).stem for p in self.ref_fa])
             + '.fa'
         )
 
@@ -33,43 +35,48 @@ class FetchGenomeFASTA(luigi.Task):
         return luigi.LocalTarget(self.__ref_fa_path)
 
     def run(self):
-        print_log('Create ref FASTA: {}'.format(self.__ref_fa_path))
+        self.__log_dir.mkdir(exist_ok=True)
         self.__ref_dir.mkdir(exist_ok=True)
-        if self.ref_fa.get('urls'):
-            urls = {
-                u: str(self.__ref_dir.joinpath(Path(u).name))
-                for u in self.ref_fa['urls']
-            }
-            for u, o in urls.items():
-                download_file(url=u, output_path=o)
-            src_paths = list(urls.values())
-        else:
-            urls = dict()
-            src_paths = self.ref_fa['paths']
-        try:
-            with open(self.__ref_fa_path, 'w') as fw:
-                for p in src_paths:
-                    print_log(
-                        'Write:{0}{1} => {2}'.format(
-                            os.linesep, p, self.__ref_fa_path
-                        )
+        print_log(os.linesep.join(['Create a reference FASTA:'] + self.ref_fa))
+        sh = ShellOperator(
+            log_txt=str(
+                self.__log_dir.joinpath(
+                    'cat_ref.{}.sh.log.txt'.format(
+                        Path(Path(self.__ref_fa_path).name).stem
                     )
-                    with open_readable_file(path=p) as fr:
-                        fw.write(fr.read())
-        except Exception as e:
-            if Path(self.__ref_fa_path).exists():
-                os.remove(self.__ref_fa_path)
-            raise e
-        else:
-            print_log('Save: {}'.format(self.__ref_fa_path))
-        finally:
-            remove_files_if_they_exists(*urls.values())
+                )
+            ),
+            quiet=True
+        )
+        pigz = f'self.pigz -p {self.n_cpu}'
+        pbzip2 = f'self.pbzip2 -p# {self.n_cpu}'
+        ref_urls = {
+            u: str(self.__ref_dir.joinpath(Path(u).name))
+            for u in self.ref_fa if u.startswith(('https://', 'http://'))
+        }
+        args = list()
+        for i, u in enumerate(self.ref_fa):
+            cat = 'curl -LS' if u in ref_urls else 'cat'
+            r = '>' if i == 0 else '>>'
+            if u.endswith('.gz'):
+                a = f'{cat} {u} | {pigz} -dc - {r} {self.__ref_fa_path}'
+            elif u.endswith('.bz2'):
+                a = f'{cat} {u} | {pbzip2} -dc - {r} {self.__ref_fa_path}'
+            else:
+                a = f'{cat} {u} {r} {self.__ref_fa_path}'
+            args.append(a)
+        sh.run(
+            args=args,
+            input_files=[p for p in self.ref_fa if p not in ref_urls],
+            output_files=self.__ref_fa_path,
+            cwd=str(Path(self.__ref_fa_path).parent)
+        )
 
 
 @requires(FetchGenomeFASTA)
 class CreateFASTAIndex(luigi.Task):
-    samtools = luigi.Parameter()
     log_dir_path = luigi.Parameter()
+    samtools = luigi.Parameter()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -80,7 +87,7 @@ class CreateFASTAIndex(luigi.Task):
         return luigi.LocalTarget(self.__ref_fai_path)
 
     def run(self):
-        print_log('Create a FASTA index.')
+        print_log('Create a FASTA index:\t{}'.format(self.__ref_fa_path))
         sh = ShellOperator(
             log_txt=str(
                 Path(self.log_dir_path).joinpath(
@@ -104,8 +111,8 @@ class CreateFASTAIndex(luigi.Task):
 
 @requires(FetchGenomeFASTA)
 class CreateBWAIndexes(luigi.Task):
-    bwa = luigi.Parameter()
     log_dir_path = luigi.Parameter()
+    bwa = luigi.Parameter()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -119,7 +126,7 @@ class CreateBWAIndexes(luigi.Task):
         return luigi.LocalTarget(self.__ref_index_paths)
 
     def run(self):
-        print_log('Create BWA indexes.')
+        print_log('Create BWA indexes:\t{}'.format(self.__ref_fa_path))
         sh = ShellOperator(
             log_txt=str(
                 Path(self.log_dir_path).joinpath(
@@ -139,11 +146,6 @@ class CreateBWAIndexes(luigi.Task):
             output_files=self.__ref_index_paths,
             cwd=str(Path(self.__ref_fa_path).parent)
         )
-
-
-@requires(CreateBWAIndexes, CreateFASTAIndex)
-class PrepareReferences(luigi.Task):
-    pass
 
 
 if __name__ == '__main__':

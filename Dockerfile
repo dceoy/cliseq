@@ -47,8 +47,8 @@ RUN set -e \
       && apt-get -y update \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
-        apt-transport-https apt-utils bzip2 ca-certificates curl openjdk-8-jre \
-        libcurl3-gnutls libncurses5 perl pigz python r-base \
+        apt-transport-https apt-utils ca-certificates curl openjdk-8-jre \
+        libcurl3-gnutls libncurses5 pbzip2 perl pigz python r-base \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*

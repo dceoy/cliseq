@@ -1,2 +1,1 @@
-include vcline/template/*
 include vcline/static/*
