@@ -55,8 +55,7 @@ class FetchGenomeFASTA(luigi.Task):
                         )
                     )
                     with open_readable_file(path=p) as fr:
-                        for line in fr:
-                            fw.write(line)
+                        fw.write(fr.read())
         except Exception as e:
             if Path(self.__ref_fa_path).exists():
                 os.remove(self.__ref_fa_path)
@@ -70,35 +69,43 @@ class FetchGenomeFASTA(luigi.Task):
 @requires(FetchGenomeFASTA)
 class CreateFASTAIndex(luigi.Task):
     samtools = luigi.Parameter()
+    log_dir_path = luigi.Parameter()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__ref_fa_path = str(Path(self.input().path).resolve())
         self.__ref_fai_path = self.__ref_fa_path + '.fai'
-        self.sh = ShellOperator(
-            log_txt='samtools_faidx.{}.sh.log.txt'.format(
-                Path(Path(self.__ref_fa_path).name).stem
-            ),
-            quiet=True
-        )
 
     def output(self):
         return luigi.LocalTarget(self.__ref_fai_path)
 
     def run(self):
         print_log('Create a FASTA index.')
-        self.sh.run(
+        sh = ShellOperator(
+            log_txt=str(
+                Path(self.log_dir_path).joinpath(
+                    'samtools_faidx.{}.sh.log.txt'.format(
+                        Path(Path(self.__ref_fa_path).name).stem
+                    )
+                )
+            ),
+            quiet=True
+        )
+        sh.run(
             args=[
                 f'{self.samtools} 2>&1 | grep -e "Version:"',
                 f'{self.samtools} faidx {self.__ref_fa_path}'
             ],
-            input_files=self.__ref_fa_path, output_files=self.__ref_fai_path
+            input_files=self.__ref_fa_path,
+            output_files=self.__ref_fai_path,
+            cwd=str(Path(self.__ref_fa_path).parent)
         )
 
 
 @requires(FetchGenomeFASTA)
 class CreateBWAIndexes(luigi.Task):
     bwa = luigi.Parameter()
+    log_dir_path = luigi.Parameter()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -107,29 +114,34 @@ class CreateBWAIndexes(luigi.Task):
             (self.__ref_fa_path + s)
             for s in ['.pac', '.bwt', '.ann', '.amb', '.sa']
         ]
-        self.sh = ShellOperator(
-            log_txt='bwa_index.{}.sh.log.txt'.format(
-                Path(Path(self.__ref_fa_path).name).stem
-            ),
-            quiet=True
-        )
 
     def output(self):
         return luigi.LocalTarget(self.__ref_index_paths)
 
     def run(self):
         print_log('Create BWA indexes.')
-        self.sh.run(
+        sh = ShellOperator(
+            log_txt=str(
+                Path(self.log_dir_path).joinpath(
+                    'bwa_index.{}.sh.log.txt'.format(
+                        Path(Path(self.__ref_fa_path).name).stem
+                    )
+                )
+            ),
+            quiet=True
+        )
+        sh.run(
             args=[
                 f'{self.bwa} 2>&1 | grep -e "Version:"',
                 f'{self.bwa} index {self.__ref_fa_path}'
             ],
-            input_files=self.__ref_fa_path, output_files=self.__ref_index_paths
+            input_files=self.__ref_fa_path,
+            output_files=self.__ref_index_paths,
+            cwd=str(Path(self.__ref_fa_path).parent)
         )
 
 
-@requires(CreateFASTAIndex)
-@requires(CreateBWAIndexes)
+@requires(CreateBWAIndexes, CreateFASTAIndex)
 class PrepareReferences(luigi.Task):
     pass
 

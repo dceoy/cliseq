@@ -42,7 +42,16 @@ from .util import download_and_merge_files, download_file, print_log, read_yml
 
 def main():
     args = docopt(__doc__, version=__version__)
-    _set_log_config(debug=args['--debug'], info=args['--info'])
+    if args['--debug']:
+        log_level = 'DEBUG'
+    elif args['--info']:
+        log_level = 'INFO'
+    else:
+        log_level = 'WARNING'
+    logging.basicConfig(
+        format='%(asctime)s %(levelname)-8s %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S', level=log_level
+    )
     logger = logging.getLogger(__name__)
     logger.debug('args:{0}{1}'.format(os.linesep, args))
     if args['init']:
@@ -55,21 +64,9 @@ def main():
     elif args['run']:
         run_analytical_pipeline(
             config_yml_path=args['--yml'], ref_dir_path=args['--ref-dir'],
-            work_dir_path=args['<work_dir_path>'], n_cpu=args['--cpus']
+            work_dir_path=args['<work_dir_path>'], n_cpu=args['--cpus'],
+            log_level=log_level
         )
-
-
-def _set_log_config(debug=None, info=None):
-    if debug:
-        lv = logging.DEBUG
-    elif info:
-        lv = logging.INFO
-    else:
-        lv = logging.WARNING
-    logging.basicConfig(
-        format='%(asctime)s %(levelname)-8s %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S', level=lv
-    )
 
 
 def _write_config_yml(path):

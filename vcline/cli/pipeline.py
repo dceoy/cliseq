@@ -13,7 +13,8 @@ from .util import fetch_executable, print_log, read_yml
 
 
 def run_analytical_pipeline(config_yml_path, work_dir_path=None,
-                            ref_dir_path=None, n_cpu=None):
+                            ref_dir_path=None, n_cpu=None,
+                            log_level='WARNING'):
     logger = logging.getLogger(__name__)
     work_dir = Path(work_dir_path or '.').resolve()
     print_log('Run the analytical pipeline:\t{}'.format(work_dir))
@@ -36,17 +37,19 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
             Path(ref_dir_path).resolve()
             if ref_dir_path else work_dir.joinpath('ref')
         ),
+        'log_dir_path': str(work_dir.joinpath('log')),
         'n_cpu': int(n_cpu or cpu_count())
     }
     logger.debug('param_dict:' + os.linesep + pformat(param_dict))
 
+    Path(param_dict['log_dir_path']).mkdir(exist_ok=True)
     luigi.build(
         [
             PrepareReferences(**{
                 k: v for k, v in param_dict.items() if k in [
-                    'ref_fa', 'ref_dir_path', 'samtools', 'bwa'
+                    'ref_fa', 'ref_dir_path', 'log_dir_path', 'samtools', 'bwa'
                 ]
             })
         ],
-        workers=2, local_scheduler=True
+        workers=2, local_scheduler=True, log_level=log_level
     )
