@@ -8,8 +8,7 @@ from pprint import pformat
 
 import luigi
 
-from ..task.ref import CreateBWAIndexes, CreateFASTAIndex
-from ..task.trim import TrimAdapters
+from ..task.align import AlignReads
 from .util import fetch_executable, print_log, read_yml
 
 
@@ -24,15 +23,17 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
     logger.debug('cf:' + os.linesep + pformat(cf))
     common_params = {
         'ref_fa': cf['ref_fa'],
+        'ref_id':
+        '.'.join([Path(Path(Path(p).name).stem).stem for p in cf['ref_fa']]),
         **{
             c: fetch_executable(c) for c in [
                 'samtools', 'bwa', 'fastqc', 'cutadapt', 'trim_galore',
-                'pigz', 'pbzip2'
+                'pigz', 'pbzip2', 'cat', 'curl'
             ]
         },
         **{
             f'{k}_dir_path': str(work_dir.joinpath(k))
-            for k in ['log', 'trim', 'align', 'call']
+            for k in ['log', 'trim', 'align']
         },
         'ref_dir_path': str(
             Path(ref_dir_path).resolve()
@@ -44,19 +45,12 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
     for r in cf['runs']:
         params = {
             'run_id': r['id'], **common_params,
-            **{f'{k}_fq': (r[k].get('fq') or list()) for k in fb},
-            **{f'{k}_sam': r[k].get('sam') for k in fb}
+            'fq_paths': {k: (r[k].get('fq') or list()) for k in fb},
+        #   'sam_paths': {k: r[k].get('sam') for k in fb}
         }
         logger.debug('params:' + os.linesep + pformat(params))
         luigi.build(
-            [
-                CreateBWAIndexes(**params),
-                CreateFASTAIndex(**params),
-                *(
-                    [TrimAdapters(**params)]
-                    if any([params[f'{k}_fq'] for k in fb]) else list()
-                )
-            ],
+            [AlignReads(**params)],
             workers=2, local_scheduler=True, log_level=log_level
         )
 
