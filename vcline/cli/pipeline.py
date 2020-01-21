@@ -25,7 +25,7 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
 
     log_dir = work_dir.joinpath('log')
     ref_dir = Path(ref_dir_path or str(work_dir.joinpath('ref'))).resolve()
-    dir_paths = {
+    dirs = {
         **{
             f'{k}_dir_path': str(work_dir.joinpath(k))
             for k in ['trim', 'align']
@@ -35,26 +35,19 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
     n_cpu_detected = cpu_count()
     n_worker = min(int(max_n_worker or 1), n_cpu_detected)
     common_params = {
-        'refs': cf['refs'],
-        'ref_fa_path': str(
-            ref_dir.joinpath(
-                '.'.join([
-                    Path(Path(Path(p).name).stem).stem for p in cf['refs']
-                ]) + '.fa'
-            )
-        ),
+        'ref_fa': cf['ref_fa'],
         'n_cpu': max(1, floor(int(max_n_cpu or n_cpu_detected) / n_worker)),
         **{
             c: fetch_executable(c) for c in [
-                'samtools', 'bwa', 'fastqc', 'cutadapt', 'trim_galore',
-                'pigz', 'pbzip2', 'cat', 'curl'
+                'samtools', 'bwa', 'fastqc', 'cutadapt', 'trim_galore', 'pigz',
+                'pbzip2', 'cat', 'curl'
             ]
         },
-        **dir_paths
+        **dirs
     }
     logger.debug('common_params:' + os.linesep + pformat(common_params))
 
-    for p in dir_paths.values():
+    for p in dirs.values():
         d = Path(p)
         if not d.is_dir():
             print_log(f'Make a directory:\t{p}')
@@ -68,14 +61,14 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
         },
         output_path=luigi_log_cfg_path
     )
+
     for r in cf['runs']:
         luigi.build(
             [
                 AlignReads(
-                    params={
-                        'raw_fq_paths': [
-                            str(Path(p).resolve()) for p in r[k]['fq']
-                        ],
+                    p={
+                        'raw_fq_paths':
+                        [str(Path(p).resolve()) for p in r[k]['fq']],
                         **common_params
                     }
                 ) for k in ['foreground', 'background'] if r[k].get('fq')
@@ -88,11 +81,11 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
 def _read_config_yml(config_yml_path):
     cf = read_yml(path=str(Path(config_yml_path).resolve()))
     assert isinstance(cf, dict)
-    for k in ['refs', 'runs']:
+    for k in ['ref_fa', 'runs']:
         assert cf.get(k)
         assert isinstance(cf[k], list)
-    assert _has_unique_elements(cf['refs'])
-    for s in cf['refs']:
+    assert _has_unique_elements(cf['ref_fa'])
+    for s in cf['ref_fa']:
         assert isinstance(s, str)
     for r in cf['runs']:
         assert isinstance(r, dict)

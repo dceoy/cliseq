@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 from pathlib import Path
 from urllib.request import urlcleanup, urlopen, urlretrieve
 
@@ -13,6 +14,18 @@ def print_log(message):
     logger = logging.getLogger(__name__)
     logger.debug(message)
     print(f'>>\t{message}', flush=True)
+
+
+def is_url(arg):
+    return arg.startswith(('https://', 'http://'))
+
+
+def parse_ref_id(ref_fa_path):
+    return Path(Path(ref_fa_path).name).stem
+
+
+def parse_fq_id(fq_path):
+    return re.sub(r'[\._]R[12][\._].*\.[^\.]+$', '', Path(fq_path).name)
 
 
 def download_file(url, output_path):
