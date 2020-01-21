@@ -10,30 +10,30 @@ from .base import ShellTask
 
 
 class TrimAdapters(ShellTask):
-    log_dir_path = luigi.Parameter()
-    trim_dir_path = luigi.Parameter()
-    raw_fq_paths = luigi.ListParameter()
-    cutadapt = luigi.Parameter()
-    fastqc = luigi.Parameter()
-    trim_galore = luigi.Parameter()
-    n_cpu = luigi.IntParameter()
+    params = luigi.DictParameter()
     priority = 7
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__fq_id = parse_fq_id(fq_path=self.raw_fq_paths[0])
-        self.__trim_fq_paths = generate_trim_fq_paths(
-            fq_paths=self.raw_fq_paths, trim_dir_path=self.trim_dir_path
+        self.raw_fq_paths = self.params['raw_fq_paths']
+        self.trim_fq_paths = generate_trim_fq_paths(
+            fq_paths=self.params['raw_fq_paths'],
+            trim_dir_path=self.params['trim_dir_path']
         )
 
     def output(self):
-        return luigi.LocalTarget(self.__trim_fq_paths)
+        return luigi.LocalTarget(self.trim_fq_paths)
 
     def run(self):
-        print_log(f'Trim adapters:\t{self.__fq_id}')
+        fq_id = parse_fq_id(fq_path=self.raw_fq_paths[0])
+        cutadapt = self.params['cutadapt']
+        fastqc = self.params['fastqc']
+        trim_galore = self.params['trim_galore']
+        n_cpu = self.params['n_cpu']
+        print_log(f'Trim adapters:\t{fq_id}')
         self.init_bash(
-            run_id=self.__fq_id, run_dir_path=self.trim_dir_path,
-            log_dir_path=self.log_dir_path
+            run_id=fq_id, run_dir_path=self.params['trim_dir_path'],
+            log_dir_path=self.params['log_dir_path']
         )
         fq_args = ' '.join([
             *(['--paired'] if len(self.raw_fq_paths) > 1 else list()),
@@ -41,12 +41,12 @@ class TrimAdapters(ShellTask):
         ])
         self.bash_c(
             args=[
-                f'{self.cutadapt} --version',
-                f'{self.fastqc} --version',
-                f'{self.trim_galore} --version',
-                f'set -e && {self.trim_galore} --cores={self.n_cpu} {fq_args}'
+                f'{cutadapt} --version',
+                f'{fastqc} --version',
+                f'{trim_galore} --version',
+                f'set -e && {trim_galore} --cores={n_cpu} --illumina {fq_args}'
             ],
-            input_files=self.raw_fq_paths, output_files=self.__trim_fq_paths
+            input_files=self.raw_fq_paths, output_files=self.trim_fq_paths
         )
 
 

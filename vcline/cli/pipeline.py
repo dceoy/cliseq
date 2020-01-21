@@ -72,8 +72,12 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
         luigi.build(
             [
                 AlignReads(
-                    raw_fq_paths=[str(Path(p).resolve()) for p in r[k]['fq']],
-                    **common_params
+                    params={
+                        'raw_fq_paths': [
+                            str(Path(p).resolve()) for p in r[k]['fq']
+                        ],
+                        **common_params
+                    }
                 ) for k in ['foreground', 'background'] if r[k].get('fq')
             ],
             workers=n_worker, local_scheduler=True, log_level=log_level,
