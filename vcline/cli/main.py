@@ -6,7 +6,7 @@ Usage:
     vcline init [--debug|--info] [--yml=<path>]
     vcline download [--debug|--info] [--hg19] [<work_dir_path>]
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
-        [--ref-dir=<path>] [<work_dir_path>]
+        [--workers=<int>] [--ref-dir=<path>] [<work_dir_path>]
     vcline -h|--help
     vcline --version
 
@@ -20,6 +20,7 @@ Options:
     --version           Print version and exit
     --debug, --info     Execute a command with debug|info messages
     --cpus=<int>        Limit CPU cores used
+    --workers=<int>     Specify the maximum number of workers [default: 2]
     --yml=<path>        Specify a config YAML path [default: vcline.yml]
     --hg19              Use hg19 instead of hg38
     --ref-dir=<path>    Specify a reference directory path
@@ -33,6 +34,7 @@ import os
 import shutil
 from pathlib import Path
 
+import coloredlogs
 from docopt import docopt
 
 from .. import __version__
@@ -52,8 +54,9 @@ def main():
         format='%(asctime)s %(levelname)-8s %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S', level=log_level
     )
+    coloredlogs.install(level=log_level)
     logger = logging.getLogger(__name__)
-    logger.debug('args:{0}{1}'.format(os.linesep, args))
+    logger.debug(f'args:{os.linesep}{args}')
     if args['init']:
         _write_config_yml(path=args['--yml'])
     elif args['download']:
@@ -64,16 +67,16 @@ def main():
     elif args['run']:
         run_analytical_pipeline(
             config_yml_path=args['--yml'], ref_dir_path=args['--ref-dir'],
-            work_dir_path=args['<work_dir_path>'], n_cpu=args['--cpus'],
-            log_level=log_level
+            work_dir_path=args['<work_dir_path>'], max_n_cpu=args['--cpus'],
+            max_n_worker=args['--workers'], log_level=log_level
         )
 
 
 def _write_config_yml(path):
     if Path(path).is_file():
-        print_log('The file exists:\t{}'.format(path))
+        print_log(f'The file exists:\t{path}')
     else:
-        print_log('Create a config YAML:\t{}'.format(path))
+        print_log(f'Create a config YAML:\t{path}')
         shutil.copyfile(
             str(Path(__file__).parent.joinpath('../static/vcline.yml')),
             Path(path).resolve()
@@ -81,7 +84,7 @@ def _write_config_yml(path):
 
 
 def _download_hg(hg_ver='hg38', work_dir_path=None):
-    print_log('Download genome FASTA:\t{}'.format(hg_ver))
+    print_log(f'Download genome FASTA:\t{hg_ver}')
     urls = read_yml(
         path=str(Path(__file__).parent.joinpath('../static/urls.yml'))
     )['ref_fa_gz'][hg_ver]

@@ -6,19 +6,18 @@ from pathlib import Path
 from urllib.request import urlcleanup, urlopen, urlretrieve
 
 import yaml
+from jinja2 import Environment, FileSystemLoader
 
 
 def print_log(message):
     logger = logging.getLogger(__name__)
-    logger.info(message)
-    print('>>\t{}'.format(message), flush=True)
+    logger.debug(message)
+    print(f'>>\t{message}', flush=True)
 
 
 def download_file(url, output_path):
     try:
-        print_log(
-            'Retrieve:{0}{1} => {2}'.format(os.linesep, url, output_path)
-        )
+        print_log(f'Retrieve:{os.linesep}{url} => {output_path}')
         urlretrieve(url, filename=output_path)
         urlcleanup()
     except Exception as e:
@@ -31,9 +30,7 @@ def download_and_merge_files(urls, output_path, mode='wb'):
     try:
         with open(output_path, mode) as f:
             for u in urls:
-                print_log(
-                    'Write:{0}{1} => {2}'.format(os.linesep, u, output_path)
-                )
+                print_log(f'Write:{os.linesep}{u}{output_path}')
                 f.write(urlopen(u).read())
     except Exception as e:
         if Path(output_path).exists():
@@ -58,3 +55,16 @@ def read_yml(path):
     with open(path, 'r') as f:
         d = yaml.load(f, Loader=yaml.FullLoader)
     return d
+
+
+def render_template(template, data, output_path):
+    print_log(f'Render a file:\t{output_path}')
+    with open(output_path, 'w') as f:
+        f.write(
+            Environment(
+                loader=FileSystemLoader(
+                    str(Path(__file__).parent.joinpath('../template')),
+                    encoding='utf8'
+                )
+            ).get_template(template).render(data) + os.linesep
+        )
