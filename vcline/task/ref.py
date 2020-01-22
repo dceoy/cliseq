@@ -11,7 +11,7 @@ from .base import ShellTask
 
 class FetchGenomeFASTA(ShellTask):
     ref_fa_list = luigi.ListParameter()
-    p = luigi.DictParameter()
+    cf = luigi.DictParameter()
     priority = 10
 
     def output(self):
@@ -20,10 +20,10 @@ class FetchGenomeFASTA(ShellTask):
                 len(self.ref_fa_list) == 1
                 and (not self.ref_fa_list[0]['is_url'])
                 and (str(Path(self.ref_fa_list[0]['src']).parent)
-                     == self.p['ref_dir_path'])
+                     == self.cf['ref_dir_path'])
                 and self.ref_fa_list[0]['src'].endswith(('.fa', '.fasta'))
             ) else str(
-                Path(self.p['ref_dir_path']).joinpath(
+                Path(self.cf['ref_dir_path']).joinpath(
                     '.'.join([
                         Path(Path(Path(d['src']).name).stem).stem
                         for d in self.ref_fa_list
@@ -36,11 +36,11 @@ class FetchGenomeFASTA(ShellTask):
         fa_path = self.output().path
         run_id = parse_ref_id(ref_fa_path=fa_path)
         print_log(f'Create a reference FASTA:\t{run_id}')
-        cat = self.p['cat']
-        curl = self.p['curl']
-        pigz = self.p['pigz']
-        pbzip2 = self.p['pbzip2']
-        n_cpu = self.p['n_cpu_per_worker']
+        cat = self.cf['cat']
+        curl = self.cf['curl']
+        pigz = self.cf['pigz']
+        pbzip2 = self.cf['pbzip2']
+        n_cpu = self.cf['n_cpu_per_worker']
         args = [
             f'{cat} --version',
             f'{curl} --version',
@@ -68,14 +68,14 @@ class FetchGenomeFASTA(ShellTask):
             args.append(f'set -eo pipefail && {a} {r} {fa_path}')
         self.bash_c(
             args=args, input_files=input_files,
-            output_files=fa_path, cwd=self.p['ref_dir_path'],
-            run_id=run_id, log_dir_path=self.p['log_dir_path']
+            output_files=fa_path, cwd=self.cf['ref_dir_path'],
+            run_id=run_id, log_dir_path=self.cf['log_dir_path']
         )
 
 
 @requires(FetchGenomeFASTA)
 class CreateFASTAIndex(ShellTask):
-    p = luigi.DictParameter()
+    cf = luigi.DictParameter()
     priority = 8
 
     def output(self):
@@ -85,21 +85,21 @@ class CreateFASTAIndex(ShellTask):
         fa_path = self.input().path
         run_id = parse_ref_id(ref_fa_path=fa_path)
         print_log(f'Create a FASTA index:\t{run_id}')
-        samtools = self.p['samtools']
+        samtools = self.cf['samtools']
         self.bash_c(
             args=[
                 f'{samtools} 2>&1 | grep -e "Version:"',
                 f'set -e && {samtools} faidx {fa_path}'
             ],
             input_files=fa_path, output_files=self.output().path,
-            cwd=self.p['ref_dir_path'], run_id=run_id,
-            log_dir_path=self.p['log_dir_path']
+            cwd=self.cf['ref_dir_path'], run_id=run_id,
+            log_dir_path=self.cf['log_dir_path']
         )
 
 
 @requires(FetchGenomeFASTA)
 class CreateBWAIndexes(ShellTask):
-    p = luigi.DictParameter()
+    cf = luigi.DictParameter()
     priority = 9
 
     def output(self):
@@ -112,7 +112,7 @@ class CreateBWAIndexes(ShellTask):
         fa_path = self.input().path
         run_id = parse_ref_id(ref_fa_path=fa_path)
         print_log(f'Create BWA indexes:\t{run_id}')
-        bwa = self.p['bwa']
+        bwa = self.cf['bwa']
         self.bash_c(
             args=[
                 f'{bwa} 2>&1 | grep -e "Version:"',
@@ -120,8 +120,8 @@ class CreateBWAIndexes(ShellTask):
             ],
             input_files=fa_path,
             output_files=[o.path for o in self.output()],
-            cwd=self.p['ref_dir_path'], run_id=run_id,
-            log_dir_path=self.p['log_dir_path']
+            cwd=self.cf['ref_dir_path'], run_id=run_id,
+            log_dir_path=self.cf['log_dir_path']
         )
 
 

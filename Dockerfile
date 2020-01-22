@@ -31,7 +31,8 @@ RUN set -e \
 
 RUN set -e \
       && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
-        cutadapt /tmp/vcline
+        cutadapt /tmp/vcline \
+        https://github.com/dceoy/shoper/archive/master.tar.gz
 
 FROM ubuntu:latest
 

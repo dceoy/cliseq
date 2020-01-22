@@ -10,14 +10,14 @@ from .base import ShellTask
 
 class TrimAdapters(ShellTask):
     fq_paths = luigi.ListParameter()
-    p = luigi.DictParameter()
+    cf = luigi.DictParameter()
     priority = 7
 
     def output(self):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.p['trim_dir_path']).joinpath(
+                    Path(self.cf['trim_dir_path']).joinpath(
                         (
                             Path(Path(Path(p).name).stem).stem
                             if p.endswith(('.fastq.gz', '.fq.gz'))
@@ -31,10 +31,10 @@ class TrimAdapters(ShellTask):
     def run(self):
         run_id = parse_fq_id(fq_path=self.fq_paths[0])
         print_log(f'Trim adapters:\t{run_id}')
-        cutadapt = self.p['cutadapt']
-        fastqc = self.p['fastqc']
-        trim_galore = self.p['trim_galore']
-        n_cpu = self.p['n_cpu_per_worker']
+        cutadapt = self.cf['cutadapt']
+        fastqc = self.cf['fastqc']
+        trim_galore = self.cf['trim_galore']
+        n_cpu = self.cf['n_cpu_per_worker']
         self.bash_c(
             args=[
                 f'{cutadapt} --version',
@@ -48,8 +48,8 @@ class TrimAdapters(ShellTask):
             ],
             input_files=self.fq_paths,
             output_files=[o.path for o in self.output()],
-            cwd=self.p['trim_dir_path'], run_id=run_id,
-            log_dir_path=self.p['log_dir_path']
+            cwd=self.cf['trim_dir_path'], run_id=run_id,
+            log_dir_path=self.cf['log_dir_path']
         )
 
 
