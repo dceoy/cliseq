@@ -5,7 +5,7 @@ from pathlib import Path
 import luigi
 from luigi.util import requires
 
-from ..cli.util import parse_ref_id, print_log
+from ..cli.util import print_log
 from .base import ShellTask
 
 
@@ -25,7 +25,7 @@ class FetchGenomeFASTA(ShellTask):
             ) else str(
                 Path(self.cf['ref_dir_path']).joinpath(
                     '.'.join([
-                        Path(Path(Path(d['src']).name).stem).stem
+                        Path(Path(d['src']).stem).stem
                         for d in self.ref_fa_list
                     ]) + '.fa'
                 )
@@ -34,13 +34,17 @@ class FetchGenomeFASTA(ShellTask):
 
     def run(self):
         fa_path = self.output().path
-        run_id = parse_ref_id(ref_fa_path=fa_path)
+        run_id = Path(fa_path).stem
         print_log(f'Create a reference FASTA:\t{run_id}')
         cat = self.cf['cat']
         curl = self.cf['curl']
         pigz = self.cf['pigz']
         pbzip2 = self.cf['pbzip2']
         n_cpu = self.cf['n_cpu_per_worker']
+        self.setup_bash(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            work_dir_path=self.cf['ref_dir_path']
+        )
         args = [
             f'{cat} --version',
             f'{curl} --version',
@@ -66,11 +70,7 @@ class FetchGenomeFASTA(ShellTask):
                 a = f'{curl} -LS {s}'
             r = '>' if i == 0 else '>>'
             args.append(f'set -eo pipefail && {a} {r} {fa_path}')
-        self.bash_c(
-            args=args, input_files=input_files,
-            output_files=fa_path, cwd=self.cf['ref_dir_path'],
-            run_id=run_id, log_dir_path=self.cf['log_dir_path']
-        )
+        self.run_bash(args=args, input_files=input_files, output_files=fa_path)
 
 
 @requires(FetchGenomeFASTA)
@@ -83,17 +83,19 @@ class CreateFASTAIndex(ShellTask):
 
     def run(self):
         fa_path = self.input().path
-        run_id = parse_ref_id(ref_fa_path=fa_path)
+        run_id = Path(fa_path).stem
         print_log(f'Create a FASTA index:\t{run_id}')
         samtools = self.cf['samtools']
-        self.bash_c(
+        self.setup_bash(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            work_dir_path=self.cf['ref_dir_path']
+        )
+        self.run_bash(
             args=[
                 f'{samtools} 2>&1 | grep -e "Version:"',
                 f'set -e && {samtools} faidx {fa_path}'
             ],
-            input_files=fa_path, output_files=self.output().path,
-            cwd=self.cf['ref_dir_path'], run_id=run_id,
-            log_dir_path=self.cf['log_dir_path']
+            input_files=fa_path, output_files=self.output().path
         )
 
 
@@ -110,18 +112,20 @@ class CreateBWAIndexes(ShellTask):
 
     def run(self):
         fa_path = self.input().path
-        run_id = parse_ref_id(ref_fa_path=fa_path)
+        run_id = Path(fa_path).stem
         print_log(f'Create BWA indexes:\t{run_id}')
         bwa = self.cf['bwa']
-        self.bash_c(
+        self.setup_bash(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            work_dir_path=self.cf['ref_dir_path']
+        )
+        self.run_bash(
             args=[
                 f'{bwa} 2>&1 | grep -e "Version:"',
                 f'set -e && {bwa} index {fa_path}'
             ],
             input_files=fa_path,
-            output_files=[o.path for o in self.output()],
-            cwd=self.cf['ref_dir_path'], run_id=run_id,
-            log_dir_path=self.cf['log_dir_path']
+            output_files=[o.path for o in self.output()]
         )
 
 

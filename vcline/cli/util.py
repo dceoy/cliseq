@@ -19,10 +19,6 @@ def is_url(arg):
     return arg.startswith(('https://', 'http://'))
 
 
-def parse_ref_id(ref_fa_path):
-    return Path(Path(ref_fa_path).name).stem
-
-
 def parse_fq_id(fq_path):
     return re.sub(r'[\._]R[12][\._].+$', '', Path(fq_path).name)
 

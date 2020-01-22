@@ -19,7 +19,7 @@ class TrimAdapters(ShellTask):
                 str(
                     Path(self.cf['trim_dir_path']).joinpath(
                         (
-                            Path(Path(Path(p).name).stem).stem
+                            Path(Path(p).stem).stem
                             if p.endswith(('.fastq.gz', '.fq.gz'))
                             else Path(p).name
                         ) + f'_val_{i + 1}.fq.gz'
@@ -35,7 +35,11 @@ class TrimAdapters(ShellTask):
         fastqc = self.cf['fastqc']
         trim_galore = self.cf['trim_galore']
         n_cpu = self.cf['n_cpu_per_worker']
-        self.bash_c(
+        self.setup_bash(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            work_dir_path=self.cf['trim_dir_path']
+        )
+        self.run_bash(
             args=[
                 f'{cutadapt} --version',
                 f'{fastqc} --version',
@@ -47,9 +51,7 @@ class TrimAdapters(ShellTask):
                 )
             ],
             input_files=self.fq_paths,
-            output_files=[o.path for o in self.output()],
-            cwd=self.cf['trim_dir_path'], run_id=run_id,
-            log_dir_path=self.cf['log_dir_path']
+            output_files=[o.path for o in self.output()]
         )
 
 

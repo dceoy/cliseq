@@ -3,11 +3,10 @@
 import luigi
 
 from .align import ApplyBQSR
-from .base import ShellTask
 from .ref import CreateFASTAIndex, FetchGenomeFASTA
 
 
-class CallVariants(ShellTask):
+class CallVariants(luigi.WrapperTask):
     ref_fa_list = luigi.ListParameter()
     fq_dict = luigi.DictParameter()
     cf = luigi.DictParameter()

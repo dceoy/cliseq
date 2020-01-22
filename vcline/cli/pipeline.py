@@ -35,18 +35,27 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
         str(Path(ref_dir_path or str(work_dir.joinpath('ref'))).resolve()),
         'log_dir_path': str(log_dir)
     }
+
+    total_n_cpu = cpu_count()
+    total_memory_mb = virtual_memory().total / 1024 / 1024
     common_config = {
+        'memory_mb_per_worker': int(total_memory_mb / n_worker),
+        'n_cpu_per_worker':
+        max(1, floor(int(max_n_cpu or total_n_cpu) / n_worker)),
+        'gatk_java_options':
+        '-Dsamjdk.compression_level={0:d} -Xms{1:d}m'.format(
+            5, int(total_memory_mb / n_worker / 4)
+        ),
+        'samtools_memory_per_thread': '{:d}M'.format(
+            int(total_memory_mb / total_n_cpu / 20)
+        ),
         **{
             c: fetch_executable(c) for c in [
                 'bwa', 'cat', 'curl', 'cutadapt', 'fastqc', 'gatk', 'pbzip2',
                 'pigz', 'samtools', 'trim_galore',
             ]
         },
-        **dirs,
-        'n_cpu_per_worker':
-        max(1, floor(int(max_n_cpu or cpu_count()) / n_worker)),
-        'memory_mb_per_worker':
-        (virtual_memory().total / 1024 / 1024 / n_worker)
+        **dirs
     }
     logger.debug('common_config:' + os.linesep + pformat(common_config))
     ref_fa_list = [{'src': u, 'is_url': is_url(u)} for u in config['ref_fa']]

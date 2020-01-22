@@ -14,8 +14,7 @@ def download_hg(hg_ver='hg38', work_dir_path=None):
     )['ref_fa_gz'][hg_ver]
     assert all([u.endswith('.gz') for u in urls]), 'invalid gzip URLs'
     output_path = Path(work_dir_path or '.').joinpath(
-        '.'.join([Path(Path(Path(u).name).stem).stem for u in urls])
-        + '.fa.gz'
+        '.'.join([Path(Path(u).stem).stem for u in urls]) + '.fa.gz'
     )
     if len(urls) == 1:
         _download_file(url=urls[0], output_path=output_path)
