@@ -5,10 +5,10 @@ from pathlib import Path
 import luigi
 from luigi.util import requires
 
-from ..cli.util import print_log
+from ..cli.util import parse_fq_id, parse_ref_id, print_log
 from .base import ShellTask
 from .ref import CreateBWAIndexes, CreateFASTAIndex, FetchGenomeFASTA
-from .trim import TrimAdapters, parse_fq_id
+from .trim import TrimAdapters
 
 
 @requires(FetchGenomeFASTA, CreateBWAIndexes, CreateFASTAIndex, TrimAdapters)
@@ -23,7 +23,7 @@ class AlignReads(ShellTask):
                     Path(self.p['align_dir_path']).joinpath(
                         '{0}.trimmed.{1}.cram{2}'.format(
                             parse_fq_id(fq_path=self.input()[3][0].path),
-                            Path(Path(self.input()[0].path).name).stem, s
+                            parse_ref_id(ref_fa_path=self.input()[0].path), s
                         )
                     )
                 )
@@ -37,12 +37,14 @@ class AlignReads(ShellTask):
         bwa = self.p['bwa']
         samtools = self.p['samtools']
         n_cpu = self.p['n_cpu_per_worker']
+        memory_mb = int(self.p['memory_mb_per_worker'] / n_cpu / 5)
         r = '\'@RG\\tID:None\\tSM:None\\tPL:ILLUMINA\\tLB:None\''
         fa_path = self.input()[0].path
         index_paths = [o.path for o in [*self.input()[1], self.input()[2]]]
         fq_paths = [i.path for i in self.input()[3]]
         self.bash_c(
             args=[
+                'set -eo pipefail && '
                 f'{bwa} 2>&1 | grep -e "Version:"',
                 f'{samtools} 2>&1 | grep -e "Version:"',
                 (
@@ -50,8 +52,8 @@ class AlignReads(ShellTask):
                     + f'{bwa} mem -t {n_cpu} -R {r} {fa_path} '
                     + ' '.join(fq_paths)
                     + f' | {samtools} view -@ {n_cpu} -T {fa_path} -CS - -o -'
-                    + f' | {samtools} sort -@ {n_cpu} -T {cram_path}.tmp'
-                    + f' -o {cram_path} -'
+                    + f' | {samtools} sort -@ {n_cpu} -m {memory_mb}M'
+                    + f' -T {cram_path}.tmp -o {cram_path} -'
                 ),
                 f'set -e && {samtools} index -@ {n_cpu} {cram_path}'
             ],
@@ -81,6 +83,7 @@ class MarkDuplicates(ShellTask):
         gatk = self.p['gatk']
         samtools = self.p['samtools']
         n_cpu = self.p['n_cpu_per_worker']
+        memory_mb = int(self.p['memory_mb_per_worker'] / n_cpu / 5)
         fa_path = self.input()[0].path
         fai_path = self.input()[1].path
         output_cram_path = self.output()[0].path
@@ -97,7 +100,8 @@ class MarkDuplicates(ShellTask):
                     + ' OPTICAL_DUPLICATE_PIXEL_DISTANCE=2500'
                     + ' ASSUME_SORTED=true'
                     + ' CREATE_MD5_FILE=true'
-                    + f' | {samtools} sort -@ {n_cpu} -T {prefix}.tmp -'
+                    + f' | {samtools} sort -@ {n_cpu} -m {memory_mb}M'
+                    + f' -T {prefix}.tmp -'
                     + f' | {gatk} SetNmMdAndUqTags'
                     + ' INPUT=/dev/stdin'
                     + ' OUTPUT=/dev/stdout'

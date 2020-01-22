@@ -19,7 +19,8 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        'coloredlogs', 'docopt', 'jinja2', 'luigi', 'pyyaml', 'shoper'
+        'coloredlogs', 'docopt', 'jinja2', 'luigi', 'psutil', 'pyyaml',
+        'shoper'
     ],
     entry_points={
         'console_scripts': ['vcline=vcline.cli.main:main']

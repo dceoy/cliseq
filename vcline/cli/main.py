@@ -38,8 +38,9 @@ import coloredlogs
 from docopt import docopt
 
 from .. import __version__
+from .downloader import download_hg
 from .pipeline import run_analytical_pipeline
-from .util import download_and_merge_files, download_file, print_log, read_yml
+from .util import print_log
 
 
 def main():
@@ -60,7 +61,7 @@ def main():
     if args['init']:
         _write_config_yml(path=args['--yml'])
     elif args['download']:
-        _download_hg(
+        download_hg(
             hg_ver=('hg19' if args['--hg19'] else 'hg38'),
             work_dir_path=args['<work_dir_path>']
         )
@@ -81,19 +82,3 @@ def _write_config_yml(path):
             str(Path(__file__).parent.joinpath('../static/vcline.yml')),
             Path(path).resolve()
         )
-
-
-def _download_hg(hg_ver='hg38', work_dir_path=None):
-    print_log(f'Download genome FASTA:\t{hg_ver}')
-    urls = read_yml(
-        path=str(Path(__file__).parent.joinpath('../static/urls.yml'))
-    )['ref_fa_gz'][hg_ver]
-    assert all([u.endswith('.gz') for u in urls]), 'invalid gzip URLs'
-    output_path = Path(work_dir_path or '.').joinpath(
-        '.'.join([Path(Path(Path(u).name).stem).stem for u in urls])
-        + '.fa.gz'
-    )
-    if len(urls) == 1:
-        download_file(url=urls[0], output_path=output_path)
-    else:
-        download_and_merge_files(urls=urls, output_path=output_path)

@@ -4,7 +4,6 @@ import logging
 import os
 import re
 from pathlib import Path
-from urllib.request import urlcleanup, urlopen, urlretrieve
 
 import yaml
 from jinja2 import Environment, FileSystemLoader
@@ -26,29 +25,6 @@ def parse_ref_id(ref_fa_path):
 
 def parse_fq_id(fq_path):
     return re.sub(r'[\._]R[12][\._].+$', '', Path(fq_path).name)
-
-
-def download_file(url, output_path):
-    try:
-        print_log(f'Retrieve:{os.linesep}{url} => {output_path}')
-        urlretrieve(url, filename=output_path)
-        urlcleanup()
-    except Exception as e:
-        if Path(output_path).exists():
-            os.remove(output_path)
-        raise e
-
-
-def download_and_merge_files(urls, output_path, mode='wb'):
-    try:
-        with open(output_path, mode) as f:
-            for u in urls:
-                print_log(f'Write:{os.linesep}{u}{output_path}')
-                f.write(urlopen(u).read())
-    except Exception as e:
-        if Path(output_path).exists():
-            os.remove(output_path)
-        raise e
 
 
 def fetch_executable(cmd):

@@ -50,19 +50,22 @@ class FetchGenomeFASTA(ShellTask):
         input_files = list()
         for i, d in enumerate(self.ref_fa_list):
             s = d['src']
-            if d['is_url']:
-                a0 = f'{curl} -LS {s}'
-            else:
-                a0 = f'{cat} {s}'
+            if not d['is_url']:
                 input_files.append(s)
-            if s.endswith('.gz'):
-                a1 = f' | {pigz} -p {n_cpu} -dc -'
+                if s.endswith('.gz'):
+                    a = f'{cat} {s} | {pigz} -p {n_cpu} -dc -'
+                elif s.endswith('.bz2'):
+                    a = f'{cat} {s} | {pbzip2} -p# {n_cpu} -dc -'
+                else:
+                    a = '{cat} {s}'
+            elif s.endswith('.gz'):
+                a = f'{curl} -LS {s} | {pigz} -p {n_cpu} -dc -'
             elif s.endswith('.bz2'):
-                a1 = f' | {pbzip2} -p# {n_cpu} -dc -'
+                a = f'{curl} -LS {s} | {pbzip2} -p# {n_cpu} -dc -'
             else:
-                a1 = ''
+                a = f'{curl} -LS {s}'
             r = '>' if i == 0 else '>>'
-            args.append(f'set -eo pipefail && {a0}{a1} {r} {fa_path}')
+            args.append(f'set -eo pipefail && {a} {r} {fa_path}')
         self.bash_c(
             args=args, input_files=input_files,
             output_files=fa_path, cwd=self.p['ref_dir_path'],
