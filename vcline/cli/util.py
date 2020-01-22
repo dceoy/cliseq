@@ -25,7 +25,7 @@ def parse_ref_id(ref_fa_path):
 
 
 def parse_fq_id(fq_path):
-    return re.sub(r'[\._]R[12][\._].*\.[^\.]+$', '', Path(fq_path).name)
+    return re.sub(r'[\._]R[12][\._].+$', '', Path(fq_path).name)
 
 
 def download_file(url, output_path):

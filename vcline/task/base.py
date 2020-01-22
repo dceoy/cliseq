@@ -11,9 +11,7 @@ from shoper.shelloperator import ShellOperator
 class BaseTask(luigi.Task):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        coloredlogs.install(
-            level=logging.getLevelName(logging.getLogger(__name__))
-        )
+        coloredlogs.install(level=logging.getLevelName(logging.root.level))
 
 
 class ShellTask(BaseTask):

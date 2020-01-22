@@ -10,7 +10,8 @@ from pprint import pformat
 import luigi
 
 from ..task.align import AlignReads
-from .util import fetch_executable, print_log, read_yml, render_template
+from .util import (fetch_executable, is_url, print_log, read_yml,
+                   render_template)
 
 
 def run_analytical_pipeline(config_yml_path, work_dir_path=None,
@@ -24,26 +25,27 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
     logger.debug('cf:' + os.linesep + pformat(cf))
 
     log_dir = work_dir.joinpath('log')
-    ref_dir = Path(ref_dir_path or str(work_dir.joinpath('ref'))).resolve()
     dirs = {
         **{
             f'{k}_dir_path': str(work_dir.joinpath(k))
             for k in ['trim', 'align']
         },
-        'log_dir_path': str(log_dir), 'ref_dir_path': str(ref_dir)
+        'ref_dir_path':
+        str(Path(ref_dir_path or str(work_dir.joinpath('ref'))).resolve()),
+        'log_dir_path': str(log_dir)
     }
-    n_cpu_detected = cpu_count()
-    n_worker = min(int(max_n_worker or 1), n_cpu_detected)
+    n_worker = max(1, int(max_n_worker or 1))
+    n_cpu_per_worker = max(1, floor(int(max_n_cpu or cpu_count()) / n_worker))
+    ref_fa_list = [{'src': u, 'is_url': is_url(u)} for u in cf['ref_fa']]
     common_params = {
-        'ref_fa': cf['ref_fa'],
-        'n_cpu': max(1, floor(int(max_n_cpu or n_cpu_detected) / n_worker)),
         **{
             c: fetch_executable(c) for c in [
                 'samtools', 'bwa', 'fastqc', 'cutadapt', 'trim_galore', 'pigz',
                 'pbzip2', 'cat', 'curl'
             ]
         },
-        **dirs
+        **dirs,
+        'n_cpu_per_worker': n_cpu_per_worker
     }
     logger.debug('common_params:' + os.linesep + pformat(common_params))
 
@@ -66,11 +68,8 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
         luigi.build(
             [
                 AlignReads(
-                    p={
-                        'raw_fq_paths':
-                        [str(Path(p).resolve()) for p in r[k]['fq']],
-                        **common_params
-                    }
+                    fq_paths=[str(Path(p).resolve()) for p in r[k]['fq']],
+                    ref_fa_list=ref_fa_list, p=common_params
                 ) for k in ['foreground', 'background'] if r[k].get('fq')
             ],
             workers=n_worker, local_scheduler=True, log_level=log_level,
