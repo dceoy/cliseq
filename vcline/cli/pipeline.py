@@ -9,7 +9,7 @@ from pprint import pformat
 
 import luigi
 
-from ..task.align import AlignReads
+from ..task.align import MarkDuplicates
 from .util import (fetch_executable, is_url, print_log, read_yml,
                    render_template)
 
@@ -67,7 +67,7 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
     for r in cf['runs']:
         luigi.build(
             [
-                AlignReads(
+                MarkDuplicates(
                     fq_paths=[str(Path(p).resolve()) for p in r[k]['fq']],
                     ref_fa_list=ref_fa_list, p=common_params
                 ) for k in ['foreground', 'background'] if r[k].get('fq')
