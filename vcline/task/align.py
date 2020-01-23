@@ -136,7 +136,7 @@ class MarkDuplicates(ShellTask):
                 (
                     'set -eo pipefail && '
                     + f'{gatk}{gatk_opts} SortSam'
-                    + f'--INPUT {tmp_bam_path}'
+                    + f' --INPUT {tmp_bam_path}'
                     + ' --OUTPUT /dev/stdout'
                     + ' --SORT_ORDER coordinate'
                     + f' | {gatk}{gatk_opts} SetNmMdAndUqTags'

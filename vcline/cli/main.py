@@ -4,7 +4,6 @@ Variant Calling Pipeline for Clinical Sequencing
 
 Usage:
     vcline init [--debug|--info] [--yml=<path>]
-    vcline download [--debug|--info] [--hg19] [<work_dir_path>]
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
         [--workers=<int>] [--ref-dir=<path>] [<work_dir_path>]
     vcline -h|--help
@@ -12,7 +11,6 @@ Usage:
 
 Commands:
     init                Create a config YAML template
-    download            Download hg38 reference FASTA
     run                 Run the analytical pipeline
 
 Options:
@@ -22,7 +20,6 @@ Options:
     --cpus=<int>        Limit CPU cores used
     --workers=<int>     Specify the maximum number of workers [default: 2]
     --yml=<path>        Specify a config YAML path [default: vcline.yml]
-    --hg19              Use hg19 instead of hg38
     --ref-dir=<path>    Specify a reference directory path
 
 Args:
@@ -38,7 +35,6 @@ import coloredlogs
 from docopt import docopt
 
 from .. import __version__
-from .downloader import download_hg
 from .pipeline import run_analytical_pipeline
 from .util import print_log
 
@@ -60,11 +56,6 @@ def main():
     logger.debug(f'args:{os.linesep}{args}')
     if args['init']:
         _write_config_yml(path=args['--yml'])
-    elif args['download']:
-        download_hg(
-            hg_ver=('hg19' if args['--hg19'] else 'hg38'),
-            work_dir_path=args['<work_dir_path>']
-        )
     elif args['run']:
         run_analytical_pipeline(
             config_yml_path=args['--yml'], ref_dir_path=args['--ref-dir'],

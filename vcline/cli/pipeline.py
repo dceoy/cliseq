@@ -58,7 +58,9 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
         **dirs
     }
     logger.debug('common_config:' + os.linesep + pformat(common_config))
-    ref_fa_list = [{'src': u, 'is_url': is_url(u)} for u in config['ref_fa']]
+    ref_fa_list = [
+        {'src': u, 'is_url': is_url(u)} for u in config['references']['ref_fa']
+    ]
     logger.debug('ref_fa_list:' + os.linesep + pformat(ref_fa_list))
     luigi_log_cfg_path = str(log_dir.joinpath('luigi.log.cfg'))
     luigi_log_txt_path = str(log_dir.joinpath('luigi.log.txt'))
@@ -93,12 +95,16 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
 def _read_config_yml(config_yml_path):
     config = read_yml(path=str(Path(config_yml_path).resolve()))
     assert isinstance(config, dict)
-    for k in ['ref_fa', 'runs']:
+    for k in ['references', 'runs']:
         assert config.get(k)
-        assert isinstance(config[k], list)
-    assert _has_unique_elements(config['ref_fa'])
-    for s in config['ref_fa']:
-        assert isinstance(s, str)
+    assert isinstance(config['references'], dict)
+    for k in ['ref_fa', 'dbsnp_vcf', 'known_indel_vcf']:
+        v = config['references'].get(k)
+        assert isinstance(v, list)
+        assert _has_unique_elements(v)
+        for s in v:
+            assert isinstance(s, str)
+    assert isinstance(config['runs'], list)
     for r in config['runs']:
         assert isinstance(r, dict)
         assert set(r.keys()).intersection({'id', 'foreground', 'background'})
