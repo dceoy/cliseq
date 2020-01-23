@@ -15,12 +15,13 @@ def print_log(message):
     print(f'>>\t{message}', flush=True)
 
 
-def is_url(arg):
-    return arg.startswith(('https://', 'http://'))
-
-
 def parse_fq_id(fq_path):
-    return re.sub(r'[\._]R[12][\._].+$', '', Path(fq_path).name)
+    return (
+        re.sub(
+            r'([\._]R[12][\._]|\.fq\.|\.fastq\.).+$', '',
+            Path(fq_path).name
+        ) or Path(Path(fq_path).stem).stem
+    )
 
 
 def fetch_executable(cmd):

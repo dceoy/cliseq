@@ -9,9 +9,8 @@ from pprint import pformat
 import luigi
 from psutil import cpu_count, virtual_memory
 
-from ..task.call import CallVariants
-from .util import (fetch_executable, is_url, print_log, read_yml,
-                   render_template)
+from ..task.call import PrepareCRAMs
+from .util import fetch_executable, print_log, read_yml, render_template
 
 
 def run_analytical_pipeline(config_yml_path, work_dir_path=None,
@@ -44,24 +43,25 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
         max(1, floor(int(max_n_cpu or total_n_cpu) / n_worker)),
         'gatk_java_options':
         '-Dsamjdk.compression_level={0:d} -Xms{1:d}m'.format(
-            5, int(total_memory_mb / n_worker / 4)
+            5, int(total_memory_mb / n_worker / 2)
         ),
         'samtools_memory_per_thread': '{:d}M'.format(
             int(total_memory_mb / total_n_cpu / 20)
         ),
         **{
             c: fetch_executable(c) for c in [
-                'bwa', 'cat', 'curl', 'cutadapt', 'fastqc', 'gatk', 'pbzip2',
-                'pigz', 'samtools', 'trim_galore',
+                'bgzip', 'bcftools', 'bwa', 'cat', 'cutadapt', 'fastqc',
+                'gatk', 'pbzip2', 'pigz', 'samtools', 'tabix', 'trim_galore'
             ]
         },
         **dirs
     }
     logger.debug('common_config:' + os.linesep + pformat(common_config))
-    ref_fa_list = [
-        {'src': u, 'is_url': is_url(u)} for u in config['references']['ref_fa']
-    ]
-    logger.debug('ref_fa_list:' + os.linesep + pformat(ref_fa_list))
+    ref_dict = {
+        f'{k}_paths': list(_resolve_input_file_paths(v))
+        for k, v in config['references'].items()
+    }
+    logger.debug('ref_dict:' + os.linesep + pformat(ref_dict))
     luigi_log_cfg_path = str(log_dir.joinpath('luigi.log.cfg'))
     luigi_log_txt_path = str(log_dir.joinpath('luigi.log.txt'))
 
@@ -70,26 +70,30 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
         if not d.is_dir():
             print_log(f'Make a directory:\t{p}')
             d.mkdir()
-    render_template(
-        template='{}.j2'.format(Path(luigi_log_cfg_path).name),
-        data={'level': log_level, 'filename': luigi_log_txt_path},
-        output_path=luigi_log_cfg_path
-    )
+    if not Path(luigi_log_cfg_path).exists():
+        render_template(
+            template='{}.j2'.format(Path(luigi_log_cfg_path).name),
+            data={'level': log_level, 'filename': luigi_log_txt_path},
+            output_path=luigi_log_cfg_path
+        )
     for r in config['runs']:
         fq_dict = {
-            k: [str(Path(p).resolve()) for p in r[k]['fq']]
+            k: list(_resolve_input_file_paths(paths=r[k]['fq']))
             for k in ['foreground', 'background'] if r[k].get('fq')
         }
         logger.debug('fq_dict:' + os.linesep + pformat(fq_dict))
         luigi.build(
-            [
-                CallVariants(
-                    fq_dict=fq_dict, ref_fa_list=ref_fa_list, cf=common_config
-                )
-            ],
+            [PrepareCRAMs(fq_dict=fq_dict, cf=common_config, **ref_dict)],
             workers=n_worker, local_scheduler=True, log_level=log_level,
             logging_conf_file=luigi_log_cfg_path
         )
+
+
+def _resolve_input_file_paths(paths):
+    for s in paths:
+        p = Path(s).resolve()
+        assert p.is_file(), f'file not found: {p}'
+        yield str(p)
 
 
 def _read_config_yml(config_yml_path):
@@ -98,7 +102,7 @@ def _read_config_yml(config_yml_path):
     for k in ['references', 'runs']:
         assert config.get(k)
     assert isinstance(config['references'], dict)
-    for k in ['ref_fa', 'dbsnp_vcf', 'known_indel_vcf']:
+    for k in ['ref_fa', 'known_site_vcf']:
         v = config['references'].get(k)
         assert isinstance(v, list)
         assert _has_unique_elements(v)
