@@ -76,17 +76,19 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
             data={'level': log_level, 'filename': luigi_log_txt_path},
             output_path=luigi_log_cfg_path
         )
-    for r in config['runs']:
-        fq_dict = {
-            k: list(_resolve_input_file_paths(paths=r[k]['fq']))
-            for k in ['foreground', 'background'] if r[k].get('fq')
-        }
-        logger.debug('fq_dict:' + os.linesep + pformat(fq_dict))
-        luigi.build(
-            [PrepareCRAMs(fq_dict=fq_dict, cf=common_config, **ref_dict)],
-            workers=n_worker, local_scheduler=True, log_level=log_level,
-            logging_conf_file=luigi_log_cfg_path
-        )
+    luigi.build(
+        [
+            PrepareCRAMs(
+                fq_dict={
+                    k: list(_resolve_input_file_paths(paths=r[k]['fq']))
+                    for k in ['foreground', 'background'] if r[k].get('fq')
+                },
+                cf=common_config, **ref_dict
+            ) for r in config['runs']
+        ],
+        workers=n_worker, local_scheduler=True, log_level=log_level,
+        logging_conf_file=luigi_log_cfg_path
+    )
 
 
 def _resolve_input_file_paths(paths):

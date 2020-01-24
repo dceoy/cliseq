@@ -186,8 +186,6 @@ class ApplyBQSR(ShellTask):
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         samtools = self.cf['samtools']
-        n_cpu = self.cf['n_cpu_per_worker']
-        memory_per_thread = self.cf['samtools_memory_per_thread']
         output_cram_path = self.output()[0].path
         fa_path = self.input()[1].path
         fai_path = self.input()[2].path
@@ -221,31 +219,24 @@ class ApplyBQSR(ShellTask):
             output_files=bqsr_csv_path
         )
         self.run_bash(
-            args=(
-                f'{preproc} {gatk}{gatk_opts} ApplyBQSR'
-                + f' --input {input_cram_path}'
-                + f' --reference {fa_path}'
-                + f' --bqsr-recal-file {bqsr_csv_path}'
-                + ' --output /dev/stdout'
-                + ' --static-quantized-quals 10'
-                + ' --static-quantized-quals 20'
-                + ' --static-quantized-quals 30'
-                + ' --add-output-sam-program-record'
-                + ' --use-original-qualities'
-                + f' | {samtools} view -@ {n_cpu} -T {fa_path} -CS -'
-                + f' | {samtools} sort -@ {n_cpu} -m {memory_per_thread}'
-                + f' -T {output_cram_path}.sort -o {output_cram_path} -'
-            ),
-            input_files=[input_cram_path, fa_path, fai_path, bqsr_csv_path],
-            output_files=output_cram_path
-        )
-        self.run_bash(
             args=[
+                (
+                    f'{preproc} {gatk}{gatk_opts} ApplyBQSR'
+                    + f' --input {input_cram_path}'
+                    + f' --reference {fa_path}'
+                    + f' --bqsr-recal-file {bqsr_csv_path}'
+                    + f' --output {output_cram_path}'
+                    + ' --static-quantized-quals 10'
+                    + ' --static-quantized-quals 20'
+                    + ' --static-quantized-quals 30'
+                    + ' --add-output-sam-program-record'
+                    + ' --use-original-qualities'
+                    + ' --create-output-bam-index true'
+                ),
                 f'{preproc} {samtools} quickcheck -v {output_cram_path}',
-                f'{preproc} {samtools} index -@ {n_cpu} {output_cram_path}'
             ],
-            input_files=output_cram_path,
-            output_files=f'{output_cram_path}.crai'
+            input_files=[input_cram_path, fa_path, fai_path, bqsr_csv_path],
+            output_files=[o.path for o in self.output()]
         )
 
 
