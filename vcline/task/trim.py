@@ -11,7 +11,7 @@ from .base import ShellTask
 class TrimAdapters(ShellTask):
     fq_paths = luigi.ListParameter()
     cf = luigi.DictParameter()
-    priority = 6
+    priority = 5
 
     def output(self):
         return [

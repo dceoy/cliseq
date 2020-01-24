@@ -63,8 +63,8 @@ class FetchReferenceFASTA(ShellTask):
         )
 
 
-class FetchKnownSiteVCFs(ShellTask):
-    known_site_vcf_paths = luigi.ListParameter()
+class FetchKnownSiteVCF(ShellTask):
+    known_site_vcf_path = luigi.ListParameter()
     cf = luigi.DictParameter()
     priority = 7
 
@@ -73,18 +73,21 @@ class FetchKnownSiteVCFs(ShellTask):
             luigi.LocalTarget(
                 str(
                     Path(self.cf['ref_dir_path']).joinpath(
-                        Path(p).name + ('' if p.endswith('.gz') else '.gz')
+                        re.sub(
+                            r'\.gz$', '', Path(self.known_site_vcf_path).name
+                        ) + s
                     )
                 )
-            ) for p in self.known_site_vcf_paths
+            ) for s in ['.gz', '.gz.tbi']
         ]
 
     def run(self):
-        run_id = 'known_site_vcf'
-        print_log(f'Create a reference FASTA:\t{run_id}')
+        dest_vcf_path = self.output()[0].path
+        run_id = Path(Path(dest_vcf_path).stem).stem
+        print_log(f'Create a known site VCF:\t{run_id}')
         bgzip = self.cf['bgzip']
+        tabix = self.cf['tabix']
         n_cpu = self.cf['n_cpu_per_worker']
-        vcf_gz_paths = [o.path for o in self.output()]
         self.setup_bash(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             work_dir_path=self.cf['ref_dir_path']
@@ -92,42 +95,35 @@ class FetchKnownSiteVCFs(ShellTask):
         self.run_bash(
             args=[
                 f'{bgzip} --version',
-                *[
-                    'set -e && ' + (
-                        f'cp {s} {d}' if s.endswith('.gz') else
-                        f'{bgzip} -@ {n_cpu} -c {s} > {d}'
-                    ) for s, d in zip(self.known_site_vcf_paths, vcf_gz_paths)
-                ]
+                f'{tabix} --version',
+                (
+                    f'set -e && cp {self.known_site_vcf_path} {dest_vcf_path}'
+                    if self.known_site_vcf_path.endswith('.gz') else (
+                        f'set -e && {bgzip} -@ {n_cpu} -c'
+                        + f' {self.known_site_vcf_path} > {dest_vcf_path}'
+                    )
+                )
             ],
-            input_files=self.known_site_vcf_paths, output_files=vcf_gz_paths
-        )
-
-
-@requires(FetchKnownSiteVCFs)
-class CreateTabixIndices(ShellTask):
-    cf = luigi.DictParameter()
-    priority = 5
-
-    def output(self):
-        return [luigi.LocalTarget(i.path + '.tbi') for i in self.input()]
-
-    def run(self):
-        run_id = 'known_site_vcf'
-        print_log(f'Create VCF tabix indices:\t{run_id}')
-        vcf_gz_paths = [i.path for i in self.input()]
-        tabix = self.cf['tabix']
-        self.setup_bash(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            work_dir_path=self.cf['ref_dir_path']
+            input_files=self.known_site_vcf_path, output_files=dest_vcf_path
         )
         self.run_bash(
-            args=[
-                f'{tabix} --version',
-                *[f'set -e && {tabix} -p vcf {p}' for p in vcf_gz_paths]
-            ],
-            input_files=vcf_gz_paths,
-            output_files=[o.path for o in self.output()]
+            args=f'set -e && {tabix} -p vcf {dest_vcf_path}',
+            input_files=dest_vcf_path, output_files=f'{dest_vcf_path}.tbi'
         )
+
+
+class FetchKnownSiteVCFs(luigi.WrapperTask):
+    known_site_vcf_paths = luigi.ListParameter()
+    cf = luigi.DictParameter()
+
+    def requires(self):
+        return [
+            FetchKnownSiteVCF(known_site_vcf_path=p, cf=self.cf)
+            for p in self.known_site_vcf_paths
+        ]
+
+    def output(self):
+        return self.input()
 
 
 @requires(FetchReferenceFASTA)

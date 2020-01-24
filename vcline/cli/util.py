@@ -44,7 +44,10 @@ def read_yml(path):
 
 
 def render_template(template, data, output_path):
-    print_log(f'Render a file:\t{output_path}')
+    print_log(
+        ('Overwrite' if Path(output_path).exists() else 'Render')
+        + f' a file:\t{output_path}'
+    )
     with open(output_path, 'w') as f:
         f.write(
             Environment(

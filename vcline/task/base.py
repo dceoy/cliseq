@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import logging
+from datetime import timedelta
 from pathlib import Path
 
 import coloredlogs
@@ -11,7 +12,19 @@ from shoper.shelloperator import ShellOperator
 class BaseTask(luigi.Task):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        coloredlogs.install(level=logging.getLevelName(logging.root.level))
+        coloredlogs.install(level=logging.root.level)
+
+    @luigi.Task.event_handler(luigi.Event.PROCESSING_TIME)
+    def print_execution_time(self, processing_time):
+        logger = logging.getLogger(__name__)
+        message = '{0}.{1}:\t{2} elapsed.'.format(
+            self.__class__.__module__, self.__class__.__name__,
+            timedelta(seconds=processing_time)
+        )
+        logger.info(message)
+        print(message, flush=True)
+
+
 
 
 class ShellTask(BaseTask):

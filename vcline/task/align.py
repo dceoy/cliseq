@@ -8,7 +8,7 @@ from luigi.util import requires
 from ..cli.util import parse_fq_id, print_log
 from .base import ShellTask
 from .ref import (CreateBWAIndices, CreateFASTAIndex, CreateSequenceDictionary,
-                  CreateTabixIndices, FetchKnownSiteVCFs, FetchReferenceFASTA)
+                  FetchKnownSiteVCFs, FetchReferenceFASTA)
 from .trim import TrimAdapters
 
 
@@ -162,8 +162,7 @@ class MarkDuplicates(ShellTask):
 
 
 @requires(MarkDuplicates, FetchReferenceFASTA, CreateFASTAIndex,
-          CreateSequenceDictionary, FetchKnownSiteVCFs,
-          CreateTabixIndices)
+          CreateSequenceDictionary, FetchKnownSiteVCFs)
 class ApplyBQSR(ShellTask):
     cf = luigi.DictParameter()
     priority = 10
@@ -186,12 +185,18 @@ class ApplyBQSR(ShellTask):
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         samtools = self.cf['samtools']
+        n_cpu = self.cf['n_cpu_per_worker']
         output_cram_path = self.output()[0].path
         fa_path = self.input()[1].path
         fai_path = self.input()[2].path
         fa_dict_path = self.input()[3].path
-        known_site_vcf_gz_paths = [o.path for o in self.input()[4]]
+        known_site_vcf_gz_paths = [o[0].path for o in self.input()[4]]
         bqsr_csv_path = self.output()[2].path
+        tmp_bam_path = str(
+            Path(self.cf['align_dir_path']).joinpath(
+                Path(output_cram_path).stem
+            )
+        )
         preproc = 'set -eo pipefail && export REF_CACHE=\'.ref_cache\' && '
         self.setup_bash(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
@@ -207,7 +212,7 @@ class ApplyBQSR(ShellTask):
                     + f' --reference {fa_path}'
                     + f' --output {bqsr_csv_path}'
                     + ' --use-original-qualities'
-                    + ' '.join([
+                    + ''.join([
                         f' --known-sites {p}' for p in known_site_vcf_gz_paths
                     ])
                 )
@@ -225,19 +230,47 @@ class ApplyBQSR(ShellTask):
                     + f' --input {input_cram_path}'
                     + f' --reference {fa_path}'
                     + f' --bqsr-recal-file {bqsr_csv_path}'
-                    + f' --output {output_cram_path}'
+                    + f' --output {tmp_bam_path}'
                     + ' --static-quantized-quals 10'
                     + ' --static-quantized-quals 20'
                     + ' --static-quantized-quals 30'
                     + ' --add-output-sam-program-record'
                     + ' --use-original-qualities'
-                    + ' --create-output-bam-index true'
+                    + ' --create-output-bam-index false'
                 ),
-                f'{preproc} {samtools} quickcheck -v {output_cram_path}',
+                (
+                    f'{preproc} {samtools} view -@ {n_cpu} -T {fa_path} -CS'
+                    + f' -o {output_cram_path} {tmp_bam_path}'
+                ),
+                f'{preproc} rm -f {tmp_bam_path}'
             ],
             input_files=[input_cram_path, fa_path, fai_path, bqsr_csv_path],
-            output_files=[o.path for o in self.output()]
+            output_files=output_cram_path
         )
+        self.run_bash(
+            args=[
+                f'{preproc} {samtools} quickcheck -v {output_cram_path}',
+                f'{preproc} {samtools} index -@ {n_cpu} {output_cram_path}'
+            ],
+            input_files=output_cram_path,
+            output_files=f'{output_cram_path}.crai'
+        )
+
+
+class PrepareCRAMs(luigi.WrapperTask):
+    ref_fa_paths = luigi.ListParameter()
+    fq_dict = luigi.DictParameter()
+    known_site_vcf_paths = luigi.ListParameter()
+    cf = luigi.DictParameter()
+    priority = 10
+
+    def requires(self):
+        return [
+            ApplyBQSR(
+                fq_paths=v, ref_fa_paths=self.ref_fa_paths,
+                known_site_vcf_paths=self.known_site_vcf_paths, cf=self.cf
+            ) for v in self.fq_dict.values()
+        ]
 
 
 if __name__ == '__main__':

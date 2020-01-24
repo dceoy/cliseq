@@ -9,7 +9,7 @@ from pprint import pformat
 import luigi
 from psutil import cpu_count, virtual_memory
 
-from ..task.call import PrepareCRAMs
+from ..task.align import PrepareCRAMs
 from .util import fetch_executable, print_log, read_yml, render_template
 
 
@@ -62,20 +62,19 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
         for k, v in config['references'].items()
     }
     logger.debug('ref_dict:' + os.linesep + pformat(ref_dict))
-    luigi_log_cfg_path = str(log_dir.joinpath('luigi.log.cfg'))
-    luigi_log_txt_path = str(log_dir.joinpath('luigi.log.txt'))
+    log_txt_path = str(log_dir.joinpath(f'luigi.{log_level}.log.txt'))
+    log_cfg_path = str(log_dir.joinpath('luigi.log.cfg'))
 
     for p in dirs.values():
         d = Path(p)
         if not d.is_dir():
             print_log(f'Make a directory:\t{p}')
             d.mkdir()
-    if not Path(luigi_log_cfg_path).exists():
-        render_template(
-            template='{}.j2'.format(Path(luigi_log_cfg_path).name),
-            data={'level': log_level, 'filename': luigi_log_txt_path},
-            output_path=luigi_log_cfg_path
-        )
+    render_template(
+        template='{}.j2'.format(Path(log_cfg_path).name),
+        data={'log_level': log_level, 'log_txt_path': log_txt_path},
+        output_path=log_cfg_path
+    )
     luigi.build(
         [
             PrepareCRAMs(
@@ -87,7 +86,7 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
             ) for r in config['runs']
         ],
         workers=n_worker, local_scheduler=True, log_level=log_level,
-        logging_conf_file=luigi_log_cfg_path
+        logging_conf_file=log_cfg_path
     )
 
 
