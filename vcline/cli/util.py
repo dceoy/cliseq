@@ -24,6 +24,23 @@ def parse_fq_id(fq_path):
     )
 
 
+def create_matched_id(foreground_name, background_name):
+    fragments = [
+        Path(n).stem.split('.') for n in [foreground_name, background_name]
+    ]
+    if fragments[0][-1] != fragments[1][-1]:
+        somatic_id = '.'.join(['.'.join(f) for f in fragments])
+    else:
+        n_common = 0
+        for i in range(1, min([len(f) for f in fragments])):
+            if fragments[0][-i] == fragments[1][-i]:
+                n_common += 1
+            else:
+                break
+        somatic_id = '.'.join(fragments[0][:-n_common] + fragments[1])
+    return somatic_id
+
+
 def fetch_executable(cmd):
     executables = [
         cp for cp in [

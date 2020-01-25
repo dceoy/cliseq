@@ -16,6 +16,7 @@ from .trim import TrimAdapters
 @requires(TrimAdapters, FetchReferenceFASTA, CreateFASTAIndex,
           CreateBWAIndices)
 class AlignReads(ShellTask):
+    read_group = luigi.DictParameter()
     cf = luigi.DictParameter()
     priority = 60
 
@@ -41,7 +42,22 @@ class AlignReads(ShellTask):
         samtools = self.cf['samtools']
         n_cpu = self.cf['n_cpu_per_worker']
         memory_per_thread = self.cf['samtools_memory_per_thread']
-        r = '\'@RG\\tID:None\\tSM:None\\tPL:ILLUMINA\\tLB:None\''
+        rg = '\\t'.join(
+            [
+                '@RG',
+                'ID:{}'.format(self.read_group.get('ID') or 1),
+                'PU:{}'.format(self.read_group.get('PU') or 'UNIT-1'),
+                'SM:{}'.format(
+                    self.read_group.get('SM')
+                    or parse_fq_id(fq_path=self.input()[0][0].path)
+                ),
+                'PL:{}'.format(self.read_group.get('PL') or 'ILLUMINA'),
+                'LB:{}'.format(self.read_group.get('LB') or 'LIBRARY-1')
+            ] + [
+                f'{k}:{v}' for k, v in self.read_group.items()
+                if k not in ['ID', 'PU', 'SM', 'PL', 'LB']
+            ]
+        )
         fq_paths = [i.path for i in self.input()[0]]
         fa_path = self.input()[1].path
         index_paths = [o.path for o in self.input()[3]]
@@ -53,7 +69,7 @@ class AlignReads(ShellTask):
         self.run_shell(
             args=(
                 'set -eo pipefail && '
-                + f'{bwa} mem -t {n_cpu} -R {r} {fa_path} '
+                + f'{bwa} mem -t {n_cpu} -R \'{rg}\' -Y {fa_path}'
                 + ''.join([f' {a}' for a in fq_paths])
                 + f' | {samtools} view -bS -'
                 + f' | {samtools} sort -@ {n_cpu} -m {memory_per_thread}'
@@ -239,7 +255,7 @@ class ApplyBQSR(ShellTask):
         )
 
 
-@requires(ApplyBQSR)
+@requires(ApplyBQSR, FetchReferenceFASTA)
 class RemoveDuplicatesOrUnmapped(ShellTask):
     cf = luigi.DictParameter()
     priority = 90
@@ -249,14 +265,14 @@ class RemoveDuplicatesOrUnmapped(ShellTask):
             luigi.LocalTarget(
                 str(
                     Path(self.cf['align_dir_path']).joinpath(
-                        Path(self.input()[0].path).stem + f'.filtered.{s}'
+                        Path(self.input()[0][0].path).stem + f'.filtered.{s}'
                     )
                 )
             ) for s in ['cram', 'cram.crai']
         ]
 
     def run(self):
-        input_cram_path = self.input()[0].path
+        input_cram_path = self.input()[0][0].path
         run_id = Path(input_cram_path).stem
         print_log(f'Remove duplicate :\t{run_id}')
         samtools = self.cf['samtools']
@@ -270,7 +286,7 @@ class RemoveDuplicatesOrUnmapped(ShellTask):
         )
         self.run_shell(
             args=(
-                'set -e && {samtools} view -@ {n_cpu} -T {fa_path}'
+                f'set -e && {samtools} view -@ {n_cpu} -T {fa_path}'
                 + f' -F 1028 -CS -o {output_cram_path} {input_cram_path}'
             ),
             input_files=[input_cram_path, fa_path],
@@ -288,18 +304,22 @@ class RemoveDuplicatesOrUnmapped(ShellTask):
 
 class PrepareCRAMs(luigi.WrapperTask):
     ref_fa_paths = luigi.ListParameter()
-    fq_dict = luigi.DictParameter()
+    fq_list = luigi.ListParameter()
+    read_groups = luigi.ListParameter()
     known_site_vcf_paths = luigi.ListParameter()
     cf = luigi.DictParameter()
     priority = 100
 
     def requires(self):
         return [
-            ApplyBQSR(
-                fq_paths=v, ref_fa_paths=self.ref_fa_paths,
+            RemoveDuplicatesOrUnmapped(
+                fq_paths=f, read_group=r, ref_fa_paths=self.ref_fa_paths,
                 known_site_vcf_paths=self.known_site_vcf_paths, cf=self.cf
-            ) for v in self.fq_dict.values()
+            ) for f, r in zip(self.fq_list, self.read_groups)
         ]
+
+    def output(self):
+        return self.input()
 
 
 if __name__ == '__main__':

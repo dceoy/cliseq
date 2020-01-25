@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 from math import floor
 from pathlib import Path
 from pprint import pformat
@@ -9,7 +10,7 @@ from pprint import pformat
 import luigi
 from psutil import cpu_count, virtual_memory
 
-from ..task.align import PrepareCRAMs
+from ..task.call import CallVariants
 from .util import fetch_executable, print_log, read_yml, render_template
 
 
@@ -28,7 +29,7 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
     dirs = {
         **{
             f'{k}_dir_path': str(work_dir.joinpath(k))
-            for k in ['trim', 'align']
+            for k in ['trim', 'align', 'call']
         },
         'ref_dir_path':
         str(Path(ref_dir_path or str(work_dir.joinpath('ref'))).resolve()),
@@ -77,11 +78,15 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
     )
     luigi.build(
         [
-            PrepareCRAMs(
-                fq_dict={
-                    k: list(_resolve_input_file_paths(paths=r[k]['fq']))
+            CallVariants(
+                fq_list=[
+                    list(_resolve_input_file_paths(paths=r[k]['fq']))
                     for k in ['foreground', 'background'] if r[k].get('fq')
-                },
+                ],
+                read_groups=[
+                    (r[k].get('read_group') or dict())
+                    for k in ['foreground', 'background']
+                ],
                 cf=common_config, **ref_dict
             ) for r in config['runs']
         ],
@@ -113,15 +118,20 @@ def _read_config_yml(config_yml_path):
     for r in config['runs']:
         assert isinstance(r, dict)
         assert set(r.keys()).intersection({'id', 'foreground', 'background'})
-        for k in ['foreground', 'background']:
-            assert isinstance(r[k], dict)
-            assert r[k].get('fq') or r[k].get('sam')
-            if 'fq' in r[k]:
-                assert isinstance(r[k]['fq'], list)
-                assert _has_unique_elements(r[k]['fq'])
-                assert len(r[k]['fq']) <= 2
+        for t in ['foreground', 'background']:
+            assert isinstance(r[t], dict)
+            assert r[t].get('fq') or r[t].get('sam')
+            if r[t].get('fq'):
+                assert isinstance(r[t]['fq'], list)
+                assert _has_unique_elements(r[t]['fq'])
+                assert len(r[t]['fq']) <= 2
             else:
-                assert isinstance(r[k]['sam'], str)
+                assert isinstance(r[t]['sam'], str)
+            if r[t].get('read_group'):
+                assert isinstance(r[k]['read_group'], dict)
+                for k, v in r[t]['read_group'].items():
+                    assert re.fullmatch(r'[A-Z]{2}', k)
+                    assert type(v) not in [list, dict]
     assert _has_unique_elements([r['id'] for r in config['runs']])
     return config
 
