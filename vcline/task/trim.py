@@ -33,23 +33,24 @@ class TrimAdapters(ShellTask):
         print_log(f'Trim adapters:\t{run_id}')
         cutadapt = self.cf['cutadapt']
         fastqc = self.cf['fastqc']
+        pigz = self.cf['pigz']
         trim_galore = self.cf['trim_galore']
         n_cpu = self.cf['n_cpu_per_worker']
-        self.setup_bash(
+        self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=[cutadapt, fastqc, pigz, trim_galore],
             cwd=self.cf['trim_dir_path']
         )
-        self.run_bash(
-            args=[
-                f'{cutadapt} --version',
-                f'{fastqc} --version',
-                f'{trim_galore} --version',
-                (
-                    f'set -e && {trim_galore} --cores={n_cpu} --illumina '
-                    + ('--paired ' if len(self.fq_paths) > 1 else '')
-                    + ' '.join(self.fq_paths)
-                )
-            ],
+        self.run_shell(
+            args=(
+                f'set -e && {trim_galore} --cores={n_cpu} --illumina'
+                + ''.join([
+                    f' {a}' for a in (
+                        ['--paired', *self.fq_paths]
+                        if len(self.fq_paths) > 1 else self.fq_paths
+                    )
+                ])
+            ),
             input_files=self.fq_paths,
             output_files=[o.path for o in self.output()]
         )

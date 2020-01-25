@@ -40,25 +40,21 @@ class FetchReferenceFASTA(ShellTask):
         pigz = self.cf['pigz']
         pbzip2 = self.cf['pbzip2']
         n_cpu = self.cf['n_cpu_per_worker']
-        self.setup_bash(
+        self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=self.cf['ref_dir_path']
+            commands=[cat, pigz, pbzip2], cwd=self.cf['ref_dir_path']
         )
-        args = [
-            f'{cat} --version',
-            f'{pigz} --version',
-            f'{pbzip2} --version'
-        ]
+        args = list()
         for i, p in enumerate(self.ref_fa_paths):
             r = '>' if i == 0 else '>>'
             if p.endswith('.gz'):
-                a = f'set -e && {pigz} -p {n_cpu} -dc {p} {r} {fa_path}'
+                a = f'{pigz} -p {n_cpu} -dc {p} {r} {fa_path}'
             elif p.endswith('.bz2'):
-                a = f'set -e && {pbzip2} -p{n_cpu} -dc {p} {r} {fa_path}'
+                a = f'{pbzip2} -p{n_cpu} -dc {p} {r} {fa_path}'
             else:
-                a = 'set -e && {cat} {p} {r} {fa_path}'
-            args.append(a)
-        self.run_bash(
+                a = '{cat} {p} {r} {fa_path}'
+            args.append(f'set -e && {a}')
+        self.run_shell(
             args=args, input_files=self.ref_fa_paths, output_files=fa_path
         )
 
@@ -87,25 +83,23 @@ class FetchKnownSiteVCF(ShellTask):
         bgzip = self.cf['bgzip']
         tabix = self.cf['tabix']
         n_cpu = self.cf['n_cpu_per_worker']
-        self.setup_bash(
+        self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=self.cf['ref_dir_path']
+            commands=[bgzip, tabix], cwd=self.cf['ref_dir_path']
         )
-        self.run_bash(
-            args=[
-                f'{bgzip} --version',
-                f'{tabix} --version',
-                (
-                    f'set -e && cp {self.known_site_vcf_path} {dest_vcf_path}'
+        self.run_shell(
+            args=(
+                'set -e && ' + (
+                    f'cp {self.known_site_vcf_path} {dest_vcf_path}'
                     if self.known_site_vcf_path.endswith('.gz') else (
-                        f'set -e && {bgzip} -@ {n_cpu} -c'
+                        f'{bgzip} -@ {n_cpu} -c'
                         + f' {self.known_site_vcf_path} > {dest_vcf_path}'
                     )
                 )
-            ],
+            ),
             input_files=self.known_site_vcf_path, output_files=dest_vcf_path
         )
-        self.run_bash(
+        self.run_shell(
             args=f'set -e && {tabix} -p vcf {dest_vcf_path}',
             input_files=dest_vcf_path, output_files=f'{dest_vcf_path}.tbi'
         )
@@ -139,15 +133,12 @@ class CreateFASTAIndex(ShellTask):
         run_id = Path(fa_path).stem
         print_log(f'Create a FASTA index:\t{run_id}')
         samtools = self.cf['samtools']
-        self.setup_bash(
+        self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=self.cf['ref_dir_path']
+            commands=samtools, cwd=self.cf['ref_dir_path']
         )
-        self.run_bash(
-            args=[
-                f'{samtools} 2>&1 | grep -e "Version:"',
-                f'set -e && {samtools} faidx {fa_path}'
-            ],
+        self.run_shell(
+            args=f'set -e && {samtools} faidx {fa_path}',
             input_files=fa_path, output_files=self.output().path
         )
 
@@ -168,15 +159,12 @@ class CreateBWAIndices(ShellTask):
         run_id = Path(fa_path).stem
         print_log(f'Create BWA indices:\t{run_id}')
         bwa = self.cf['bwa']
-        self.setup_bash(
+        self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=self.cf['ref_dir_path']
+            commands=bwa, cwd=self.cf['ref_dir_path']
         )
-        self.run_bash(
-            args=[
-                f'{bwa} 2>&1 | grep -e "Version:"',
-                f'set -e && {bwa} index {fa_path}'
-            ],
+        self.run_shell(
+            args=f'set -e && {bwa} index {fa_path}',
             input_files=fa_path,
             output_files=[o.path for o in self.output()]
         )
@@ -202,19 +190,16 @@ class CreateSequenceDictionary(ShellTask):
         print_log(f'Create a sequence dictionary:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        self.setup_bash(
+        self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=self.cf['ref_dir_path']
+            commands=gatk, cwd=self.cf['ref_dir_path']
         )
-        self.run_bash(
-            args=[
-                f'{gatk} --version',
-                (
-                    'set -e && '
-                    + f'{gatk}{gatk_opts} CreateSequenceDictionary'
-                    + f' --REFERENCE {fa_path}'
-                )
-            ],
+        self.run_shell(
+            args=(
+                'set -e && '
+                + f'{gatk}{gatk_opts} CreateSequenceDictionary'
+                + f' --REFERENCE {fa_path}'
+            ),
             input_files=fa_path, output_files=self.output().path
         )
 

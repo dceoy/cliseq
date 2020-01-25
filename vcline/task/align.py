@@ -45,29 +45,26 @@ class AlignReads(ShellTask):
         fq_paths = [i.path for i in self.input()[0]]
         fa_path = self.input()[1].path
         index_paths = [o.path for o in self.input()[3]]
-        self.setup_bash(
+        self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=self.cf['align_dir_path'], env={'REF_CACHE': '.ref_cache'}
+            commands=[bwa, samtools], cwd=self.cf['align_dir_path'],
+            env={'REF_CACHE': '.ref_cache'}
         )
-        self.run_bash(
-            args=[
-                f'{bwa} 2>&1 | grep -e "Version:"',
-                f'{samtools} 2>&1 | grep -e "Version:"',
-                (
-                    'set -eo pipefail && '
-                    + f'{bwa} mem -t {n_cpu} -R {r} {fa_path} '
-                    + ' '.join(fq_paths)
-                    + f' | {samtools} view -bS -'
-                    + f' | {samtools} sort -@ {n_cpu} -m {memory_per_thread}'
-                    + f' -T {cram_path}.sort -'
-                    + f' | {samtools} view -@ {n_cpu} -T {fa_path} -CS'
-                    + f' -o {cram_path} -'
-                )
-            ],
+        self.run_shell(
+            args=(
+                'set -eo pipefail && '
+                + f'{bwa} mem -t {n_cpu} -R {r} {fa_path} '
+                + ''.join([f' {a}' for a in fq_paths])
+                + f' | {samtools} view -bS -'
+                + f' | {samtools} sort -@ {n_cpu} -m {memory_per_thread}'
+                + f' -T {cram_path}.sort -'
+                + f' | {samtools} view -@ {n_cpu} -T {fa_path} -CS'
+                + f' -o {cram_path} -'
+            ),
             input_files=[fa_path, *index_paths, *fq_paths],
             output_files=cram_path
         )
-        self.run_bash(
+        self.run_shell(
             args=[
                 f'set -e && {samtools} quickcheck -v {cram_path}',
                 f'set -e && {samtools} index -@ {n_cpu} {cram_path}'
@@ -108,14 +105,13 @@ class MarkDuplicates(ShellTask):
             re.sub(r'\.cram$', s, output_cram_path)
             for s in ['.unfixed.unsorted.bam', '.unfixed.bam', '.bam']
         ]
-        self.setup_bash(
+        self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=self.cf['align_dir_path'], env={'REF_CACHE': '.ref_cache'}
+            commands=[gatk, samtools], cwd=self.cf['align_dir_path'],
+            env={'REF_CACHE': '.ref_cache'}
         )
-        self.run_bash(
+        self.run_shell(
             args=[
-                f'{gatk} --version',
-                f'{samtools} 2>&1 | grep -e "Version:"',
                 (
                     f'set -e && {gatk}{gatk_opts} MarkDuplicates'
                     + f' --INPUT {input_cram_path}'
@@ -146,7 +142,7 @@ class MarkDuplicates(ShellTask):
             input_files=[input_cram_path, fa_path],
             output_files=output_cram_path
         )
-        self.run_bash(
+        self.run_shell(
             args=[
                 f'set -e && {samtools} quickcheck -v {output_cram_path}',
                 f'set -e && {samtools} index -@ {n_cpu} {output_cram_path}'
@@ -187,32 +183,29 @@ class ApplyBQSR(ShellTask):
         known_site_vcf_gz_paths = [o[0].path for o in self.input()[4]]
         bqsr_csv_path = self.output()[2].path
         tmp_bam_path = re.sub(r'\.cram$', '.bam', output_cram_path)
-        self.setup_bash(
+        self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=self.cf['align_dir_path'], env={'REF_CACHE': '.ref_cache'}
+            commands=[gatk, samtools], cwd=self.cf['align_dir_path'],
+            env={'REF_CACHE': '.ref_cache'}
         )
-        self.run_bash(
-            args=[
-                f'{gatk} --version',
-                f'{samtools} 2>&1 | grep -e "Version:"',
-                (
-                    f'set -e && {gatk}{gatk_opts} BaseRecalibrator'
-                    + f' --input {input_cram_path}'
-                    + f' --reference {fa_path}'
-                    + f' --output {bqsr_csv_path}'
-                    + ' --use-original-qualities'
-                    + ''.join([
-                        f' --known-sites {p}' for p in known_site_vcf_gz_paths
-                    ])
-                )
-            ],
+        self.run_shell(
+            args=(
+                f'set -e && {gatk}{gatk_opts} BaseRecalibrator'
+                + f' --input {input_cram_path}'
+                + f' --reference {fa_path}'
+                + f' --output {bqsr_csv_path}'
+                + ' --use-original-qualities'
+                + ''.join([
+                    f' --known-sites {p}' for p in known_site_vcf_gz_paths
+                ])
+            ),
             input_files=[
                 input_cram_path, fa_path, fa_dict_path,
                 *known_site_vcf_gz_paths
             ],
             output_files=bqsr_csv_path
         )
-        self.run_bash(
+        self.run_shell(
             args=[
                 (
                     f'set -e && {gatk}{gatk_opts} ApplyBQSR'
@@ -236,7 +229,7 @@ class ApplyBQSR(ShellTask):
             input_files=[input_cram_path, fa_path, bqsr_csv_path],
             output_files=output_cram_path
         )
-        self.run_bash(
+        self.run_shell(
             args=[
                 f'set -e && {samtools} quickcheck -v {output_cram_path}',
                 f'set -e && {samtools} index -@ {n_cpu} {output_cram_path}'
@@ -270,11 +263,12 @@ class RemoveDuplicatesOrUnmapped(ShellTask):
         n_cpu = self.cf['n_cpu_per_worker']
         output_cram_path = self.output()[0].path
         fa_path = self.input()[1].path
-        self.setup_bash(
+        self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=self.cf['align_dir_path'], env={'REF_CACHE': '.ref_cache'}
+            commands=samtools, cwd=self.cf['align_dir_path'],
+            env={'REF_CACHE': '.ref_cache'}
         )
-        self.run_bash(
+        self.run_shell(
             args=(
                 'set -e && {samtools} view -@ {n_cpu} -T {fa_path}'
                 + f' -F 1028 -CS -o {output_cram_path} {input_cram_path}'
@@ -282,7 +276,7 @@ class RemoveDuplicatesOrUnmapped(ShellTask):
             input_files=[input_cram_path, fa_path],
             output_files=output_cram_path
         )
-        self.run_bash(
+        self.run_shell(
             args=[
                 f'set -e && {samtools} quickcheck -v {output_cram_path}',
                 f'set -e && {samtools} index -@ {n_cpu} {output_cram_path}'
