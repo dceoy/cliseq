@@ -62,7 +62,7 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
         for k, v in config['references'].items()
     }
     logger.debug('ref_dict:' + os.linesep + pformat(ref_dict))
-    log_txt_path = str(log_dir.joinpath(f'luigi.{log_level}.log.txt'))
+    log_txt_path = str(log_dir.joinpath('luigi.log.txt'))
     log_cfg_path = str(log_dir.joinpath('luigi.log.cfg'))
 
     for p in dirs.values():

@@ -25,8 +25,6 @@ class BaseTask(luigi.Task):
         print(message, flush=True)
 
 
-
-
 class ShellTask(BaseTask):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -34,7 +32,7 @@ class ShellTask(BaseTask):
         self.__cwd = None
 
     @classmethod
-    def setup_bash(cls, run_id=None, log_dir_path=None, work_dir_path=None):
+    def setup_bash(cls, run_id=None, log_dir_path=None, **run_kwargs):
         cls.__sh = ShellOperator(
             log_txt=(
                 str(
@@ -47,13 +45,11 @@ class ShellTask(BaseTask):
             logger=logging.getLogger(__name__), print_command=True,
             executable='/bin/bash'
         )
-        cls.__cwd = work_dir_path
+        cls.__run_kwargs = run_kwargs
 
     @classmethod
     def run_bash(cls, *args, **kwargs):
-        if kwargs.get('cwd'):
-            cls.__cwd = kwargs['cwd']
         cls.__sh.run(
-            *args, **{k: v for k, v in kwargs.items() if k != 'cwd'},
-            cwd=cls.__cwd
+            *args, **kwargs,
+            **{k: v for k, v in cls.__run_kwargs.items() if k not in kwargs}
         )

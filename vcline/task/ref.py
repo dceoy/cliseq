@@ -13,7 +13,7 @@ from .base import ShellTask
 class FetchReferenceFASTA(ShellTask):
     ref_fa_paths = luigi.ListParameter()
     cf = luigi.DictParameter()
-    priority = 10
+    priority = 100
 
     def output(self):
         return luigi.LocalTarget(
@@ -42,7 +42,7 @@ class FetchReferenceFASTA(ShellTask):
         n_cpu = self.cf['n_cpu_per_worker']
         self.setup_bash(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            work_dir_path=self.cf['ref_dir_path']
+            cwd=self.cf['ref_dir_path']
         )
         args = [
             f'{cat} --version',
@@ -66,7 +66,6 @@ class FetchReferenceFASTA(ShellTask):
 class FetchKnownSiteVCF(ShellTask):
     known_site_vcf_path = luigi.ListParameter()
     cf = luigi.DictParameter()
-    priority = 7
 
     def output(self):
         return [
@@ -90,7 +89,7 @@ class FetchKnownSiteVCF(ShellTask):
         n_cpu = self.cf['n_cpu_per_worker']
         self.setup_bash(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            work_dir_path=self.cf['ref_dir_path']
+            cwd=self.cf['ref_dir_path']
         )
         self.run_bash(
             args=[
@@ -115,6 +114,7 @@ class FetchKnownSiteVCF(ShellTask):
 class FetchKnownSiteVCFs(luigi.WrapperTask):
     known_site_vcf_paths = luigi.ListParameter()
     cf = luigi.DictParameter()
+    priority = 80
 
     def requires(self):
         return [
@@ -129,7 +129,7 @@ class FetchKnownSiteVCFs(luigi.WrapperTask):
 @requires(FetchReferenceFASTA)
 class CreateFASTAIndex(ShellTask):
     cf = luigi.DictParameter()
-    priority = 8
+    priority = 90
 
     def output(self):
         return luigi.LocalTarget(self.input().path + '.fai')
@@ -141,7 +141,7 @@ class CreateFASTAIndex(ShellTask):
         samtools = self.cf['samtools']
         self.setup_bash(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            work_dir_path=self.cf['ref_dir_path']
+            cwd=self.cf['ref_dir_path']
         )
         self.run_bash(
             args=[
@@ -155,7 +155,7 @@ class CreateFASTAIndex(ShellTask):
 @requires(FetchReferenceFASTA)
 class CreateBWAIndices(ShellTask):
     cf = luigi.DictParameter()
-    priority = 9
+    priority = 100
 
     def output(self):
         return [
@@ -170,7 +170,7 @@ class CreateBWAIndices(ShellTask):
         bwa = self.cf['bwa']
         self.setup_bash(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            work_dir_path=self.cf['ref_dir_path']
+            cwd=self.cf['ref_dir_path']
         )
         self.run_bash(
             args=[
@@ -185,7 +185,7 @@ class CreateBWAIndices(ShellTask):
 @requires(FetchReferenceFASTA)
 class CreateSequenceDictionary(ShellTask):
     cf = luigi.DictParameter()
-    priority = 6
+    priority = 80
 
     def output(self):
         return luigi.LocalTarget(
@@ -204,7 +204,7 @@ class CreateSequenceDictionary(ShellTask):
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         self.setup_bash(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            work_dir_path=self.cf['ref_dir_path']
+            cwd=self.cf['ref_dir_path']
         )
         self.run_bash(
             args=[

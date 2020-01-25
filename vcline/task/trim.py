@@ -11,7 +11,7 @@ from .base import ShellTask
 class TrimAdapters(ShellTask):
     fq_paths = luigi.ListParameter()
     cf = luigi.DictParameter()
-    priority = 5
+    priority = 50
 
     def output(self):
         return [
@@ -37,7 +37,7 @@ class TrimAdapters(ShellTask):
         n_cpu = self.cf['n_cpu_per_worker']
         self.setup_bash(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            work_dir_path=self.cf['trim_dir_path']
+            cwd=self.cf['trim_dir_path']
         )
         self.run_bash(
             args=[
