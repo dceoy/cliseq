@@ -9,7 +9,7 @@ from luigi.util import requires
 from ..cli.util import parse_fq_id, print_log
 from .base import ShellTask
 from .ref import (CreateBWAIndices, CreateFASTAIndex, CreateSequenceDictionary,
-                  FetchKnownSiteVCFs, FetchReferenceFASTA)
+                  FetchDbsnpVCF, FetchKnownIndelVCFs, FetchReferenceFASTA)
 from .trim import TrimAdapters
 
 
@@ -127,35 +127,49 @@ class MarkDuplicates(ShellTask):
             env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
+            args=(
+                f'set -e && {gatk}{gatk_opts} MarkDuplicates'
+                + f' --INPUT {input_cram_path}'
+                + f' --REFERENCE_SEQUENCE {fa_path}'
+                + f' --METRICS_FILE {markdup_metrics_txt_path}'
+                + f' --OUTPUT {tmp_bam_paths[0]}'
+                + ' --ASSUME_SORT_ORDER coordinate'
+            ),
+            input_files=[input_cram_path, fa_path],
+            output_files=tmp_bam_paths[0]
+        )
+        self.run_shell(
             args=[
-                (
-                    f'set -e && {gatk}{gatk_opts} MarkDuplicates'
-                    + f' --INPUT {input_cram_path}'
-                    + f' --REFERENCE_SEQUENCE {fa_path}'
-                    + f' --METRICS_FILE {markdup_metrics_txt_path}'
-                    + f' --OUTPUT {tmp_bam_paths[0]}'
-                    + ' --ASSUME_SORT_ORDER coordinate'
-                ),
                 (
                     f'set -e && {samtools} sort -@ {n_cpu}'
                     + f' -m {memory_per_thread} -T {tmp_bam_paths[0]}.sort'
                     + f' -o {tmp_bam_paths[1]} {tmp_bam_paths[0]}'
                 ),
-                f'rm -f {tmp_bam_paths[0]}',
+                f'rm -f {tmp_bam_paths[0]}'
+            ],
+            input_files=tmp_bam_paths[0], output_files=tmp_bam_paths[1]
+        )
+        self.run_shell(
+            args=[
                 (
                     f'set -e && {gatk}{gatk_opts} SetNmMdAndUqTags'
                     + f' --INPUT {tmp_bam_paths[1]}'
                     + f' --OUTPUT {tmp_bam_paths[2]}'
                     + f' --REFERENCE_SEQUENCE {fa_path}'
                 ),
-                f'rm -f {tmp_bam_paths[1]}',
+                f'rm -f {tmp_bam_paths[1]}'
+            ],
+            input_files=tmp_bam_paths[1], output_files=tmp_bam_paths[2]
+        )
+        self.run_shell(
+            args=[
                 (
                     f'set -e && {samtools} view -@ {n_cpu} -T {fa_path} -CS'
                     + f' -o {output_cram_path} {tmp_bam_paths[2]}'
                 ),
                 f'rm -f {tmp_bam_paths[2]}'
             ],
-            input_files=[input_cram_path, fa_path],
+            input_files=[tmp_bam_paths[2], fa_path],
             output_files=output_cram_path
         )
         self.run_shell(
@@ -169,7 +183,7 @@ class MarkDuplicates(ShellTask):
 
 
 @requires(MarkDuplicates, FetchReferenceFASTA, CreateFASTAIndex,
-          CreateSequenceDictionary, FetchKnownSiteVCFs)
+          CreateSequenceDictionary, FetchDbsnpVCF, FetchKnownIndelVCFs)
 class ApplyBQSR(ShellTask):
     cf = luigi.DictParameter()
     priority = 80
@@ -196,7 +210,9 @@ class ApplyBQSR(ShellTask):
         output_cram_path = self.output()[0].path
         fa_path = self.input()[1].path
         fa_dict_path = self.input()[3].path
-        known_site_vcf_gz_paths = [o[0].path for o in self.input()[4]]
+        known_site_vcf_gz_paths = [
+            self.input()[4][0].path, *[o[0].path for o in self.input()[5]]
+        ]
         bqsr_csv_path = self.output()[2].path
         tmp_bam_path = re.sub(r'\.cram$', '.bam', output_cram_path)
         self.setup_shell(
@@ -222,28 +238,31 @@ class ApplyBQSR(ShellTask):
             output_files=bqsr_csv_path
         )
         self.run_shell(
+            args=(
+                f'set -e && {gatk}{gatk_opts} ApplyBQSR'
+                + f' --input {input_cram_path}'
+                + f' --reference {fa_path}'
+                + f' --bqsr-recal-file {bqsr_csv_path}'
+                + f' --output {tmp_bam_path}'
+                + ' --static-quantized-quals 10'
+                + ' --static-quantized-quals 20'
+                + ' --static-quantized-quals 30'
+                + ' --add-output-sam-program-record'
+                + ' --use-original-qualities'
+                + ' --create-output-bam-index false'
+            ),
+            input_files=[input_cram_path, fa_path, bqsr_csv_path],
+            output_files=tmp_bam_path
+        )
+        self.run_shell(
             args=[
-                (
-                    f'set -e && {gatk}{gatk_opts} ApplyBQSR'
-                    + f' --input {input_cram_path}'
-                    + f' --reference {fa_path}'
-                    + f' --bqsr-recal-file {bqsr_csv_path}'
-                    + f' --output {tmp_bam_path}'
-                    + ' --static-quantized-quals 10'
-                    + ' --static-quantized-quals 20'
-                    + ' --static-quantized-quals 30'
-                    + ' --add-output-sam-program-record'
-                    + ' --use-original-qualities'
-                    + ' --create-output-bam-index false'
-                ),
                 (
                     f'set -e && {samtools} view -@ {n_cpu} -T {fa_path} -CS'
                     + f' -o {output_cram_path} {tmp_bam_path}'
                 ),
                 f'rm -f {tmp_bam_path}'
             ],
-            input_files=[input_cram_path, fa_path, bqsr_csv_path],
-            output_files=output_cram_path
+            input_files=[tmp_bam_path, fa_path], output_files=output_cram_path
         )
         self.run_shell(
             args=[
@@ -256,7 +275,7 @@ class ApplyBQSR(ShellTask):
 
 
 @requires(ApplyBQSR, FetchReferenceFASTA)
-class RemoveDuplicatesOrUnmapped(ShellTask):
+class RemoveDuplicatesAndUnmapped(ShellTask):
     cf = luigi.DictParameter()
     priority = 90
 
@@ -265,7 +284,7 @@ class RemoveDuplicatesOrUnmapped(ShellTask):
             luigi.LocalTarget(
                 str(
                     Path(self.cf['align_dir_path']).joinpath(
-                        Path(self.input()[0][0].path).stem + f'.filtered.{s}'
+                        Path(self.input()[0][0].path).stem + f'.prep.{s}'
                     )
                 )
             ) for s in ['cram', 'cram.crai']
@@ -274,7 +293,7 @@ class RemoveDuplicatesOrUnmapped(ShellTask):
     def run(self):
         input_cram_path = self.input()[0][0].path
         run_id = Path(input_cram_path).stem
-        print_log(f'Remove duplicate :\t{run_id}')
+        print_log(f'Remove duplicates and unmapped reads:\t{run_id}')
         samtools = self.cf['samtools']
         n_cpu = self.cf['n_cpu_per_worker']
         output_cram_path = self.output()[0].path
@@ -306,16 +325,21 @@ class PrepareCRAMs(luigi.WrapperTask):
     ref_fa_paths = luigi.ListParameter()
     fq_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
-    known_site_vcf_paths = luigi.ListParameter()
+    sample_names = luigi.ListParameter()
+    dbsnp_vcf_path = luigi.Parameter()
+    known_indel_vcf_paths = luigi.ListParameter()
     cf = luigi.DictParameter()
     priority = 100
 
     def requires(self):
         return [
-            RemoveDuplicatesOrUnmapped(
-                fq_paths=f, read_group=r, ref_fa_paths=self.ref_fa_paths,
-                known_site_vcf_paths=self.known_site_vcf_paths, cf=self.cf
-            ) for f, r in zip(self.fq_list, self.read_groups)
+            RemoveDuplicatesAndUnmapped(
+                fq_paths=f, read_group=r, sample_name=n,
+                ref_fa_paths=self.ref_fa_paths,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                known_indel_vcf_paths=self.known_indel_vcf_paths, cf=self.cf
+            ) for f, r, n
+            in zip(self.fq_list, self.read_groups, self.sample_names)
         ]
 
     def output(self):

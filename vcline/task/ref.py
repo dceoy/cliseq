@@ -36,13 +36,12 @@ class FetchReferenceFASTA(ShellTask):
         fa_path = self.output().path
         run_id = Path(fa_path).stem
         print_log(f'Create a reference FASTA:\t{run_id}')
-        cat = self.cf['cat']
         pigz = self.cf['pigz']
         pbzip2 = self.cf['pbzip2']
         n_cpu = self.cf['n_cpu_per_worker']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[cat, pigz, pbzip2], cwd=self.cf['ref_dir_path']
+            commands=[pigz, pbzip2], cwd=self.cf['ref_dir_path']
         )
         args = list()
         for i, p in enumerate(self.ref_fa_paths):
@@ -52,15 +51,15 @@ class FetchReferenceFASTA(ShellTask):
             elif p.endswith('.bz2'):
                 a = f'{pbzip2} -p{n_cpu} -dc {p} {r} {fa_path}'
             else:
-                a = '{cat} {p} {r} {fa_path}'
+                a = 'cat {p} {r} {fa_path}'
             args.append(f'set -e && {a}')
         self.run_shell(
             args=args, input_files=self.ref_fa_paths, output_files=fa_path
         )
 
 
-class FetchKnownSiteVCF(ShellTask):
-    known_site_vcf_path = luigi.ListParameter()
+class FetchResourceVCF(ShellTask):
+    resource_vcf_path = luigi.ListParameter()
     cf = luigi.DictParameter()
 
     def output(self):
@@ -69,7 +68,7 @@ class FetchKnownSiteVCF(ShellTask):
                 str(
                     Path(self.cf['ref_dir_path']).joinpath(
                         re.sub(
-                            r'\.gz$', '', Path(self.known_site_vcf_path).name
+                            r'\.gz$', '', Path(self.resource_vcf_path).name
                         ) + s
                     )
                 )
@@ -79,7 +78,7 @@ class FetchKnownSiteVCF(ShellTask):
     def run(self):
         dest_vcf_path = self.output()[0].path
         run_id = Path(Path(dest_vcf_path).stem).stem
-        print_log(f'Create a known site VCF:\t{run_id}')
+        print_log(f'Create a VCF:\t{run_id}')
         bgzip = self.cf['bgzip']
         tabix = self.cf['tabix']
         n_cpu = self.cf['n_cpu_per_worker']
@@ -90,14 +89,14 @@ class FetchKnownSiteVCF(ShellTask):
         self.run_shell(
             args=(
                 'set -e && ' + (
-                    f'cp {self.known_site_vcf_path} {dest_vcf_path}'
-                    if self.known_site_vcf_path.endswith('.gz') else (
+                    f'cp {self.resource_vcf_path} {dest_vcf_path}'
+                    if self.resource_vcf_path.endswith('.gz') else (
                         f'{bgzip} -@ {n_cpu} -c'
-                        + f' {self.known_site_vcf_path} > {dest_vcf_path}'
+                        + f' {self.resource_vcf_path} > {dest_vcf_path}'
                     )
                 )
             ),
-            input_files=self.known_site_vcf_path, output_files=dest_vcf_path
+            input_files=self.resource_vcf_path, output_files=dest_vcf_path
         )
         self.run_shell(
             args=f'set -e && {tabix} -p vcf {dest_vcf_path}',
@@ -105,16 +104,81 @@ class FetchKnownSiteVCF(ShellTask):
         )
 
 
-class FetchKnownSiteVCFs(luigi.WrapperTask):
-    known_site_vcf_paths = luigi.ListParameter()
+class FetchDbsnpVCF(luigi.WrapperTask):
+    dbsnp_vcf_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 80
+
+    def requires(self):
+        return FetchResourceVCF(
+            resource_vcf_path=self.dbsnp_vcf_path, cf=self.cf
+        )
+
+    def output(self):
+        return self.input()
+
+
+class FetchKnownIndelVCFs(luigi.WrapperTask):
+    known_indel_vcf_paths = luigi.ListParameter()
     cf = luigi.DictParameter()
     priority = 80
 
     def requires(self):
         return [
-            FetchKnownSiteVCF(known_site_vcf_path=p, cf=self.cf)
-            for p in self.known_site_vcf_paths
+            FetchResourceVCF(resource_vcf_path=p, cf=self.cf)
+            for p in self.known_indel_vcf_paths
         ]
+
+    def output(self):
+        return self.input()
+
+
+class FetchResourceFile(ShellTask):
+    resource_file_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 80
+
+    def output(self):
+        return luigi.LocalTarget(
+            str(
+                Path(self.cf['ref_dir_path']).joinpath(
+                    re.sub(
+                        r'\.(gz|bz2)$', '', Path(self.resource_file_path).name
+                    )
+                )
+            )
+        )
+
+    def run(self):
+        dest_path = self.output().path
+        run_id = Path(dest_path).stem
+        print_log(f'Create a resource:\t{run_id}')
+        src_path = self.resource_file_path
+        pigz = self.cf['pigz']
+        pbzip2 = self.cf['pbzip2']
+        n_cpu = self.cf['n_cpu_per_worker']
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=[pigz, pbzip2], cwd=self.cf['ref_dir_path']
+        )
+        if src_path.endswith('.gz'):
+            a = f'{pigz} -p {n_cpu} -dc {src_path} > {dest_path}'
+        elif src_path.endswith('.bz2'):
+            a = f'{pbzip2} -p{n_cpu} -dc {src_path} > {dest_path}'
+        else:
+            a = f'cp {src_path} {dest_path}'
+        self.run_shell(args=a, input_files=src_path, output_files=dest_path)
+
+
+class FetchEvaluationIntervalList(luigi.WrapperTask):
+    evaluation_interval_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 80
+
+    def requires(self):
+        return FetchResourceFile(
+            resource_file_path=self.evaluation_interval_path, cf=self.cf
+        )
 
     def output(self):
         return self.input()

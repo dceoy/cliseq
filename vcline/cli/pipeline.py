@@ -11,7 +11,8 @@ import luigi
 from psutil import cpu_count, virtual_memory
 
 from ..task.call import CallVariants
-from .util import fetch_executable, print_log, read_yml, render_template
+from .util import (fetch_executable, parse_fq_id, print_log, read_yml,
+                   render_template)
 
 
 def run_analytical_pipeline(config_yml_path, work_dir_path=None,
@@ -51,21 +52,35 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
         ),
         **{
             c: fetch_executable(c) for c in [
-                'bgzip', 'bcftools', 'bwa', 'cat', 'cutadapt', 'fastqc',
-                'gatk', 'pbzip2', 'pigz', 'samtools', 'tabix', 'trim_galore'
+                'bgzip', 'bcftools', 'bwa', 'cutadapt', 'fastqc', 'gatk',
+                'pbzip2', 'pigz', 'samtools', 'tabix', 'trim_galore'
             ]
         },
         **dirs
     }
-    logger.debug('common_config:' + os.linesep + pformat(common_config))
-    ref_dict = {
-        f'{k}_paths': list(_resolve_input_file_paths(v))
-        for k, v in config['references'].items()
-    }
-    logger.debug('ref_dict:' + os.linesep + pformat(ref_dict))
+    ref_dict = _resolve_input_file_paths(path_dict=config['references'])
+    fb_keys = ['foreground', 'background']
+    task_kwargs = [
+        {
+            'fq_list': [
+                list(_resolve_input_file_paths(path_list=r[k]['fq']))
+                for k in fb_keys if r[k].get('fq')
+            ],
+            'read_groups':
+            [(r[k].get('read_group') or dict()) for k in fb_keys],
+            'sample_names': [
+                (
+                    (r[k].get('read_group') or dict()).get('SM')
+                    or parse_fq_id(fq_path=r[k]['fq'][0])
+                ) for k in fb_keys
+            ],
+            'cf': common_config, **ref_dict
+         } for r in config['runs']
+    ]
+    logger.debug('task_kwargs:' + os.linesep + pformat(task_kwargs))
+
     log_txt_path = str(log_dir.joinpath('luigi.log.txt'))
     log_cfg_path = str(log_dir.joinpath('luigi.log.cfg'))
-
     for p in dirs.values():
         d = Path(p)
         if not d.is_dir():
@@ -77,29 +92,35 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
         output_path=log_cfg_path
     )
     luigi.build(
-        [
-            CallVariants(
-                fq_list=[
-                    list(_resolve_input_file_paths(paths=r[k]['fq']))
-                    for k in ['foreground', 'background'] if r[k].get('fq')
-                ],
-                read_groups=[
-                    (r[k].get('read_group') or dict())
-                    for k in ['foreground', 'background']
-                ],
-                cf=common_config, **ref_dict
-            ) for r in config['runs']
-        ],
+        [CallVariants(**d) for d in task_kwargs],
         workers=n_worker, local_scheduler=True, log_level=log_level,
         logging_conf_file=log_cfg_path
     )
 
 
-def _resolve_input_file_paths(paths):
-    for s in paths:
-        p = Path(s).resolve()
-        assert p.is_file(), f'file not found: {p}'
-        yield str(p)
+def _resolve_input_file_paths(path_list=None, path_dict=None):
+    assert bool(path_list or path_dict)
+    if path_list:
+        new_list = list()
+        for s in path_list:
+            p = Path(s).resolve()
+            assert p.is_file(), f'file not found: {p}'
+            new_list.append(str(p))
+        return new_list
+    elif path_dict:
+        new_dict = dict()
+        for k, v in path_dict.items():
+            if isinstance(v, str):
+                p = Path(v).resolve()
+                assert p.is_file(), f'file not found: {p}'
+                new_dict[f'{k}_path'] = str(p)
+            else:
+                new_dict[f'{k}_paths'] = list()
+                for s in v:
+                    p = Path(s).resolve()
+                    assert p.is_file(), f'file not found: {p}'
+                    new_dict[f'{k}_paths'].append(str(p))
+        return new_dict
 
 
 def _read_config_yml(config_yml_path):
@@ -108,12 +129,18 @@ def _read_config_yml(config_yml_path):
     for k in ['references', 'runs']:
         assert config.get(k)
     assert isinstance(config['references'], dict)
-    for k in ['ref_fa', 'known_site_vcf']:
+    assert set(config['references'].keys()).intersection({
+        'ref_fa', 'known_indel_vcf', 'dbsnp_vcf'
+    })
+    for k in ['ref_fa', 'known_indel_vcf', 'dbsnp_vcf', 'evaluation_interval']:
         v = config['references'].get(k)
-        assert isinstance(v, list)
-        assert _has_unique_elements(v)
-        for s in v:
-            assert isinstance(s, str)
+        if k in ['ref_fa', 'known_indel_vcf']:
+            assert isinstance(v, list)
+            assert _has_unique_elements(v)
+            for s in v:
+                assert isinstance(s, str)
+        elif v:
+            assert isinstance(v, str)
     assert isinstance(config['runs'], list)
     for r in config['runs']:
         assert isinstance(r, dict)

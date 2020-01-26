@@ -4,12 +4,13 @@ from pathlib import Path
 
 import luigi
 
-from ..cli.util import parse_fq_id, print_log
+from ..cli.util import print_log
 from .base import ShellTask
 
 
 class TrimAdapters(ShellTask):
     fq_paths = luigi.ListParameter()
+    sample_name = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 50
 
@@ -29,7 +30,7 @@ class TrimAdapters(ShellTask):
         ]
 
     def run(self):
-        run_id = parse_fq_id(fq_path=self.fq_paths[0])
+        run_id = self.sample_name
         print_log(f'Trim adapters:\t{run_id}')
         cutadapt = self.cf['cutadapt']
         fastqc = self.cf['fastqc']
