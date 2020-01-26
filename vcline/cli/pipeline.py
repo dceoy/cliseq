@@ -117,7 +117,7 @@ def _read_config_yml(config_yml_path):
     assert isinstance(config['runs'], list)
     for r in config['runs']:
         assert isinstance(r, dict)
-        assert set(r.keys()).intersection({'id', 'foreground', 'background'})
+        assert set(r.keys()).intersection({'foreground', 'background'})
         for t in ['foreground', 'background']:
             assert isinstance(r[t], dict)
             assert r[t].get('fq') or r[t].get('sam')
@@ -132,7 +132,6 @@ def _read_config_yml(config_yml_path):
                 for k, v in r[t]['read_group'].items():
                     assert re.fullmatch(r'[A-Z]{2}', k)
                     assert type(v) not in [list, dict]
-    assert _has_unique_elements([r['id'] for r in config['runs']])
     return config
 
 

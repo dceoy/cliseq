@@ -29,7 +29,7 @@ class ShellTask(BaseTask):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__sh = None
-        self.__cwd = None
+        self.__run_kwargs = None
 
     @classmethod
     def setup_shell(cls, run_id=None, log_dir_path=None, commands=None,

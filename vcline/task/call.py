@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import re
 from pathlib import Path
 
 import luigi
@@ -32,8 +33,12 @@ class CallSomaticVariantsWithMutect2(ShellTask):
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         samtools = self.cf['samtools']
-        input_cram_paths = [i[0].path for i in self.input()[0]]
-        output_vcf_path = self.output().path
+        save_memory = str(self.cf['memory_mb_per_worker'] < 16 * 1024).lower()
+        cram_paths = [i[0].path for i in self.input()[0]]
+        filtered_vcf_path = self.output().path
+        unfiltered_vcf_path = re.sub(
+            r'(\.vcf)$', '.unfiltered\\1', filtered_vcf_path
+        )
         fa_path = self.input()[1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
@@ -41,15 +46,24 @@ class CallSomaticVariantsWithMutect2(ShellTask):
             env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
-            args=(
-                f'set -e && {gatk}{gatk_opts} Mutect2'
-                + f' --reference {fa_path}'
-                + f' --input {input_cram_paths[0]}'
-                + f' --input {input_cram_paths[1]}'
-                + f' --output {output_vcf_path}'
-            ),
-            input_files=[*input_cram_paths, fa_path],
-            output_files=output_vcf_path
+            args=[
+                (
+                    f'set -e && {gatk}{gatk_opts} Mutect2'
+                    + f' --reference {fa_path}'
+                    + f' --input {cram_paths[0]}'
+                    + f' --input {cram_paths[1]}'
+                    + f' --output {unfiltered_vcf_path}'
+                    + f' --disable-bam-index-caching {save_memory}'
+                ),
+                (
+                    f'set -e && {gatk}{gatk_opts} FilterMutectCalls'
+                    + f' --reference {fa_path}'
+                    + f' --variant {unfiltered_vcf_path}'
+                    + f' --output {filtered_vcf_path}'
+                )
+            ],
+            input_files=[*cram_paths, fa_path],
+            output_files=[filtered_vcf_path, unfiltered_vcf_path]
         )
 
 
