@@ -57,6 +57,8 @@ class ShellTask(BaseTask):
             *args, **kwargs,
             **{k: v for k, v in cls.__run_kwargs.items() if k not in kwargs}
         )
+        if 'asynchronous' in kwargs:
+            cls.__sh.wait()
 
     @staticmethod
     def _generate_version_commands(commands):
