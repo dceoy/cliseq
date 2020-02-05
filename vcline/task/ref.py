@@ -68,11 +68,12 @@ class FetchResourceVCF(ShellTask):
                 str(
                     Path(self.cf['ref_dir_path']).joinpath(
                         re.sub(
-                            r'\.gz$', '', Path(self.resource_vcf_path).name
-                        ) + s
+                            r'\.(gz|bgz)$', f'.{s}',
+                            Path(self.resource_vcf_path).name
+                        )
                     )
                 )
-            ) for s in ['.gz', '.gz.tbi']
+            ) for s in ['gz', 'gz.tbi']
         ]
 
     def run(self):
@@ -90,7 +91,7 @@ class FetchResourceVCF(ShellTask):
             args=(
                 'set -e && ' + (
                     f'cp {self.resource_vcf_path} {dest_vcf_path}'
-                    if self.resource_vcf_path.endswith('.gz') else (
+                    if self.resource_vcf_path.endswith(('.gz', '.bgz')) else (
                         f'{bgzip} -@ {n_cpu} -c'
                         + f' {self.resource_vcf_path} > {dest_vcf_path}'
                     )
@@ -296,6 +297,100 @@ class CreateSequenceDictionary(ShellTask):
                 + f' --REFERENCE {fa_path}'
             ),
             input_files=fa_path, output_files=self.output().path
+        )
+
+
+class PrepareGermlineResourceVCFs(luigi.WrapperTask):
+    dbsnp_vcf_path = luigi.Parameter()
+    hapmap_vcf_path = luigi.Parameter()
+    omni_vcf_path = luigi.Parameter()
+    snp_1000g_vcf_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 40
+
+    def requires(self):
+        return {
+            'dbsnp': FetchDbsnpVCF(
+                dbsnp_vcf_path=self.dbsnp_vcf_path, cf=self.cf
+            ),
+            'hapmap': FetchResourceVCF(
+                resource_vcf_path=self.hapmap_vcf_path, cf=self.cf
+            ),
+            'omni': FetchResourceVCF(
+                resource_vcf_path=self.omni_vcf_path, cf=self.cf
+            ),
+            'snp_1000g': FetchResourceVCF(
+                resource_vcf_path=self.snp_1000g_vcf_path, cf=self.cf
+            )
+        }
+
+    def output(self):
+        return self.input()
+
+
+class CreateGnomadSelectedVCF(ShellTask):
+    gnomad_vcf_path = luigi.Parameter()
+    ref_fa_paths = luigi.ListParameter()
+    evaluation_interval_path = luigi.Parameter(default='')
+    cf = luigi.DictParameter()
+    priority = 50
+
+    def requires(self):
+        return [
+            FetchResourceVCF(
+                resource_vcf_path=self.gnomad_vcf_path, cf=self.cf
+            ),
+            FetchReferenceFASTA(
+                ref_fa_paths=self.ref_fa_paths, cf=self.cf
+            ),
+            PrepareEvaluationIntervalList(
+                ref_fa_paths=self.ref_fa_paths,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
+            )
+        ]
+
+    def output(self):
+        return [
+            luigi.LocalTarget(
+                str(
+                    Path(self.cf['call_dir_path']).joinpath(
+                        Path(self.input()[0].path).stem + f'.selected.vcf.{s}'
+                    )
+                )
+            ) for s in ['gz', 'gz.tbi']
+        ]
+
+    def run(self):
+        gnomad_vcf_path = self.input()[0].path
+        run_id = '.'.join(Path(gnomad_vcf_path).name.split('.')[:-2])
+        print_log(f'Create a gnomAD VCF:\t{run_id}')
+        tabix = self.cf['tabix']
+        gatk = self.cf['gatk']
+        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        fa_path = self.input()[1].path
+        evaluation_interval_path = self.input()[2].path
+        selected_vcf_path = self.output()[0].path
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=[tabix, gatk], cwd=self.cf['ref_dir_path']
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {gatk}{gatk_opts} SelectVariants'
+                + f' --reference {fa_path}'
+                + f' --variant {gnomad_vcf_path}'
+                + f' --intervals {evaluation_interval_path}'
+                + f' --output {selected_vcf_path}'
+                + ' --lenient'
+            ),
+            input_files=[gnomad_vcf_path, fa_path, evaluation_interval_path],
+            output_files=selected_vcf_path
+        )
+        self.run_shell(
+            args=f'set -e && {tabix} -p vcf {selected_vcf_path}',
+            input_files=selected_vcf_path,
+            output_files=f'{selected_vcf_path}.tbi'
         )
 
 

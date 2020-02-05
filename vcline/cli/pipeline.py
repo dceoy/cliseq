@@ -10,7 +10,7 @@ from pprint import pformat
 import luigi
 from psutil import cpu_count, virtual_memory
 
-from ..task.call import CallVariants
+from ..task.somatic import CallVariantsWithGATK
 from .util import (fetch_executable, parse_fq_id, print_log, read_yml,
                    render_template)
 
@@ -98,7 +98,7 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
         output_path=log_cfg_path
     )
     luigi.build(
-        [CallVariants(**d) for d in task_kwargs],
+        [CallVariantsWithGATK(**d) for d in task_kwargs],
         workers=n_worker, local_scheduler=True, log_level=log_level,
         logging_conf_file=log_cfg_path
     )

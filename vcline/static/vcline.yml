@@ -16,8 +16,8 @@ references:
   # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/1000G_omni2.5.hg38.vcf.gz
   snp_1000g_vcf: /path/to/1000G_phase1.snps.high_confidence.hg38.vcf.gz
   # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/1000G_phase1.snps.high_confidence.hg38.vcf.gz
-  evaluation_interval: /path/to/wgs_calling_regions.hg38.interval_list
-  # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/wgs_calling_regions.hg38.interval_list
+  gnomad_vcf: gnomad.genomes.r3.0.sites.vcf.gz
+  # https://storage.cloud.google.com/gnomad-public/release/3.0/vcf/genomes/gnomad.genomes.r3.0.sites.vcf.bgz
 runs:
   - foreground:
       fq:
