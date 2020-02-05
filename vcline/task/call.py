@@ -9,60 +9,129 @@ from luigi.util import requires
 from ..cli.util import create_matched_id, print_log
 from .align import PrepareCRAMs
 from .base import ShellTask
-from .ref import (CreateFASTAIndex, FetchDbsnpVCF, FetchEvaluationIntervalList,
-                  FetchReferenceFASTA)
+from .ref import (CreateEvaluationIntervalList, CreateFASTAIndex,
+                  FetchDbsnpVCF, FetchEvaluationIntervalList,
+                  FetchReferenceFASTA, FetchResourceVCF)
 
 
-@requires(FetchEvaluationIntervalList, FetchReferenceFASTA)
 class SplitEvaluationIntervals(ShellTask):
+    ref_fa_paths = luigi.ListParameter()
+    evaluation_interval_path = luigi.Parameter(default='')
     cf = luigi.DictParameter()
     priority = 40
 
+    def requires(self):
+        return [
+            FetchReferenceFASTA(
+                ref_fa_paths=self.ref_fa_paths, cf=self.cf
+            ),
+            (
+                FetchEvaluationIntervalList(
+                    evaluation_interval_path=self.evaluation_interval_path,
+                    cf=self.cf
+                ) if self.evaluation_interval_path
+                else CreateEvaluationIntervalList(
+                    ref_fa_paths=self.ref_fa_paths, cf=self.cf
+                )
+            )
+        ]
+
     def output(self):
-        return (
-            [
-                luigi.LocalTarget(
-                    str(
-                        Path(self.cf['call_dir_path']).joinpath(
-                            f'{i:04d}-scattered.interval_list'
-                        )
+        return [
+            luigi.LocalTarget(
+                str(
+                    Path(self.cf['call_dir_path']).joinpath(
+                        f'{i:04d}-scattered.interval_list'
                     )
-                ) for i in range(self.cf['n_cpu_per_worker'])
-            ] if self.cf['n_cpu_per_worker'] > 1 else
-            [luigi.LocalTarget(self.input()[0].path)]
-        )
+                )
+            ) for i in range(self.cf['n_cpu_per_worker'])
+        ]
 
     def run(self):
-        n_cpu = self.cf['n_cpu_per_worker']
-        if n_cpu > 1:
-            interval_path = self.input()[0].path
-            run_id = Path(interval_path).stem
-            print_log(f'Split an interval list:\t{run_id}')
-            fa_path = self.input()[1].path
-            gatk = self.cf['gatk']
-            gatk_opts = ' --java-options "{}"'.format(
-                self.cf['gatk_java_options']
+        fa_path = self.input()[0].path
+        run_id = Path(fa_path).stem
+        print_log(f'Split an evaluation interval list:\t{run_id}')
+        gatk = self.cf['gatk']
+        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        interval_path = self.input()[1].path
+        scatter_count = self.cf['n_cpu_per_worker']
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
+            cwd=self.cf['call_dir_path']
+        )
+        self.run_shell(
+            args=(
+                'set -e && '
+                + f'{gatk}{gatk_opts} SplitIntervals'
+                + f' --reference {fa_path}'
+                + f' --intervals {interval_path}'
+                + f' --scatter-count {scatter_count}'
+                + ' --output {}'.format(self.cf['call_dir_path'])
+            ),
+            input_files=[interval_path, fa_path],
+            output_files=[o.path for o in self.output()]
+        )
+
+
+class PrepareEvaluationIntervals(luigi.WrapperTask):
+    ref_fa_paths = luigi.ListParameter()
+    evaluation_interval_path = luigi.Parameter(default='')
+    cf = luigi.DictParameter()
+    priority = 40
+
+    def requires(self):
+        if self.cf['split_intervals']:
+            return SplitEvaluationIntervals(
+                ref_fa_paths=self.ref_fa_paths,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
             )
-            self.setup_shell(
-                run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-                commands=gatk, cwd=self.cf['call_dir_path']
+        elif self.evaluation_interval_path:
+            return FetchEvaluationIntervalList(
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
             )
-            self.run_shell(
-                args=(
-                    'set -e && '
-                    + f'{gatk}{gatk_opts} SplitIntervals'
-                    + f' --reference {fa_path}'
-                    + f' --intervals {interval_path}'
-                    + f' --scatter-count {n_cpu}'
-                    + ' --output {}'.format(self.cf['call_dir_path'])
-                ),
-                input_files=[interval_path, fa_path],
-                output_files=[o.path for o in self.output()]
+        else:
+            return CreateEvaluationIntervalList(
+                ref_fa_paths=self.ref_fa_paths, cf=self.cf
             )
+
+    def output(self):
+        return (
+            self.input() if isinstance(self.input(), list) else [self.input()]
+        )
+
+
+class PrepareGermlineResourceVCFs(luigi.WrapperTask):
+    dbsnp_vcf_path = luigi.Parameter()
+    hapmap_vcf_path = luigi.Parameter()
+    omni_vcf_path = luigi.Parameter()
+    snp_1000g_vcf_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 40
+
+    def requires(self):
+        return {
+            'dbsnp': FetchDbsnpVCF(
+                dbsnp_vcf_path=self.dbsnp_vcf_path, cf=self.cf
+            ),
+            'hapmap': FetchResourceVCF(
+                resource_vcf_path=self.hapmap_vcf_path, cf=self.cf
+            ),
+            'omni': FetchResourceVCF(
+                resource_vcf_path=self.omni_vcf_path, cf=self.cf
+            ),
+            'snp_1000g': FetchResourceVCF(
+                resource_vcf_path=self.snp_1000g_vcf_path, cf=self.cf
+            )
+        }
+
+    def output(self):
+        return self.input()
 
 
 @requires(PrepareCRAMs, FetchReferenceFASTA, CreateFASTAIndex,
-          FetchDbsnpVCF, SplitEvaluationIntervals)
+          FetchDbsnpVCF, PrepareEvaluationIntervals)
 class CallVariantsWithHaplotypeCaller(ShellTask):
     cf = luigi.DictParameter()
     priority = 60
@@ -76,7 +145,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                         + f'.HaplotypeCaller.{s}'
                     )
                 )
-            ) for s in ['g.vcf.gz', 'cram', 'cram.crai']
+            ) for s in ['raw.g.vcf.gz', 'cram', 'cram.crai']
         ]
 
     def run(self):
@@ -124,6 +193,8 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                     + f' --intervals {i}'
                     + f' --output {g}'
                     + f' --bam-output {b}'
+                    + ' --pair-hmm-implementation AVX_LOGLESS_CACHING_OMP'
+                    + f' --native-pair-hmm-threads {n_cpu}'
                     + f' --disable-bam-index-caching {save_memory}'
                     + ' --emit-ref-confidence GVCF'
                     + ' --create-output-bam-index false'
@@ -135,7 +206,8 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                 input_cram_path, fa_path, dbsnp_vcf_path,
                 *evaluation_interval_paths
             ],
-            output_files=[*tmp_gvcf_paths, *tmp_bam_paths], asynchronous=True
+            output_files=[*tmp_gvcf_paths, *tmp_bam_paths],
+            asynchronous=(len(evaluation_interval_paths) > 1)
         )
         self.run_shell(
             args=[
@@ -184,19 +256,19 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
 
 
 @requires(CallVariantsWithHaplotypeCaller, FetchReferenceFASTA,
-          FetchDbsnpVCF, FetchEvaluationIntervalList)
-class GenotypeHaplotypeCallerGVCF(ShellTask):
+          FetchDbsnpVCF, PrepareEvaluationIntervals)
+class GenotypeGVCF(ShellTask):
     cf = luigi.DictParameter()
     priority = 60
 
     def output(self):
         return luigi.LocalTarget(
-            re.sub(r'\.g\.vcf\.gz$', '.vcf', self.input()[0][0].path)
+            re.sub(r'\.g\.vcf\.gz$', '.vcf.gz', self.input()[0][0].path)
         )
 
     def run(self):
         vcf_path = self.output().path
-        run_id = '.'.join(Path(vcf_path).name.split('.')[:-2])
+        run_id = '.'.join(Path(vcf_path).name.split('.')[:-3])
         print_log(f'Genotype a HaplotypeCaller GVCF:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
@@ -226,7 +298,78 @@ class GenotypeHaplotypeCallerGVCF(ShellTask):
         )
 
 
-@requires(PrepareCRAMs, FetchReferenceFASTA, FetchEvaluationIntervalList,
+@requires(GenotypeGVCF, FetchReferenceFASTA, PrepareGermlineResourceVCFs)
+class ApplyVQSR(ShellTask):
+    cf = luigi.DictParameter()
+    priority = 60
+
+    def output(self):
+        return luigi.LocalTarget(
+            re.sub(r'\.raw\.vcf\.gz$', '.vcf.gz', self.input()[0].path)
+        )
+
+    def run(self):
+        filtered_vcf_path = self.output().path
+        run_id = '.'.join(Path(filtered_vcf_path).name.split('.')[:-2])
+        print_log(f'Apply Variant Quality Score Recalibration:\t{run_id}')
+        gatk = self.cf['gatk']
+        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        save_memory = str(self.cf['memory_mb_per_worker'] < 8 * 1024).lower()
+        raw_vcf_path = self.input()[0].path
+        fa_path = self.input()[1].path
+        resource_params = {
+            'hapmap': 'hapmap,known=false,training=true,truth=true,prior=15.0',
+            'omni': 'omni,known=false,training=true,truth=false,prior=12.0',
+            'snp_1000G':
+            '1000G,known=false,training=true,truth=false,prior=10.0',
+            'dbsnp': 'dbsnp,known=true,training=false,truth=false,prior=2.0'
+        }
+        resource_vcf_paths = {k: v[0].path for k, v in self.input()[2].items()}
+        recal_path = re.sub(r'\.vcf\.gz$', '.recal', filtered_vcf_path)
+        tranches_path = re.sub(r'\.vcf\.gz$', '.tranches', filtered_vcf_path)
+        plot_r_path = re.sub(r'\.vcf\.gz$', '.plot.R', filtered_vcf_path)
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
+            cwd=self.cf['call_dir_path']
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {gatk}{gatk_opts} VariantRecalibrator'
+                + f' --reference {fa_path}'
+                + f' --variant {raw_vcf_path}'
+                + ''.join([
+                    f' --resource:{resource_params[k]} {v}'
+                    for k, v in resource_vcf_paths.items()
+                ]) + f' --output {recal_path}'
+                + f' --tranches-file {tranches_path}'
+                + f' --rscript-file {plot_r_path}'
+                + ''.join([
+                    f' --use-annotation {a}' for a in
+                    ['QD', 'MQ', 'MQRankSum', 'ReadPosRankSum', 'FS', 'SOR']
+                ]) + ' --mode SNP'
+                + f' --disable-bam-index-caching {save_memory}'
+            ),
+            input_files=[raw_vcf_path, fa_path, *resource_vcf_paths.values()],
+            output_files=[recal_path, tranches_path, plot_r_path]
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {gatk}{gatk_opts} ApplyVQSR'
+                + f' --reference {fa_path}'
+                + f' --variant {raw_vcf_path}'
+                + f' --tranches-file {tranches_path}'
+                + f' --recal-file {recal_path}'
+                + f' --output {filtered_vcf_path}'
+                + ' --truth-sensitivity-filter-level 99.0'
+                + ' --mode SNP'
+                + f' --disable-bam-index-caching {save_memory}'
+            ),
+            input_files=[raw_vcf_path, fa_path, recal_path, tranches_path],
+            output_files=filtered_vcf_path
+        )
+
+
+@requires(PrepareCRAMs, FetchReferenceFASTA, PrepareEvaluationIntervals,
           FetchDbsnpVCF)
 class CalculateContamination(ShellTask):
     cf = luigi.DictParameter()
@@ -293,7 +436,7 @@ class CalculateContamination(ShellTask):
 
 
 @requires(PrepareCRAMs, FetchReferenceFASTA, CreateFASTAIndex,
-          SplitEvaluationIntervals)
+          PrepareEvaluationIntervals)
 class CallVariantsWithMutect2(ShellTask):
     sample_names = luigi.ListParameter()
     cf = luigi.DictParameter()
@@ -369,6 +512,8 @@ class CallVariantsWithMutect2(ShellTask):
                     + f' --bam-output {b}'
                     + f' --f1r2-tar-gz {f}'
                     + f' --normal-sample {normal_name}'
+                    + ' --pair-hmm-implementation AVX_LOGLESS_CACHING_OMP'
+                    + f' --native-pair-hmm-threads {n_cpu}'
                     + f' --disable-bam-index-caching {save_memory}'
                     + ' --max-mnp-distance 0'
                     + ' --create-output-bam-index false'
@@ -383,7 +528,7 @@ class CallVariantsWithMutect2(ShellTask):
             output_files=[
                 *tmp_vcf_paths, *tmp_bam_paths, *f1r2_paths, *tmp_stats_paths
             ],
-            asynchronous=True
+            asynchronous=(len(evaluation_interval_paths) > 1)
         )
         self.run_shell(
             args=[
@@ -450,7 +595,7 @@ class CallVariantsWithMutect2(ShellTask):
 
 
 @requires(CallVariantsWithMutect2, FetchReferenceFASTA,
-          FetchEvaluationIntervalList, CalculateContamination)
+          PrepareEvaluationIntervals)
 class FilterMutect2Calls(ShellTask):
     cf = luigi.DictParameter()
     priority = 50
@@ -471,8 +616,8 @@ class FilterMutect2Calls(ShellTask):
         ob_priors_path = self.input()[0][4].path
         fa_path = self.input()[1].path
         evaluation_interval_path = self.input()[2].path
-        contamination_table_path = self.input()[3][0].path
-        segment_table_path = self.input()[3][1].path
+        # contamination_table_path = self.input()[3][0].path
+        # segment_table_path = self.input()[3][1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['call_dir_path']
@@ -484,15 +629,15 @@ class FilterMutect2Calls(ShellTask):
                 + f' --intervals {evaluation_interval_path}'
                 + f' --variant {raw_vcf_path}'
                 + f' --stats {raw_stats_path}'
-                + f' --tumor-segmentation {segment_table_path}'
-                + f' --contamination-table {contamination_table_path}'
+                # + f' --contamination-table {contamination_table_path}'
+                # + f' --tumor-segmentation {segment_table_path}'
                 + f' --orientation-bias-artifact-priors {ob_priors_path}'
                 + f' --output {filtered_vcf_path}'
             ),
             input_files=[
                 raw_vcf_path, fa_path, evaluation_interval_path,
-                raw_stats_path, segment_table_path, contamination_table_path,
-                ob_priors_path
+                raw_stats_path, ob_priors_path
+                # contamination_table_path, segment_table_path,
             ],
             output_files=filtered_vcf_path
         )
@@ -505,17 +650,23 @@ class CallVariants(luigi.WrapperTask):
     sample_names = luigi.ListParameter()
     dbsnp_vcf_path = luigi.Parameter()
     known_indel_vcf_paths = luigi.ListParameter()
-    evaluation_interval_path = luigi.Parameter()
+    hapmap_vcf_path = luigi.Parameter()
+    omni_vcf_path = luigi.Parameter()
+    snp_1000g_vcf_path = luigi.Parameter()
+    evaluation_interval_path = luigi.Parameter(default='')
     cf = luigi.DictParameter()
     priority = 100
 
     def requires(self):
         return [
-            GenotypeHaplotypeCallerGVCF(
+            ApplyVQSR(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 known_indel_vcf_paths=self.known_indel_vcf_paths,
+                hapmap_vcf_path=self.hapmap_vcf_path,
+                omni_vcf_path=self.omni_vcf_path,
+                snp_1000g_vcf_path=self.snp_1000g_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             ),

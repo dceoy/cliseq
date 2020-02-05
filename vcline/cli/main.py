@@ -5,7 +5,8 @@ Variant Calling Pipeline for Clinical Sequencing
 Usage:
     vcline init [--debug|--info] [--yml=<path>]
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
-        [--workers=<int>] [--ref-dir=<path>] [<work_dir_path>]
+        [--workers=<int>] [--split-intervals] [--ref-dir=<path>]
+        [<work_dir_path>]
     vcline -h|--help
     vcline --version
 
@@ -17,9 +18,10 @@ Options:
     -h, --help          Print help and exit
     --version           Print version and exit
     --debug, --info     Execute a command with debug|info messages
+    --yml=<path>        Specify a config YAML path [default: vcline.yml]
     --cpus=<int>        Limit CPU cores used
     --workers=<int>     Specify the maximum number of workers [default: 2]
-    --yml=<path>        Specify a config YAML path [default: vcline.yml]
+    --split-intervals   Split evaluation intervals
     --ref-dir=<path>    Specify a reference directory path
 
 Args:
@@ -60,7 +62,8 @@ def main():
         run_analytical_pipeline(
             config_yml_path=args['--yml'], ref_dir_path=args['--ref-dir'],
             work_dir_path=args['<work_dir_path>'], max_n_cpu=args['--cpus'],
-            max_n_worker=args['--workers'], log_level=log_level
+            max_n_worker=args['--workers'],
+            split_intervals=args['--split-intervals'], log_level=log_level
         )
 
 

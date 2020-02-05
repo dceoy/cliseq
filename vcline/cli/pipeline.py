@@ -17,7 +17,8 @@ from .util import (fetch_executable, parse_fq_id, print_log, read_yml,
 
 def run_analytical_pipeline(config_yml_path, work_dir_path=None,
                             ref_dir_path=None, max_n_cpu=None,
-                            max_n_worker=None, log_level='WARNING'):
+                            max_n_worker=None, split_intervals=False,
+                            log_level='WARNING'):
     logger = logging.getLogger(__name__)
     work_dir = Path(work_dir_path or '.').resolve()
     print_log(f'Run the analytical pipeline:\t{work_dir}')
@@ -39,17 +40,22 @@ def run_analytical_pipeline(config_yml_path, work_dir_path=None,
 
     total_n_cpu = cpu_count()
     total_memory_mb = virtual_memory().total / 1024 / 1024
+    n_cpu_per_worker = max(1, floor(int(max_n_cpu or total_n_cpu) / n_worker))
     common_config = {
         'memory_mb_per_worker': int(total_memory_mb / n_worker),
-        'n_cpu_per_worker':
-        max(1, floor(int(max_n_cpu or total_n_cpu) / n_worker)),
-        'gatk_java_options':
-        '-Dsamjdk.compression_level={0:d} -Xms{1:d}m'.format(
-            5, int(total_memory_mb / n_worker / 2)
-        ),
-        'samtools_memory_per_thread': '{:d}M'.format(
-            int(total_memory_mb / total_n_cpu / 20)
-        ),
+        'n_cpu_per_worker': n_cpu_per_worker,
+        'gatk_java_options': ' '.join([
+            '-Dsamjdk.compression_level=5',
+            '-Dsamjdk.use_async_io_read_samtools=true',
+            '-Dsamjdk.use_async_io_write_samtools=true',
+            '-Dsamjdk.use_async_io_write_tribble=false',
+            '-Xms{:d}m'.format(int(total_memory_mb / n_worker / 2)),
+            '-XX:+UseParallelGC',
+            f'-XX:ParallelGCThreads={n_cpu_per_worker}'
+        ]),
+        'samtools_memory_per_thread':
+        '{:d}M'.format(int(total_memory_mb / total_n_cpu / 20)),
+        'split_intervals': split_intervals,
         **{
             c: fetch_executable(c) for c in [
                 'bgzip', 'bcftools', 'bwa', 'cutadapt', 'fastqc', 'gatk',
@@ -132,14 +138,15 @@ def _read_config_yml(config_yml_path):
     assert set(config['references'].keys()).intersection({
         'ref_fa', 'known_indel_vcf', 'dbsnp_vcf'
     })
-    for k in ['ref_fa', 'known_indel_vcf', 'dbsnp_vcf', 'evaluation_interval']:
+    for k in ['ref_fa', 'known_indel_vcf', 'dbsnp_vcf', 'hapmap_vcf',
+              'omni_vcf', 'snp_1000g_vcf', 'evaluation_interval']:
         v = config['references'].get(k)
         if k in ['ref_fa', 'known_indel_vcf']:
             assert isinstance(v, list)
             assert _has_unique_elements(v)
             for s in v:
                 assert isinstance(s, str)
-        elif v:
+        elif k == 'dbsnp_vcf' or v:
             assert isinstance(v, str)
     assert isinstance(config['runs'], list)
     for r in config['runs']:
