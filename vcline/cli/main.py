@@ -7,12 +7,16 @@ Usage:
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
         [--workers=<int>] [--split-intervals] [--ref-dir=<path>]
         [<work_dir_path>]
+    vcline download-gnomad-af-vcf [--debug|--info] [--cpus=<int>]
+        [--vcf-bgz=<url>] [<work_dir_path>]
     vcline -h|--help
     vcline --version
 
 Commands:
     init                Create a config YAML template
     run                 Run the analytical pipeline
+    download-gnomad-af-vcf
+                        Download a large VCF and extract only AF from INFO
 
 Options:
     -h, --help          Print help and exit
@@ -23,6 +27,7 @@ Options:
     --workers=<int>     Specify the maximum number of workers [default: 2]
     --split-intervals   Split evaluation intervals
     --ref-dir=<path>    Specify a reference directory path
+    --vcf-bgz=<url>     Specify the URL of a bgzipped VCF
 
 Args:
     <work_dir_path>     Working directory path [default: .]
@@ -37,6 +42,7 @@ import coloredlogs
 from docopt import docopt
 
 from .. import __version__
+from .downloader import download_gnomad_vcf_and_extract_af
 from .pipeline import run_analytical_pipeline
 from .util import print_log
 
@@ -64,6 +70,11 @@ def main():
             work_dir_path=args['<work_dir_path>'], max_n_cpu=args['--cpus'],
             max_n_worker=args['--workers'],
             split_intervals=args['--split-intervals'], log_level=log_level
+        )
+    elif args['download-gnomad-af-vcf']:
+        download_gnomad_vcf_and_extract_af(
+            vcf_bgz_url=args['--vcf-bgz'],
+            work_dir_path=args['<work_dir_path>'], max_n_cpu=args['--cpus']
         )
 
 

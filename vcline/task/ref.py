@@ -343,10 +343,8 @@ class CreateGnomadSelectedVCF(ShellTask):
             FetchReferenceFASTA(
                 ref_fa_paths=self.ref_fa_paths, cf=self.cf
             ),
-            PrepareEvaluationIntervalList(
-                ref_fa_paths=self.ref_fa_paths,
-                evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
+            CreateEvaluationIntervalList(
+                ref_fa_paths=self.ref_fa_paths, cf=self.cf
             )
         ]
 

@@ -15,7 +15,7 @@ from .util import (fetch_executable, parse_fq_id, print_log, read_yml,
                    render_template)
 
 
-def run_analytical_pipeline(config_yml_path, work_dir_path=None,
+def run_analytical_pipeline(config_yml_path, work_dir_path='.',
                             ref_dir_path=None, max_n_cpu=None,
                             max_n_worker=None, split_intervals=False,
                             log_level='WARNING'):

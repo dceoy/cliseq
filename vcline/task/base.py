@@ -33,7 +33,7 @@ class ShellTask(BaseTask):
 
     @classmethod
     def setup_shell(cls, run_id=None, log_dir_path=None, commands=None,
-                    clear_log_txt=False, print_command=True,
+                    clear_log_txt=False, print_command=True, quiet=True,
                     executable='/bin/bash', **run_kwargs):
         cls.__sh = ShellOperator(
             log_txt=(
@@ -43,7 +43,7 @@ class ShellTask(BaseTask):
                     ).resolve()
                 ) if run_id else None
             ),
-            quiet=True, clear_log_txt=clear_log_txt,
+            quiet=quiet, clear_log_txt=clear_log_txt,
             logger=logging.getLogger(__name__), print_command=print_command,
             executable=executable
         )
