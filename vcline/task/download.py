@@ -29,12 +29,14 @@ class DownloadVCFAndExtractAF(ShellTask):
         run_id = Path(Path(self.vcf_gz_url).stem).stem
         print_log(f'Download a gnomAD VCF and extract AF:\t{run_id}')
         af_vcf_gz_path = self.output().path
-        sed_arg0 = (
-            's/^\\([^#\\t]*\\t[^\\t]*\\t[^\\t]*\\t[^\\t]*\\t[^\\t]*\\t[^\\t]*'
-            '\\t[^\\t]*\\t\\)[^\\t]*;*\\(AF=[0-9]*\\.[e0-9+-]*\\);*[^\\t]*/'
-            '\\1\\2/'
-        )
-        sed_arg1 = '/\\tAF=0\\.[e0+-]*$/d'
+        sed_ne_args = [
+            '/^\\(#\\|.*\\tPASS\\t.*[\\t;]AF=[^;]\\)/p;',
+            (
+                's/^\\([^\\t]*' + '\\t[^\\t]*' * 6 + '\\)'
+                + '\\(\\t[^\\t]*;\\|\\t\\)\\(AF=[0-9]*\\.[e0-9+-]*\\)[^\\t]*'
+                + '/\\1\\t\\3/p;'
+            )
+        ]
         self.setup_shell(
             commands=[self.curl, self.sed, self.bgzip], cwd=self.dest_dir_path,
             quiet=False
@@ -44,9 +46,9 @@ class DownloadVCFAndExtractAF(ShellTask):
                 f'set -e && '
                 + f'{self.curl} -LS {self.vcf_gz_url}'
                 + f' | {self.bgzip} -@ {self.n_cpu} -dc -'
-                + f' | {self.sed} -e \'{sed_arg0}\' -e \'{sed_arg1}\''
-                + f' | {self.bgzip} -@ {self.n_cpu} -c < /dev/stdin'
-                + f' > {af_vcf_gz_path}'
+                + ''.join([
+                    f' | {self.sed} -ne \'{a}\'' for a in sed_ne_args
+                ]) + f' | {self.bgzip} -@ {self.n_cpu} -c > {af_vcf_gz_path}'
             ),
             output_files=af_vcf_gz_path
         )
