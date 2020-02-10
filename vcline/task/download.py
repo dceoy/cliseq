@@ -4,7 +4,7 @@ from pathlib import Path
 
 import luigi
 
-from ..cli.util import print_log
+from ..cli.util import curl_and_write_af_only_vcf_bgz, print_log
 from .base import ShellTask
 
 
@@ -28,29 +28,14 @@ class DownloadVCFAndExtractAF(ShellTask):
     def run(self):
         run_id = Path(Path(self.vcf_gz_url).stem).stem
         print_log(f'Download a gnomAD VCF and extract AF:\t{run_id}')
-        af_vcf_gz_path = self.output().path
-        sed_ne_args = [
-            '/^\\(#\\|.*\\tPASS\\t.*[\\t;]AF=[^;]\\)/p;',
-            (
-                's/^\\([^\\t]*' + '\\t[^\\t]*' * 6 + '\\)'
-                + '\\(\\t[^\\t]*;\\|\\t\\)\\(AF=[0-9]*\\.[e0-9+-]*\\)[^\\t]*'
-                + '/\\1\\t\\3/p;'
-            )
-        ]
         self.setup_shell(
-            commands=[self.curl, self.sed, self.bgzip], cwd=self.dest_dir_path,
+            commands=[self.curl, self.bgzip], cwd=self.dest_dir_path,
             quiet=False
         )
-        self.run_shell(
-            args=(
-                f'set -e && '
-                + f'{self.curl} -LS {self.vcf_gz_url}'
-                + f' | {self.bgzip} -@ {self.n_cpu} -dc -'
-                + ''.join([
-                    f' | {self.sed} -ne \'{a}\'' for a in sed_ne_args
-                ]) + f' | {self.bgzip} -@ {self.n_cpu} -c > {af_vcf_gz_path}'
-            ),
-            output_files=af_vcf_gz_path
+        curl_and_write_af_only_vcf_bgz(
+            vcf_bgz_url=self.vcf_gz_url, vcf_bgz_path=self.output().path,
+            curl=self.curl, bgzip=self.bgzip, n_cpu=self.n_cpu,
+            cwd=self.dest_dir_path
         )
 
 
