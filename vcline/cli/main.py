@@ -7,16 +7,15 @@ Usage:
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
         [--workers=<int>] [--split-intervals] [--ref-dir=<path>]
         [<work_dir_path>]
-    vcline download-gnomad-af-vcf [--debug|--info] [--cpus=<int>]
-        [--vcf-bgz=<url>] [<work_dir_path>]
+    vcline write-af-only-vcf [--debug|--info] [--cpus=<int>]
+        [--src-path=<path>|--src-url=<url>|--gnomad-url] [<work_dir_path>]
     vcline -h|--help
     vcline --version
 
 Commands:
     init                Create a config YAML template
     run                 Run the analytical pipeline
-    download-gnomad-af-vcf
-                        Download a large VCF and extract only AF from INFO
+    write-af-only-vcf   Extract and write only AF from VCF INFO
 
 Options:
     -h, --help          Print help and exit
@@ -27,7 +26,9 @@ Options:
     --workers=<int>     Specify the maximum number of workers [default: 2]
     --split-intervals   Split evaluation intervals
     --ref-dir=<path>    Specify a reference directory path
-    --vcf-bgz=<url>     Specify the URL of a bgzipped VCF
+    --src-url=<url>     Specify a source URL
+    --src-path=<path>   Specify a source PATH
+    --gnomad-url        Specify the URL of gnomAD VCF (default)
 
 Args:
     <work_dir_path>     Working directory path [default: .]
@@ -39,12 +40,14 @@ import shutil
 from pathlib import Path
 
 import coloredlogs
+import luigi
 from docopt import docopt
+from psutil import cpu_count
 
 from .. import __version__
-from .downloader import download_gnomad_vcf_and_extract_af
+from ..task.download import WriteAfOnlyVCF
 from .pipeline import run_analytical_pipeline
-from .util import print_log
+from .util import fetch_executable, load_default_url_dict, print_log
 
 
 def main():
@@ -71,10 +74,28 @@ def main():
             max_n_worker=args['--workers'],
             split_intervals=args['--split-intervals'], log_level=log_level
         )
-    elif args['download-gnomad-af-vcf']:
-        download_gnomad_vcf_and_extract_af(
-            vcf_bgz_url=args['--vcf-bgz'],
-            work_dir_path=args['<work_dir_path>'], max_n_cpu=args['--cpus']
+    elif args['write-af-only-vcf']:
+        luigi.build(
+            [
+                WriteAfOnlyVCF(
+                    src_path=(
+                        str(Path(args['--src-path']).resolve())
+                        if args['--src-path'] else ''
+                    ),
+                    src_url=(
+                        '' if args['--src-path'] else (
+                            args['--src-url']
+                            or load_default_url_dict()['gnomad_vcf']
+                        )
+                    ),
+                    dest_dir_path=str(
+                        Path(args['<work_dir_path>'] or '.').resolve()
+                    ),
+                    n_cpu=int(args['--cpus'] or cpu_count()),
+                    **{c: fetch_executable(c) for c in ['curl', 'bgzip']}
+                )
+            ],
+            local_scheduler=True, log_level=log_level
         )
 
 
