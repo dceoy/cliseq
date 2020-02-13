@@ -62,7 +62,7 @@ def _write_af_only_vcf_bgz(src_path=None, src_url=None, dest_path=None,
         f'{curl} -LS --limit-rate {curl_limit_rate} {src_url} | {bgzip} -dc -'
     )
     args1 = f'{bgzip} -@ {n_cpu} -c > {dest_path}'
-    logger.info(f'`{args0}` -> (processing) -> `{args1}`')
+    logger.info(f'`{args0}` -> (extract AF using Python) -> `{args1}`')
     popen_kwargs = {'shell': shell, 'executable': executable, **kwargs}
     logger.debug(f'popen_kwargs:\t{popen_kwargs}')
     p1 = subprocess.Popen(
