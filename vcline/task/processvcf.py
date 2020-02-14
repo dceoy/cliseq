@@ -8,7 +8,7 @@ from pathlib import Path
 
 import luigi
 
-from ..cli.util import print_log, run_and_parse_subprocess
+from ..cli.util import print_log
 from .base import ShellTask
 
 
@@ -47,8 +47,7 @@ class WriteAfOnlyVCF(ShellTask):
 
 
 def _write_af_only_vcf_bgz(src_path=None, src_url=None, dest_path=None,
-                           curl='curl', bgzip='bgzip', n_cpu=1,
-                           curl_limit_rate='10m', shell=True,
+                           curl='curl', bgzip='bgzip', n_cpu=1, shell=True,
                            executable='/bin/bash', **kwargs):
     assert bool(src_url or src_path), 'src_path or src_url is required.'
     assert bool(dest_path), 'dest_path is required.'
@@ -59,35 +58,38 @@ def _write_af_only_vcf_bgz(src_path=None, src_url=None, dest_path=None,
     ]
     args0 = (
         f'{bgzip} -dc {src_path}' if src_path else
-        f'{curl} -LS --limit-rate {curl_limit_rate} {src_url} | {bgzip} -dc -'
+        f'{curl} -LS {src_url} | {bgzip} -dc -'
     )
     args1 = f'{bgzip} -@ {n_cpu} -c > {dest_path}'
     logger.info(f'`{args0}` -> (extract AF using Python) -> `{args1}`')
     popen_kwargs = {'shell': shell, 'executable': executable, **kwargs}
     logger.debug(f'popen_kwargs:\t{popen_kwargs}')
-    p1 = subprocess.Popen(
-        args=args1, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, **popen_kwargs
-    )
-    for s in run_and_parse_subprocess(args=args0, **popen_kwargs):
-        if search_regex.search(s):
-            p1.stdin.write(re.sub(*sub_regexes, s).encode('utf-8'))
-        elif s.startswith('#'):
-            p1.stdin.write(s.encode('utf-8'))
-    p1.stdin.flush()
-    p1.stdin.close()
-    p1.wait()
-    if p1.returncode != 0:
-        logger.error(
-            f'STDERR from subprocess `{p1.args}`:'
-            + os.linesep + p1.stderr.decode('utf-8')
-        )
-        raise subprocess.CalledProcessError(
-            returncode=p1.returncode, cmd=p1.args, output=p1.stdout,
-            stderr=p1.stderr
-        )
-    elif not Path(dest_path).is_file():
-        raise FileNotFoundError(dest_path)
+    with subprocess.Popen(args=args1, stdin=subprocess.PIPE,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          **popen_kwargs) as p1:
+        with subprocess.Popen(args=args0, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, **popen_kwargs) as p0:
+            for line in p0.stdout:
+                s = line.decode('utf-8')
+                if s.startswith('#'):
+                    p1.stdin.write(line)
+                    p1.stdin.flush()
+                elif search_regex.search(s):
+                    p1.stdin.write(re.sub(*sub_regexes, s).encode('utf-8'))
+                    p1.stdin.flush()
+            p1.stdin.close()
+            for p in [p0, p1]:
+                outs, errs = p.communicate()
+                if p.returncode != 0:
+                    logger.error(
+                        f'STDERR from subprocess `{p.args}`:'
+                        + os.linesep + errs.decode('utf-8')
+                    )
+                    raise subprocess.CalledProcessError(
+                        returncode=p.returncode, cmd=p.args, output=outs,
+                        stderr=errs
+                    )
+    assert Path(dest_path).is_file()
 
 
 if __name__ == '__main__':
