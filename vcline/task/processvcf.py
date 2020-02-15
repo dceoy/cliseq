@@ -14,7 +14,6 @@ class WriteAfOnlyVCF(ShellTask):
     src_url = luigi.Parameter(default='')
     dest_dir_path = luigi.Parameter(default='.')
     curl = luigi.Parameter(default='curl')
-    sed = luigi.Parameter(default='sed')
     bgzip = luigi.Parameter(default='bgzip')
     n_cpu = luigi.IntParameter(default=1)
 
@@ -42,12 +41,14 @@ class WriteAfOnlyVCF(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -e && '
+                f'set -eo pipefail && '
                 + (
-                    f'{self.bgzip} -dc {self.src_path}' if self.src_path else
-                    f'{self.curl} -LS {self.src_url} | {self.bgzip} -dc -'
-                )
-                + f' | {sys.executable} {pyscript_path}'
+                    f'{self.bgzip} -@ {self.n_cpu} -dc {self.src_path}'
+                    if self.src_path else (
+                        f'{self.curl} -LS {self.src_url}'
+                        + f' | {self.bgzip} -@ {self.n_cpu} -dc'
+                    )
+                ) + f' | {sys.executable} {pyscript_path}'
                 + f' | {self.bgzip} -@ {self.n_cpu} -c > {dest_path}'
             ),
             input_files=(self.src_path if self.src_path else None),
