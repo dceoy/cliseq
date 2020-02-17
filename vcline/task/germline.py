@@ -58,21 +58,16 @@ class SplitEvaluationIntervals(ShellTask):
 
 class PrepareEvaluationIntervals(luigi.WrapperTask):
     ref_fa_paths = luigi.ListParameter()
-    evaluation_interval_path = luigi.Parameter(default='')
     cf = luigi.DictParameter()
     priority = 40
 
     def requires(self):
         return (
             SplitEvaluationIntervals(
-                ref_fa_paths=self.ref_fa_paths,
-                evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
+                ref_fa_paths=self.ref_fa_paths, cf=self.cf
             ) if self.cf['split_intervals'] else
             CreateEvaluationIntervalList(
-                ref_fa_paths=self.ref_fa_paths,
-                evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
+                ref_fa_paths=self.ref_fa_paths, cf=self.cf
             )
         )
 

@@ -19,7 +19,6 @@ from .ref import (CreateEvaluationIntervalList, CreateFASTAIndex,
 class PrepareGnomadVCFs(ShellTask):
     gnomad_vcf_path = luigi.Parameter()
     ref_fa_paths = luigi.ListParameter()
-    evaluation_interval_path = luigi.Parameter(default='')
     cf = luigi.DictParameter()
     priority = 50
 
@@ -28,7 +27,7 @@ class PrepareGnomadVCFs(ShellTask):
             luigi.LocalTarget(
                 str(
                     Path(self.cf['call_dir_path']).joinpath(
-                        Path(self.input()[0].path).stem
+                        Path(self.input()[0][0].path).stem
                         + f'.common_biallelic.vcf.{s}'
                     )
                 )
@@ -36,7 +35,7 @@ class PrepareGnomadVCFs(ShellTask):
         ]
 
     def run(self):
-        gnomad_vcf_path = self.input()[0].path
+        gnomad_vcf_path = self.input()[0][0].path
         run_id = Path(gnomad_vcf_path).stem
         print_log(f':\t{run_id}')
         tabix = self.cf['tabix']
@@ -72,7 +71,7 @@ class PrepareGnomadVCFs(ShellTask):
 
 
 @requires(PrepareCRAMs, FetchReferenceFASTA, PrepareEvaluationIntervals,
-          PrepareGnomadVCFs, PrepareGnomadVCFs)
+          PrepareGnomadVCFs)
 class CalculateContamination(ShellTask):
     cf = luigi.DictParameter()
     priority = 50
@@ -100,7 +99,7 @@ class CalculateContamination(ShellTask):
         input_cram_paths = [i[0].path for i in self.input()[0]]
         fa_path = self.input()[1].path
         evaluation_interval_path = self.input()[2].path
-        gnomad_common_biallelic_vcf_path = self.input()[3][1].path
+        gnomad_common_biallelic_vcf_path = self.input()[3][0].path
         pileup_table_paths = [f'{p}.pileup.table' for p in input_cram_paths]
         segment_table_path = self.output()[1].path
         self.setup_shell(
@@ -138,7 +137,7 @@ class CalculateContamination(ShellTask):
 
 
 @requires(PrepareCRAMs, FetchReferenceFASTA, CreateFASTAIndex,
-          PrepareEvaluationIntervals)
+          PrepareEvaluationIntervals, PrepareGnomadVCFs)
 class CallVariantsWithMutect2(ShellTask):
     sample_names = luigi.ListParameter()
     cf = luigi.DictParameter()
@@ -363,7 +362,6 @@ class CallVariantsWithGATK(luigi.WrapperTask):
     omni_vcf_path = luigi.Parameter()
     snp_1000g_vcf_path = luigi.Parameter()
     gnomad_vcf_path = luigi.Parameter()
-    evaluation_interval_path = luigi.Parameter(default='')
     cf = luigi.DictParameter()
     priority = 100
 
@@ -376,18 +374,14 @@ class CallVariantsWithGATK(luigi.WrapperTask):
                 known_indel_vcf_paths=self.known_indel_vcf_paths,
                 hapmap_vcf_path=self.hapmap_vcf_path,
                 omni_vcf_path=self.omni_vcf_path,
-                snp_1000g_vcf_path=self.snp_1000g_vcf_path,
-                evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
+                snp_1000g_vcf_path=self.snp_1000g_vcf_path, cf=self.cf
             ),
             FilterMutect2Calls(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 known_indel_vcf_paths=self.known_indel_vcf_paths,
-                gnomad_vcf_path=self.gnomad_vcf_path,
-                evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
+                gnomad_vcf_path=self.gnomad_vcf_path, cf=self.cf
             )
         ]
 

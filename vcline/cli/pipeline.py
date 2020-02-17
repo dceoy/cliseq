@@ -139,7 +139,7 @@ def _read_config_yml(config_yml_path):
         'ref_fa', 'known_indel_vcf', 'dbsnp_vcf'
     })
     for k in ['ref_fa', 'known_indel_vcf', 'dbsnp_vcf', 'hapmap_vcf',
-              'omni_vcf', 'snp_1000g_vcf', 'evaluation_interval']:
+              'omni_vcf', 'snp_1000g_vcf']:
         v = config['references'].get(k)
         if k in ['ref_fa', 'known_indel_vcf']:
             assert isinstance(v, list)

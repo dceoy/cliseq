@@ -171,20 +171,6 @@ class FetchResourceFile(ShellTask):
         self.run_shell(args=a, input_files=src_path, output_files=dest_path)
 
 
-class FetchEvaluationIntervalList(luigi.WrapperTask):
-    evaluation_interval_path = luigi.Parameter()
-    cf = luigi.DictParameter()
-    priority = 80
-
-    def requires(self):
-        return FetchResourceFile(
-            resource_file_path=self.evaluation_interval_path, cf=self.cf
-        )
-
-    def output(self):
-        return self.input()
-
-
 @requires(FetchReferenceFASTA)
 class CreateEvaluationIntervalList(ShellTask):
     cf = luigi.DictParameter()
@@ -331,7 +317,6 @@ class PrepareGermlineResourceVCFs(luigi.WrapperTask):
 class CreateGnomadSelectedVCF(ShellTask):
     gnomad_vcf_path = luigi.Parameter()
     ref_fa_paths = luigi.ListParameter()
-    evaluation_interval_path = luigi.Parameter(default='')
     cf = luigi.DictParameter()
     priority = 50
 
@@ -353,14 +338,15 @@ class CreateGnomadSelectedVCF(ShellTask):
             luigi.LocalTarget(
                 str(
                     Path(self.cf['call_dir_path']).joinpath(
-                        Path(self.input()[0].path).stem + f'.selected.vcf.{s}'
+                        Path(self.input()[0][0].path).stem
+                        + f'.selected.vcf.{s}'
                     )
                 )
             ) for s in ['gz', 'gz.tbi']
         ]
 
     def run(self):
-        gnomad_vcf_path = self.input()[0].path
+        gnomad_vcf_path = self.input()[0][0].path
         run_id = '.'.join(Path(gnomad_vcf_path).name.split('.')[:-2])
         print_log(f'Create a gnomAD VCF:\t{run_id}')
         tabix = self.cf['tabix']
