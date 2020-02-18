@@ -177,25 +177,28 @@ class CallVariantsWithMutect2(ShellTask):
         raw_stats_path = self.output()[1].path
         output_cram_path = self.output()[2].path
         ob_priors_path = self.output()[4].path
-        tmp_bam_paths = [
-            re.sub(
-                r'\.cram$', '.{}.bam'.format(Path(i).stem), output_cram_path
-            ) for i in evaluation_interval_paths
-        ]
+        if len(evaluation_interval_paths) == 1:
+            tmp_bam_paths = [re.sub(r'(\.cram)$', '.bam', output_cram_path)]
+            tmp_vcf_paths = [raw_vcf_path]
+        else:
+            tmp_bam_paths = [
+                re.sub(
+                    r'\.cram$', '.{}.bam'.format(Path(i).stem),
+                    output_cram_path
+                ) for i in evaluation_interval_paths
+            ]
+            tmp_vcf_paths = [
+                re.sub(
+                    r'\.raw\.vcf\.gz$', '.{}.raw.vcf.gz'.format(Path(i).stem),
+                    raw_vcf_path
+                ) for i in evaluation_interval_paths
+            ]
         f1r2_paths = [
             re.sub(
                 r'\.cram$', '.{}.f1r2.tar.gz'.format(Path(i).stem),
                 output_cram_path
             ) for i in evaluation_interval_paths
         ]
-        tmp_vcf_paths = (
-            [
-                re.sub(
-                    r'\.raw\.vcf\.gz$', '.{}.raw.vcf.gz'.format(Path(i).stem),
-                    raw_vcf_path
-                ) for i in evaluation_interval_paths
-            ] if len(evaluation_interval_paths) > 1 else [raw_vcf_path]
-        )
         tmp_stats_paths = [
             re.sub(r'\.gz$', '.stats', v) for v in tmp_vcf_paths
         ]

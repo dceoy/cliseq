@@ -177,7 +177,13 @@ class CreateEvaluationIntervalList(ShellTask):
     priority = 90
 
     def output(self):
-        return luigi.LocalTarget(self.input().path + '.interval_list')
+        return luigi.LocalTarget(
+            str(
+                Path(self.cf['ref_dir_path']).joinpath(
+                    Path(self.input().path).stem + '.interval_list'
+                )
+            )
+        )
 
     def run(self):
         fa_path = self.input().path

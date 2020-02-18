@@ -111,20 +111,22 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         dbsnp_vcf_path = self.input()[3][0].path
         evaluation_interval_paths = [i.path for i in self.input()[4]]
         output_cram_path = self.output()[1].path
-        tmp_bam_paths = [
-            re.sub(
-                r'(\.cram)$', '.{}.bam'.format(Path(i).stem), output_cram_path
-            ) for i in evaluation_interval_paths
-        ]
-        tmp_gvcf_paths = (
-            [
+        if len(evaluation_interval_paths) == 1:
+            tmp_bam_paths = [re.sub(r'(\.cram)$', '.bam', output_cram_path)]
+            tmp_gvcf_paths = [gvcf_path]
+        else:
+            tmp_bam_paths = [
+                re.sub(
+                    r'(\.cram)$', '.{}.bam'.format(Path(i).stem),
+                    output_cram_path
+                ) for i in evaluation_interval_paths
+            ]
+            tmp_gvcf_paths = [
                 re.sub(
                     r'\.g\.vcf\.gz$', '.{}.g.vcf.gz'.format(Path(i).stem),
                     gvcf_path
                 ) for i in evaluation_interval_paths
-            ] if len(evaluation_interval_paths) > 1
-            else [gvcf_path]
-        )
+            ]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[gatk, samtools], cwd=self.cf['haplotypecaller_dir_path'],
