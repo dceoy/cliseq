@@ -10,68 +10,12 @@ from ..cli.util import create_matched_id, print_log
 from .align import PrepareCRAMs
 from .base import ShellTask
 from .haplotypecaller import ApplyVQSR, PrepareEvaluationIntervals
-from .ref import (CreateEvaluationIntervalList, CreateFASTAIndex,
-                  CreateGnomadSelectedVCF, FetchReferenceFASTA)
-
-
-@requires(CreateGnomadSelectedVCF, FetchReferenceFASTA,
-          CreateEvaluationIntervalList)
-class PrepareGnomadVCFs(ShellTask):
-    gnomad_vcf_path = luigi.Parameter()
-    ref_fa_paths = luigi.ListParameter()
-    cf = luigi.DictParameter()
-    priority = 50
-
-    def output(self):
-        return [
-            luigi.LocalTarget(
-                str(
-                    Path(self.cf['mutect2_dir_path']).joinpath(
-                        Path(self.input()[0][0].path).stem
-                        + f'.common_biallelic.vcf.{s}'
-                    )
-                )
-            ) for s in ['gz', 'gz.tbi']
-        ]
-
-    def run(self):
-        gnomad_vcf_path = self.input()[0][0].path
-        run_id = Path(gnomad_vcf_path).stem
-        print_log(f':\t{run_id}')
-        tabix = self.cf['tabix']
-        gatk = self.cf['gatk']
-        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        fa_path = self.input()[1].path
-        evaluation_interval_path = self.input()[2].path
-        selected_vcf_path = self.output()[0].path
-        common_biallelic_vcf_path = self.output()[1].path
-        self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[tabix, gatk], cwd=self.cf['mutect2_dir_path']
-        )
-        self.run_shell(
-            args=(
-                f'set -e && {gatk}{gatk_opts} SelectVariants'
-                + f' --reference {fa_path}'
-                + f' --variant {selected_vcf_path}'
-                + f' --intervals {evaluation_interval_path}'
-                + f' --output {common_biallelic_vcf_path}'
-                + ' --select-type-to-include SNP'
-                + ' --restrict-alleles-to  BIALLELIC'
-                + ' --lenient'
-            ),
-            input_files=selected_vcf_path,
-            output_files=common_biallelic_vcf_path
-        )
-        self.run_shell(
-            args=f'set -e && {tabix} -p vcf {common_biallelic_vcf_path}',
-            input_files=common_biallelic_vcf_path,
-            output_files=f'{common_biallelic_vcf_path}.tbi'
-        )
+from .ref import (CreateFASTAIndex, CreateGnomadBiallelicSnpVCF,
+                  FetchGnomadVCF, FetchReferenceFASTA)
 
 
 @requires(PrepareCRAMs, FetchReferenceFASTA, PrepareEvaluationIntervals,
-          PrepareGnomadVCFs)
+          CreateGnomadBiallelicSnpVCF)
 class CalculateContamination(ShellTask):
     cf = luigi.DictParameter()
     priority = 50
@@ -137,11 +81,11 @@ class CalculateContamination(ShellTask):
 
 
 @requires(PrepareCRAMs, FetchReferenceFASTA, CreateFASTAIndex,
-          PrepareEvaluationIntervals, PrepareGnomadVCFs)
+          PrepareEvaluationIntervals, FetchGnomadVCF)
 class CallVariantsWithMutect2(ShellTask):
     sample_names = luigi.ListParameter()
     cf = luigi.DictParameter()
-    priority = 50
+    priority = 10
 
     def output(self):
         return [
@@ -173,7 +117,7 @@ class CallVariantsWithMutect2(ShellTask):
         fa_path = self.input()[1].path
         fai_path = self.input()[2].path
         evaluation_interval_paths = [i.path for i in self.input()[3]]
-        gnomad_selected_vcf_path = self.input()[4][0].path
+        gnomad_vcf_path = self.input()[4][0].path
         raw_stats_path = self.output()[1].path
         output_cram_path = self.output()[2].path
         ob_priors_path = self.output()[4].path
@@ -215,7 +159,7 @@ class CallVariantsWithMutect2(ShellTask):
                     + f' --reference {fa_path}'
                     + ''.join([f' --input {p}' for p in input_cram_paths])
                     + f' --intervals {i}'
-                    + f' --germline-resource {gnomad_selected_vcf_path}'
+                    + f' --germline-resource {gnomad_vcf_path}'
                     + f' --output {v}'
                     + f' --bam-output {b}'
                     + f' --f1r2-tar-gz {f}'
@@ -232,7 +176,7 @@ class CallVariantsWithMutect2(ShellTask):
             ],
             input_files=[
                 *input_cram_paths, fa_path, *evaluation_interval_paths,
-                gnomad_selected_vcf_path
+                gnomad_vcf_path
             ],
             output_files=[
                 *tmp_vcf_paths, *tmp_bam_paths, *f1r2_paths, *tmp_stats_paths

@@ -320,47 +320,48 @@ class PrepareGermlineResourceVCFs(luigi.WrapperTask):
         return self.input()
 
 
-class CreateGnomadSelectedVCF(ShellTask):
+class FetchGnomadVCF(luigi.WrapperTask):
     gnomad_vcf_path = luigi.Parameter()
-    ref_fa_paths = luigi.ListParameter()
     cf = luigi.DictParameter()
     priority = 50
 
     def requires(self):
-        return [
-            FetchResourceVCF(
-                resource_vcf_path=self.gnomad_vcf_path, cf=self.cf
-            ),
-            FetchReferenceFASTA(
-                ref_fa_paths=self.ref_fa_paths, cf=self.cf
-            ),
-            CreateEvaluationIntervalList(
-                ref_fa_paths=self.ref_fa_paths, cf=self.cf
-            )
-        ]
+        return FetchResourceVCF(
+            resource_vcf_path=self.gnomad_vcf_path, cf=self.cf
+        )
+
+    def output(self):
+        return self.input()
+
+
+@requires(FetchGnomadVCF, FetchReferenceFASTA,
+          CreateEvaluationIntervalList)
+class CreateGnomadBiallelicSnpVCF(ShellTask):
+    cf = luigi.DictParameter()
+    priority = 50
 
     def output(self):
         return [
             luigi.LocalTarget(
                 str(
                     Path(self.cf['ref_dir_path']).joinpath(
-                        Path(self.input()[0][0].path).stem
-                        + f'.selected.vcf.{s}'
+                        Path(Path(self.input()[0][0].path).stem).stem
+                        + f'.biallelic_snp.vcf.{s}'
                     )
                 )
             ) for s in ['gz', 'gz.tbi']
         ]
 
     def run(self):
-        gnomad_vcf_path = self.input()[0][0].path
-        run_id = '.'.join(Path(gnomad_vcf_path).name.split('.')[:-2])
-        print_log(f'Create a gnomAD VCF:\t{run_id}')
+        input_vcf_path = self.input()[0][0].path
+        run_id = Path(input_vcf_path).stem
+        print_log(f'Create a common biallelic SNP VCF:\t{run_id}')
         tabix = self.cf['tabix']
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         fa_path = self.input()[1].path
         evaluation_interval_path = self.input()[2].path
-        selected_vcf_path = self.output()[0].path
+        biallelic_snp_vcf_path = self.output()[0].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[tabix, gatk], cwd=self.cf['ref_dir_path']
@@ -369,18 +370,20 @@ class CreateGnomadSelectedVCF(ShellTask):
             args=(
                 f'set -e && {gatk}{gatk_opts} SelectVariants'
                 + f' --reference {fa_path}'
-                + f' --variant {gnomad_vcf_path}'
+                + f' --variant {input_vcf_path}'
                 + f' --intervals {evaluation_interval_path}'
-                + f' --output {selected_vcf_path}'
+                + f' --output {biallelic_snp_vcf_path}'
+                + ' --select-type-to-include SNP'
+                + ' --restrict-alleles-to BIALLELIC'
                 + ' --lenient'
             ),
-            input_files=[gnomad_vcf_path, fa_path, evaluation_interval_path],
-            output_files=selected_vcf_path
+            input_files=input_vcf_path,
+            output_files=biallelic_snp_vcf_path
         )
         self.run_shell(
-            args=f'set -e && {tabix} -p vcf {selected_vcf_path}',
-            input_files=selected_vcf_path,
-            output_files=f'{selected_vcf_path}.tbi'
+            args=f'set -e && {tabix} -p vcf {biallelic_snp_vcf_path}',
+            input_files=biallelic_snp_vcf_path,
+            output_files=f'{biallelic_snp_vcf_path}.tbi'
         )
 
 

@@ -81,7 +81,7 @@ class PrepareEvaluationIntervals(luigi.WrapperTask):
           FetchDbsnpVCF, PrepareEvaluationIntervals)
 class CallVariantsWithHaplotypeCaller(ShellTask):
     cf = luigi.DictParameter()
-    priority = 60
+    priority = 20
 
     def output(self):
         return [
