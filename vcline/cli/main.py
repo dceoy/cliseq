@@ -45,7 +45,7 @@ from docopt import docopt
 from psutil import cpu_count
 
 from .. import __version__
-from ..task.processvcf import WriteAfOnlyVCF
+from ..task.resource import WriteAfOnlyVCF
 from .pipeline import run_analytical_pipeline
 from .util import fetch_executable, load_default_url_dict, print_log
 
