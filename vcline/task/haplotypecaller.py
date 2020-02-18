@@ -23,7 +23,7 @@ class SplitEvaluationIntervals(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['call_dir_path']).joinpath(
+                    Path(self.cf['haplotypecaller_dir_path']).joinpath(
                         f'{i:04d}-scattered.interval_list'
                     )
                 )
@@ -40,7 +40,7 @@ class SplitEvaluationIntervals(ShellTask):
         scatter_count = self.cf['n_cpu_per_worker']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['call_dir_path']
+            cwd=self.cf['haplotypecaller_dir_path']
         )
         self.run_shell(
             args=(
@@ -49,7 +49,7 @@ class SplitEvaluationIntervals(ShellTask):
                 + f' --reference {fa_path}'
                 + f' --intervals {interval_path}'
                 + f' --scatter-count {scatter_count}'
-                + ' --output {}'.format(self.cf['call_dir_path'])
+                + ' --output {}'.format(self.cf['haplotypecaller_dir_path'])
             ),
             input_files=[interval_path, fa_path],
             output_files=[o.path for o in self.output()]
@@ -87,7 +87,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['call_dir_path']).joinpath(
+                    Path(self.cf['haplotypecaller_dir_path']).joinpath(
                         Path(self.input()[0][1][0].path).stem
                         + f'.HaplotypeCaller.{s}'
                     )
@@ -127,7 +127,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         )
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[gatk, samtools], cwd=self.cf['call_dir_path'],
+            commands=[gatk, samtools], cwd=self.cf['haplotypecaller_dir_path'],
             env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
@@ -236,7 +236,7 @@ class GenotypeGVCF(ShellTask):
         evaluation_interval_path = self.input()[3].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['call_dir_path']
+            cwd=self.cf['haplotypecaller_dir_path']
         )
         self.run_shell(
             args=(
@@ -287,7 +287,7 @@ class ApplyVQSR(ShellTask):
         plot_r_path = re.sub(r'\.vcf\.gz$', '.plot.R', filtered_vcf_path)
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['call_dir_path']
+            cwd=self.cf['haplotypecaller_dir_path']
         )
         self.run_shell(
             args=(

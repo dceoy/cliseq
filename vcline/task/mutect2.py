@@ -9,7 +9,7 @@ from luigi.util import requires
 from ..cli.util import create_matched_id, print_log
 from .align import PrepareCRAMs
 from .base import ShellTask
-from .germline import ApplyVQSR, PrepareEvaluationIntervals
+from .haplotypecaller import ApplyVQSR, PrepareEvaluationIntervals
 from .ref import (CreateEvaluationIntervalList, CreateFASTAIndex,
                   CreateGnomadSelectedVCF, FetchReferenceFASTA)
 
@@ -26,7 +26,7 @@ class PrepareGnomadVCFs(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['call_dir_path']).joinpath(
+                    Path(self.cf['mutect2_dir_path']).joinpath(
                         Path(self.input()[0][0].path).stem
                         + f'.common_biallelic.vcf.{s}'
                     )
@@ -47,7 +47,7 @@ class PrepareGnomadVCFs(ShellTask):
         common_biallelic_vcf_path = self.output()[1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[tabix, gatk], cwd=self.cf['call_dir_path']
+            commands=[tabix, gatk], cwd=self.cf['mutect2_dir_path']
         )
         self.run_shell(
             args=(
@@ -80,7 +80,7 @@ class CalculateContamination(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['call_dir_path']).joinpath(
+                    Path(self.cf['mutect2_dir_path']).joinpath(
                         create_matched_id(
                             *[i[0].path for i in self.input()[0]]
                         ) + f'.{s}.table'
@@ -104,7 +104,7 @@ class CalculateContamination(ShellTask):
         segment_table_path = self.output()[1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['call_dir_path']
+            cwd=self.cf['mutect2_dir_path']
         )
         self.run_shell(
             args=[
@@ -147,7 +147,7 @@ class CallVariantsWithMutect2(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['call_dir_path']).joinpath(
+                    Path(self.cf['mutect2_dir_path']).joinpath(
                         create_matched_id(
                             *[i[0].path for i in self.input()[0]]
                         ) + f'.Mutect2.{s}'
@@ -202,7 +202,7 @@ class CallVariantsWithMutect2(ShellTask):
         normal_name = self.sample_names[1]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[gatk, samtools], cwd=self.cf['call_dir_path'],
+            commands=[gatk, samtools], cwd=self.cf['mutect2_dir_path'],
             env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
@@ -327,7 +327,7 @@ class FilterMutect2Calls(ShellTask):
         segment_table_path = self.input()[3][1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['call_dir_path']
+            cwd=self.cf['mutect2_dir_path']
         )
         self.run_shell(
             args=(

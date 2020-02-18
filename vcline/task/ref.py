@@ -337,7 +337,7 @@ class CreateGnomadSelectedVCF(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['call_dir_path']).joinpath(
+                    Path(self.cf['ref_dir_path']).joinpath(
                         Path(self.input()[0][0].path).stem
                         + f'.selected.vcf.{s}'
                     )

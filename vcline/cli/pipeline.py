@@ -10,7 +10,7 @@ from pprint import pformat
 import luigi
 from psutil import cpu_count, virtual_memory
 
-from ..task.somatic import CallVariantsWithGATK
+from ..task.mutect2 import CallVariantsWithGATK
 from .util import (fetch_executable, parse_fq_id, print_log, read_yml,
                    render_template)
 
@@ -31,7 +31,7 @@ def run_analytical_pipeline(config_yml_path, work_dir_path='.',
     dirs = {
         **{
             f'{k}_dir_path': str(work_dir.joinpath(k))
-            for k in ['trim', 'align', 'call']
+            for k in ['trim', 'align', 'haplotypecaller', 'mutect2']
         },
         'ref_dir_path':
         str(Path(ref_dir_path or str(work_dir.joinpath('ref'))).resolve()),
