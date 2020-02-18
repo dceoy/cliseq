@@ -172,43 +172,6 @@ class FetchResourceFile(ShellTask):
 
 
 @requires(FetchReferenceFASTA)
-class CreateEvaluationIntervalList(ShellTask):
-    cf = luigi.DictParameter()
-    priority = 90
-
-    def output(self):
-        return luigi.LocalTarget(
-            str(
-                Path(self.cf['ref_dir_path']).joinpath(
-                    Path(self.input().path).stem + '.interval_list'
-                )
-            )
-        )
-
-    def run(self):
-        fa_path = self.input().path
-        run_id = Path(fa_path).stem
-        print_log(f'Create an evaluation interval list:\t{run_id}')
-        gatk = self.cf['gatk']
-        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        interval_list_path = self.output().path
-        self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=gatk, cwd=self.cf['ref_dir_path']
-        )
-        self.run_shell(
-            args=(
-                'set -e && '
-                + f'{gatk}{gatk_opts} ScatterIntervalsByNs'
-                + f' --REFERENCE {fa_path}'
-                + f' --OUTPUT {interval_list_path}'
-                + ' --OUTPUT_TYPE=ACGT'
-            ),
-            input_files=fa_path, output_files=interval_list_path
-        )
-
-
-@requires(FetchReferenceFASTA)
 class CreateFASTAIndex(ShellTask):
     cf = luigi.DictParameter()
     priority = 80
@@ -255,6 +218,44 @@ class CreateBWAIndices(ShellTask):
             args=f'set -e && {bwa} index {fa_path}',
             input_files=fa_path,
             output_files=[o.path for o in self.output()]
+        )
+
+
+@requires(FetchReferenceFASTA, CreateFASTAIndex)
+class CreateEvaluationIntervalList(ShellTask):
+    cf = luigi.DictParameter()
+    priority = 90
+
+    def output(self):
+        return luigi.LocalTarget(
+            str(
+                Path(self.cf['ref_dir_path']).joinpath(
+                    Path(self.input()[0].path).stem + '.interval_list'
+                )
+            )
+        )
+
+    def run(self):
+        fa_path = self.input()[0].path
+        run_id = Path(fa_path).stem
+        print_log(f'Create an evaluation interval list:\t{run_id}')
+        gatk = self.cf['gatk']
+        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        fai_path = self.input()[1].path
+        interval_list_path = self.output().path
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=gatk, cwd=self.cf['ref_dir_path']
+        )
+        self.run_shell(
+            args=(
+                'set -e && '
+                + f'{gatk}{gatk_opts} ScatterIntervalsByNs'
+                + f' --REFERENCE {fa_path}'
+                + f' --OUTPUT {interval_list_path}'
+                + ' --OUTPUT_TYPE=ACGT'
+            ),
+            input_files=[fa_path, fai_path], output_files=interval_list_path
         )
 
 

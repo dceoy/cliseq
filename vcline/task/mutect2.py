@@ -10,11 +10,12 @@ from ..cli.util import create_matched_id, print_log
 from .align import PrepareCRAMs
 from .base import ShellTask
 from .haplotypecaller import ApplyVQSR, PrepareEvaluationIntervals
-from .ref import (CreateFASTAIndex, CreateGnomadBiallelicSnpVCF,
-                  FetchGnomadVCF, FetchReferenceFASTA)
+from .ref import (CreateEvaluationIntervalList, CreateFASTAIndex,
+                  CreateGnomadBiallelicSnpVCF, FetchGnomadVCF,
+                  FetchReferenceFASTA)
 
 
-@requires(PrepareCRAMs, FetchReferenceFASTA, PrepareEvaluationIntervals,
+@requires(PrepareCRAMs, FetchReferenceFASTA, CreateEvaluationIntervalList,
           CreateGnomadBiallelicSnpVCF)
 class CalculateContamination(ShellTask):
     cf = luigi.DictParameter()
@@ -248,7 +249,7 @@ class CallVariantsWithMutect2(ShellTask):
 
 
 @requires(CallVariantsWithMutect2, FetchReferenceFASTA,
-          PrepareEvaluationIntervals, CalculateContamination)
+          CreateEvaluationIntervalList, CalculateContamination)
 class FilterMutect2Calls(ShellTask):
     cf = luigi.DictParameter()
     priority = 50

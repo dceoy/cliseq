@@ -39,8 +39,9 @@ def run_analytical_pipeline(config_yml_path, work_dir_path='.',
     }
 
     total_n_cpu = cpu_count()
-    total_memory_mb = virtual_memory().total / 1024 / 1024
     n_cpu_per_worker = max(1, floor(int(max_n_cpu or total_n_cpu) / n_worker))
+    total_memory_mb = virtual_memory().total / 1024 / 1024
+    heap_size_mb = int(total_memory_mb / n_worker / 2)
     common_config = {
         'memory_mb_per_worker': int(total_memory_mb / n_worker),
         'n_cpu_per_worker': n_cpu_per_worker,
@@ -49,7 +50,7 @@ def run_analytical_pipeline(config_yml_path, work_dir_path='.',
             '-Dsamjdk.use_async_io_read_samtools=true',
             '-Dsamjdk.use_async_io_write_samtools=true',
             '-Dsamjdk.use_async_io_write_tribble=false',
-            '-Xms{:d}m'.format(int(total_memory_mb / n_worker / 2)),
+            f'-Xms{heap_size_mb:d}m', f'-Xmx{heap_size_mb:d}m',
             '-XX:+UseParallelGC',
             f'-XX:ParallelGCThreads={n_cpu_per_worker}'
         ]),

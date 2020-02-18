@@ -215,7 +215,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
 
 
 @requires(CallVariantsWithHaplotypeCaller, FetchReferenceFASTA,
-          FetchDbsnpVCF, PrepareEvaluationIntervals)
+          FetchDbsnpVCF, CreateEvaluationIntervalList)
 class GenotypeGVCF(ShellTask):
     cf = luigi.DictParameter()
     priority = 60
@@ -232,7 +232,7 @@ class GenotypeGVCF(ShellTask):
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         save_memory = str(self.cf['memory_mb_per_worker'] < 8 * 1024).lower()
-        gvcf_path = self.input()[0].path
+        gvcf_path = self.input()[0][0].path
         fa_path = self.input()[1].path
         dbsnp_vcf_path = self.input()[2][0].path
         evaluation_interval_path = self.input()[3].path
