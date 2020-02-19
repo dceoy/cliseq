@@ -12,10 +12,6 @@ references:
   # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.dbsnp138.vcf
   hapmap_vcf: /path/to/hapmap_3.3.hg38.vcf.gz
   # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/hapmap_3.3.hg38.vcf.gz
-  omni_vcf: /path/to/1000G_omni2.5.hg38.vcf.gz
-  # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/1000G_omni2.5.hg38.vcf.gz
-  snp_1000g_vcf: /path/to/1000G_phase1.snps.high_confidence.hg38.vcf.gz
-  # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/1000G_phase1.snps.high_confidence.hg38.vcf.gz
   gnomad_vcf: /path/to/gnomad.genomes.r3.0.sites.af-only.vcf.gz
   # https://storage.cloud.google.com/gnomad-public/release/3.0/vcf/genomes/gnomad.genomes.r3.0.sites.vcf.bgz
 runs:

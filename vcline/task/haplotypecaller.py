@@ -10,8 +10,8 @@ from ..cli.util import print_log
 from .align import PrepareCRAMs
 from .base import ShellTask
 from .ref import (CreateEvaluationIntervalList, CreateFASTAIndex,
-                  FetchDbsnpVCF, FetchReferenceFASTA,
-                  PrepareGermlineResourceVCFs)
+                  FetchDbsnpVCF, FetchHapmapVCF, FetchKnownIndelVCFs,
+                  FetchReferenceFASTA)
 
 
 @requires(CreateEvaluationIntervalList, FetchReferenceFASTA)
@@ -102,7 +102,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         samtools = self.cf['samtools']
-        save_memory = str(self.cf['memory_mb_per_worker'] < 8 * 1024).lower()
+        save_memory = str(self.cf['save_memory']).lower()
         n_cpu = self.cf['n_cpu_per_worker']
         memory_per_thread = self.cf['samtools_memory_per_thread']
         input_cram_path = self.input()[0][1][0].path
@@ -231,7 +231,7 @@ class GenotypeGVCF(ShellTask):
         print_log(f'Genotype a HaplotypeCaller GVCF:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        save_memory = str(self.cf['memory_mb_per_worker'] < 8 * 1024).lower()
+        save_memory = str(self.cf['save_memory']).lower()
         gvcf_path = self.input()[0][0].path
         fa_path = self.input()[1].path
         dbsnp_vcf_path = self.input()[2][0].path
@@ -257,75 +257,64 @@ class GenotypeGVCF(ShellTask):
         )
 
 
-@requires(GenotypeGVCF, FetchReferenceFASTA, PrepareGermlineResourceVCFs)
-class ApplyVQSR(ShellTask):
+@requires(GenotypeGVCF, CallVariantsWithHaplotypeCaller, FetchReferenceFASTA,
+          FetchHapmapVCF, FetchDbsnpVCF, FetchKnownIndelVCFs)
+class FilterVariantTranches(ShellTask):
     cf = luigi.DictParameter()
     priority = 60
 
     def output(self):
-        return luigi.LocalTarget(
-            re.sub(r'\.raw\.vcf\.gz$', '.vcf.gz', self.input()[0].path)
-        )
+        return [
+            luigi.LocalTarget(
+                re.sub(r'\.raw\.vcf\.gz$', s, self.input()[0].path)
+            ) for s in ['.vcf.gz', '.raw.cnn.vcf.gz']
+        ]
 
     def run(self):
-        filtered_vcf_path = self.output().path
+        filtered_vcf_path = self.output()[0].path
         run_id = '.'.join(Path(filtered_vcf_path).name.split('.')[:-2])
-        print_log(f'Apply Variant Quality Score Recalibration:\t{run_id}')
+        print_log(f'Apply tranche filtering:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        save_memory = str(self.cf['memory_mb_per_worker'] < 8 * 1024).lower()
+        save_memory = str(self.cf['save_memory']).lower()
         raw_vcf_path = self.input()[0].path
-        fa_path = self.input()[1].path
-        resource_params = {
-            'hapmap': 'hapmap,known=false,training=true,truth=true,prior=15.0',
-            'omni': 'omni,known=false,training=true,truth=false,prior=12.0',
-            'snp_1000g':
-            '1000G,known=false,training=true,truth=false,prior=10.0',
-            'dbsnp': 'dbsnp,known=true,training=false,truth=false,prior=2.0'
-        }
-        resource_vcf_paths = {k: v[0].path for k, v in self.input()[2].items()}
-        recal_path = re.sub(r'\.vcf\.gz$', '.recal', filtered_vcf_path)
-        tranches_path = re.sub(r'\.vcf\.gz$', '.tranches', filtered_vcf_path)
-        plot_r_path = re.sub(r'\.vcf\.gz$', '.plot.R', filtered_vcf_path)
+        cram_path = self.input()[1][1].path
+        fa_path = self.input()[2].path
+        cnn_vcf_path = self.output()[1].path
+        resource_vcf_paths = [
+            self.input()[3][0].path, self.input()[4][0].path,
+            *[i[0].path for i in self.input()[5]]
+        ]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['haplotypecaller_dir_path']
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk}{gatk_opts} VariantRecalibrator'
+                f'set -e && {gatk}{gatk_opts} CNNScoreVariants'
                 + f' --reference {fa_path}'
+                + f' --input {cram_path}'
                 + f' --variant {raw_vcf_path}'
-                + ''.join([
-                    f' --resource:{resource_params[k]} {v}'
-                    for k, v in resource_vcf_paths.items()
-                ])
-                + f' --output {recal_path}'
-                + f' --tranches-file {tranches_path}'
-                + f' --rscript-file {plot_r_path}'
-                + ''.join([
-                    f' --use-annotation {a}' for a in
-                    ['QD', 'MQ', 'MQRankSum', 'ReadPosRankSum', 'FS', 'SOR']
-                ])
-                + ' --mode SNP'
+                + f' --output {cnn_vcf_path}'
+                + ' --tensor-type read_tensor'
                 + f' --disable-bam-index-caching {save_memory}'
             ),
-            input_files=[raw_vcf_path, fa_path, *resource_vcf_paths.values()],
-            output_files=[recal_path, tranches_path, plot_r_path]
+            input_files=[raw_vcf_path, fa_path, cram_path],
+            output_files=cnn_vcf_path
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk}{gatk_opts} ApplyVQSR'
-                + f' --reference {fa_path}'
-                + f' --variant {raw_vcf_path}'
-                + f' --tranches-file {tranches_path}'
-                + f' --recal-file {recal_path}'
+                f'set -e && {gatk}{gatk_opts} FilterVariantTranches'
+                + f' --variant {cnn_vcf_path}'
+                + ''.join([f' --resource {p}' for p in resource_vcf_paths])
                 + f' --output {filtered_vcf_path}'
-                + ' --truth-sensitivity-filter-level 99.0'
-                + ' --mode SNP'
+                + ' --info-key CNN_2D'
+                + ' --snp-tranche 99.95'
+                + ' --indel-tranche 99.4'
+                + ' --invalidate-previous-filters'
                 + f' --disable-bam-index-caching {save_memory}'
             ),
-            input_files=[raw_vcf_path, fa_path, recal_path, tranches_path],
+            input_files=[cnn_vcf_path, *resource_vcf_paths],
             output_files=filtered_vcf_path
         )
 

@@ -8,6 +8,7 @@ from pathlib import Path
 from pprint import pformat
 
 import luigi
+from luigi.tools import deps_tree
 from psutil import cpu_count, virtual_memory
 
 from ..task.mutect2 import CallVariantsWithGATK
@@ -41,9 +42,11 @@ def run_analytical_pipeline(config_yml_path, work_dir_path='.',
     total_n_cpu = cpu_count()
     n_cpu_per_worker = max(1, floor(int(max_n_cpu or total_n_cpu) / n_worker))
     total_memory_mb = virtual_memory().total / 1024 / 1024
+    memory_mb_per_worker = int(total_memory_mb / n_worker)
+    save_memory = (memory_mb_per_worker < 8 * 1024)
     max_heap_size_mb = int(total_memory_mb / n_worker)
     common_config = {
-        'memory_mb_per_worker': int(total_memory_mb / n_worker),
+        'memory_mb_per_worker': memory_mb_per_worker,
         'n_cpu_per_worker': n_cpu_per_worker,
         'gatk_java_options': ' '.join([
             '-Dsamjdk.compression_level=5',
@@ -56,7 +59,7 @@ def run_analytical_pipeline(config_yml_path, work_dir_path='.',
         ]),
         'samtools_memory_per_thread':
         '{:d}M'.format(int(total_memory_mb / total_n_cpu / 20)),
-        'split_intervals': split_intervals,
+        'save_memory': save_memory, 'split_intervals': split_intervals,
         **{
             c: fetch_executable(c) for c in [
                 'bgzip', 'bcftools', 'bwa', 'cutadapt', 'fastqc', 'gatk',
@@ -98,10 +101,14 @@ def run_analytical_pipeline(config_yml_path, work_dir_path='.',
         data={'log_level': log_level, 'log_txt_path': log_txt_path},
         output_path=log_cfg_path
     )
-    luigi.build(
-        [CallVariantsWithGATK(**d) for d in task_kwargs],
-        workers=n_worker, local_scheduler=True, log_level=log_level,
-        logging_conf_file=log_cfg_path
+    print(
+        deps_tree.print_tree(
+            luigi.build(
+                [CallVariantsWithGATK(**d) for d in task_kwargs],
+                workers=n_worker, local_scheduler=True,
+                log_level=log_level, logging_conf_file=log_cfg_path
+            )
+        )
     )
 
 

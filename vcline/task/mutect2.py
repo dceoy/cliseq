@@ -9,7 +9,7 @@ from luigi.util import requires
 from ..cli.util import create_matched_id, print_log
 from .align import PrepareCRAMs
 from .base import ShellTask
-from .haplotypecaller import ApplyVQSR, PrepareEvaluationIntervals
+from .haplotypecaller import FilterVariantTranches, PrepareEvaluationIntervals
 from .ref import (CreateEvaluationIntervalList, CreateFASTAIndex,
                   CreateGnomadBiallelicSnpVCF, FetchGnomadVCF,
                   FetchReferenceFASTA)
@@ -41,6 +41,7 @@ class CalculateContamination(ShellTask):
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         n_cpu = self.cf['n_cpu_per_worker']
+        save_memory = str(self.cf['save_memory']).lower()
         input_cram_paths = [i[0].path for i in self.input()[0]]
         fa_path = self.input()[1].path
         evaluation_interval_path = self.input()[2].path
@@ -60,6 +61,7 @@ class CalculateContamination(ShellTask):
                     + f' --variant {gnomad_common_biallelic_vcf_path}'
                     + f' --intervals {evaluation_interval_path}'
                     + f' --output {t}'
+                    + f' --disable-bam-index-caching {save_memory}'
                 ) for c, t in zip(input_cram_paths, pileup_table_paths)
             ],
             input_files=[
@@ -99,7 +101,7 @@ class CallVariantsWithMutect2(ShellTask):
                     )
                 )
             ) for s in [
-                'raw.vcf.gz', 'raw.vcf.stats', 'cram', 'cram.crai',
+                'raw.vcf.gz', 'raw.vcf.gz.stats', 'cram', 'cram.crai',
                 'read-orientation-model.tar.gz'
             ]
         ]
@@ -111,7 +113,7 @@ class CallVariantsWithMutect2(ShellTask):
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         samtools = self.cf['samtools']
-        save_memory = str(self.cf['memory_mb_per_worker'] < 8 * 1024).lower()
+        save_memory = str(self.cf['save_memory']).lower()
         n_cpu = self.cf['n_cpu_per_worker']
         memory_per_thread = self.cf['samtools_memory_per_thread']
         input_cram_paths = [i[0].path for i in self.input()[0]]
@@ -250,7 +252,7 @@ class CallVariantsWithMutect2(ShellTask):
 
 @requires(CallVariantsWithMutect2, FetchReferenceFASTA,
           CreateEvaluationIntervalList, CalculateContamination)
-class FilterMutect2Calls(ShellTask):
+class FilterMutectCalls(ShellTask):
     cf = luigi.DictParameter()
     priority = 50
 
@@ -265,6 +267,7 @@ class FilterMutect2Calls(ShellTask):
         print_log(f'Filter somatic variants called by Mutect2:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        save_memory = str(self.cf['save_memory']).lower()
         raw_vcf_path = self.input()[0][0].path
         raw_stats_path = self.input()[0][1].path
         ob_priors_path = self.input()[0][4].path
@@ -289,6 +292,7 @@ class FilterMutect2Calls(ShellTask):
                 + f' --orientation-bias-artifact-priors {ob_priors_path}'
                 + f' --output {filtered_vcf_path}'
                 + f' --filtering-stats {filtering_stats_path}'
+                + f' --disable-bam-index-caching {save_memory}'
             ),
             input_files=[
                 raw_vcf_path, fa_path, evaluation_interval_path,
@@ -307,24 +311,20 @@ class CallVariantsWithGATK(luigi.WrapperTask):
     dbsnp_vcf_path = luigi.Parameter()
     known_indel_vcf_paths = luigi.ListParameter()
     hapmap_vcf_path = luigi.Parameter()
-    omni_vcf_path = luigi.Parameter()
-    snp_1000g_vcf_path = luigi.Parameter()
     gnomad_vcf_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 100
 
     def requires(self):
         return [
-            ApplyVQSR(
+            FilterVariantTranches(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 known_indel_vcf_paths=self.known_indel_vcf_paths,
-                hapmap_vcf_path=self.hapmap_vcf_path,
-                omni_vcf_path=self.omni_vcf_path,
-                snp_1000g_vcf_path=self.snp_1000g_vcf_path, cf=self.cf
+                hapmap_vcf_path=self.hapmap_vcf_path, cf=self.cf
             ),
-            FilterMutect2Calls(
+            FilterMutectCalls(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,

@@ -293,29 +293,15 @@ class CreateSequenceDictionary(ShellTask):
         )
 
 
-class PrepareGermlineResourceVCFs(luigi.WrapperTask):
-    dbsnp_vcf_path = luigi.Parameter()
+class FetchHapmapVCF(luigi.WrapperTask):
     hapmap_vcf_path = luigi.Parameter()
-    omni_vcf_path = luigi.Parameter()
-    snp_1000g_vcf_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 40
+    priority = 50
 
     def requires(self):
-        return {
-            'dbsnp': FetchDbsnpVCF(
-                dbsnp_vcf_path=self.dbsnp_vcf_path, cf=self.cf
-            ),
-            'hapmap': FetchResourceVCF(
-                resource_vcf_path=self.hapmap_vcf_path, cf=self.cf
-            ),
-            'omni': FetchResourceVCF(
-                resource_vcf_path=self.omni_vcf_path, cf=self.cf
-            ),
-            'snp_1000g': FetchResourceVCF(
-                resource_vcf_path=self.snp_1000g_vcf_path, cf=self.cf
-            )
-        }
+        return FetchResourceVCF(
+            resource_vcf_path=self.hapmap_vcf_path, cf=self.cf
+        )
 
     def output(self):
         return self.input()
