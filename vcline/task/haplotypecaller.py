@@ -279,7 +279,7 @@ class ApplyVQSR(ShellTask):
         resource_params = {
             'hapmap': 'hapmap,known=false,training=true,truth=true,prior=15.0',
             'omni': 'omni,known=false,training=true,truth=false,prior=12.0',
-            'snp_1000G':
+            'snp_1000g':
             '1000G,known=false,training=true,truth=false,prior=10.0',
             'dbsnp': 'dbsnp,known=true,training=false,truth=false,prior=2.0'
         }
