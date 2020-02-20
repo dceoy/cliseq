@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
+import os
 import re
 from pathlib import Path
 
 import luigi
+from luigi.tools import deps_tree
 from luigi.util import requires
 
 from ..cli.util import create_matched_id, print_log
@@ -146,9 +148,7 @@ class CallVariantsWithMutect2(ShellTask):
                 output_cram_path
             ) for i in evaluation_interval_paths
         ]
-        tmp_stats_paths = [
-            re.sub(r'\.gz$', '.stats', v) for v in tmp_vcf_paths
-        ]
+        tmp_stats_paths = [f'{v}.stats' for v in tmp_vcf_paths]
         normal_name = self.sample_names[1]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
@@ -257,12 +257,14 @@ class FilterMutectCalls(ShellTask):
     priority = 50
 
     def output(self):
-        return luigi.LocalTarget(
-            re.sub(r'\.raw\.vcf\.gz$', '.vcf', self.input()[0][0].path)
-        )
+        return [
+            luigi.LocalTarget(
+                re.sub(r'\.raw\.vcf\.gz$', s, self.input()[0][0].path)
+            ) for s in ['.vcf.gz', '.vcf.gz.stats']
+        ]
 
     def run(self):
-        filtered_vcf_path = self.output().path
+        filtered_vcf_path = self.output()[0].path
         run_id = '.'.join(Path(filtered_vcf_path).name.split('.')[:-2])
         print_log(f'Filter somatic variants called by Mutect2:\t{run_id}')
         gatk = self.cf['gatk']
@@ -273,7 +275,7 @@ class FilterMutectCalls(ShellTask):
         ob_priors_path = self.input()[0][4].path
         fa_path = self.input()[1].path
         evaluation_interval_path = self.input()[2].path
-        filtering_stats_path = re.sub(r'\.gz$', '.stats', filtered_vcf_path)
+        filtering_stats_path = self.output()[1].path
         contamination_table_path = self.input()[3][0].path
         segment_table_path = self.input()[3][1].path
         self.setup_shell(
@@ -299,11 +301,11 @@ class FilterMutectCalls(ShellTask):
                 raw_stats_path, ob_priors_path,
                 contamination_table_path, segment_table_path,
             ],
-            output_files=filtered_vcf_path
+            output_files=[filtered_vcf_path, filtering_stats_path]
         )
 
 
-class CallVariantsWithGATK(luigi.WrapperTask):
+class CallVariantsWithGATK(luigi.Task):
     ref_fa_paths = luigi.ListParameter()
     fq_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
@@ -335,6 +337,9 @@ class CallVariantsWithGATK(luigi.WrapperTask):
 
     def output(self):
         return self.input()
+
+    def run(self):
+        print('Task tree status:' + os.linesep + deps_tree.print_tree(self))
 
 
 if __name__ == '__main__':

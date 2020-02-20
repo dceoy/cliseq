@@ -8,7 +8,6 @@ from pathlib import Path
 from pprint import pformat
 
 import luigi
-from luigi.tools import deps_tree
 from psutil import cpu_count, virtual_memory
 
 from ..task.mutect2 import CallVariantsWithGATK
@@ -101,14 +100,10 @@ def run_analytical_pipeline(config_yml_path, work_dir_path='.',
         data={'log_level': log_level, 'log_txt_path': log_txt_path},
         output_path=log_cfg_path
     )
-    print(
-        deps_tree.print_tree(
-            luigi.build(
-                [CallVariantsWithGATK(**d) for d in task_kwargs],
-                workers=n_worker, local_scheduler=True,
-                log_level=log_level, logging_conf_file=log_cfg_path
-            )
-        )
+    luigi.build(
+        [CallVariantsWithGATK(**d) for d in task_kwargs],
+        workers=n_worker, local_scheduler=True, log_level=log_level,
+        logging_conf_file=log_cfg_path
     )
 
 
