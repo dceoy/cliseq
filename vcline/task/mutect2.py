@@ -103,14 +103,14 @@ class CallVariantsWithMutect2(ShellTask):
                     )
                 )
             ) for s in [
-                'raw.vcf.gz', 'raw.vcf.gz.stats', 'cram', 'cram.crai',
+                'vcf.gz', 'vcf.gz.tbi', 'vcf.gz.stats', 'cram', 'cram.crai',
                 'read-orientation-model.tar.gz'
             ]
         ]
 
     def run(self):
         raw_vcf_path = self.output()[0].path
-        run_id = '.'.join(Path(raw_vcf_path).name.split('.')[:-4])
+        run_id = '.'.join(Path(raw_vcf_path).name.split('.')[:-3])
         print_log(f'Call somatic variants with Mutect2:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
@@ -123,9 +123,9 @@ class CallVariantsWithMutect2(ShellTask):
         fai_path = self.input()[2].path
         evaluation_interval_paths = [i.path for i in self.input()[3]]
         gnomad_vcf_path = self.input()[4][0].path
-        raw_stats_path = self.output()[1].path
-        output_cram_path = self.output()[2].path
-        ob_priors_path = self.output()[4].path
+        raw_stats_path = self.output()[2].path
+        output_cram_path = self.output()[3].path
+        ob_priors_path = self.output()[5].path
         if len(evaluation_interval_paths) == 1:
             tmp_bam_paths = [re.sub(r'(\.cram)$', '.bam', output_cram_path)]
             tmp_vcf_paths = [raw_vcf_path]
@@ -138,10 +138,11 @@ class CallVariantsWithMutect2(ShellTask):
             ]
             tmp_vcf_paths = [
                 re.sub(
-                    r'\.raw\.vcf\.gz$', '.{}.raw.vcf.gz'.format(Path(i).stem),
+                    r'\.vcf\.gz$', '.{}.vcf.gz'.format(Path(i).stem),
                     raw_vcf_path
                 ) for i in evaluation_interval_paths
             ]
+        tmp_tbi_paths = [f'{p}.tbi' for p in tmp_vcf_paths]
         f1r2_paths = [
             re.sub(
                 r'\.cram$', '.{}.f1r2.tar.gz'.format(Path(i).stem),
@@ -182,7 +183,8 @@ class CallVariantsWithMutect2(ShellTask):
                 gnomad_vcf_path
             ],
             output_files=[
-                *tmp_vcf_paths, *tmp_bam_paths, *f1r2_paths, *tmp_stats_paths
+                *tmp_vcf_paths, *tmp_tbi_paths, *tmp_bam_paths, *f1r2_paths,
+                *tmp_stats_paths
             ],
             asynchronous=(len(evaluation_interval_paths) > 1)
         )
@@ -244,9 +246,13 @@ class CallVariantsWithMutect2(ShellTask):
                         + ''.join([f' --INPUT {v}' for v in tmp_vcf_paths])
                         + f' --OUTPUT {raw_vcf_path}'
                     ),
-                    (f'set -e && rm -f ' + ' '.join(tmp_vcf_paths))
+                    (
+                        f'set -e && rm -f '
+                        + ' '.join([*tmp_vcf_paths, *tmp_tbi_paths])
+                    )
                 ],
-                input_files=tmp_vcf_paths, output_files=raw_vcf_path
+                input_files=[*tmp_vcf_paths, *tmp_tbi_paths],
+                output_files=raw_vcf_path
             )
 
 
@@ -259,23 +265,26 @@ class FilterMutectCalls(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                re.sub(r'\.raw\.vcf\.gz$', s, self.input()[0][0].path)
-            ) for s in ['.vcf.gz', '.vcf.gz.stats']
+                re.sub(r'\.vcf\.gz$', s, self.input()[0][0].path)
+            ) for s in [
+                '.filtered.vcf.gz', '.filtered.vcf.gz.tbi',
+                '.filtered.vcf.gz.stats'
+            ]
         ]
 
     def run(self):
         filtered_vcf_path = self.output()[0].path
-        run_id = '.'.join(Path(filtered_vcf_path).name.split('.')[:-2])
+        run_id = '.'.join(Path(filtered_vcf_path).name.split('.')[:-4])
         print_log(f'Filter somatic variants called by Mutect2:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         save_memory = str(self.cf['save_memory']).lower()
         raw_vcf_path = self.input()[0][0].path
-        raw_stats_path = self.input()[0][1].path
-        ob_priors_path = self.input()[0][4].path
+        raw_stats_path = self.input()[0][2].path
+        ob_priors_path = self.input()[0][5].path
         fa_path = self.input()[1].path
         evaluation_interval_path = self.input()[2].path
-        filtering_stats_path = self.output()[1].path
+        filtering_stats_path = self.output()[2].path
         contamination_table_path = self.input()[3][0].path
         segment_table_path = self.input()[3][1].path
         self.setup_shell(

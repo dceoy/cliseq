@@ -92,7 +92,8 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                         + f'.HaplotypeCaller.{s}'
                     )
                 )
-            ) for s in ['raw.g.vcf.gz', 'cram', 'cram.crai']
+            )
+            for s in ['g.vcf.gz', 'g.vcf.gz.tbi', 'cram', 'cram.crai']
         ]
 
     def run(self):
@@ -110,7 +111,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         fai_path = self.input()[2].path
         dbsnp_vcf_path = self.input()[3][0].path
         evaluation_interval_paths = [i.path for i in self.input()[4]]
-        output_cram_path = self.output()[1].path
+        output_cram_path = self.output()[2].path
         if len(evaluation_interval_paths) == 1:
             tmp_bam_paths = [re.sub(r'(\.cram)$', '.bam', output_cram_path)]
             tmp_gvcf_paths = [gvcf_path]
@@ -127,6 +128,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                     gvcf_path
                 ) for i in evaluation_interval_paths
             ]
+        tmp_tbi_paths = [f'{p}.tbi' for p in tmp_gvcf_paths]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[gatk, samtools], cwd=self.cf['haplotypecaller_dir_path'],
@@ -165,7 +167,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                 input_cram_path, fa_path, dbsnp_vcf_path,
                 *evaluation_interval_paths
             ],
-            output_files=[*tmp_gvcf_paths, *tmp_bam_paths],
+            output_files=[*tmp_gvcf_paths, *tmp_tbi_paths, *tmp_bam_paths],
             asynchronous=(len(evaluation_interval_paths) > 1)
         )
         self.run_shell(
@@ -208,9 +210,13 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                         + ''.join([f' --variant {g}' for g in tmp_gvcf_paths])
                         + f' --output {gvcf_path}'
                     ),
-                    (f'set -e && rm -f ' + ' '.join(tmp_gvcf_paths))
+                    (
+                        f'set -e && rm -f '
+                        + ' '.join([*tmp_gvcf_paths, *tmp_tbi_paths])
+                    )
                 ],
-                input_files=[*tmp_gvcf_paths, fa_path], output_files=gvcf_path
+                input_files=[*tmp_gvcf_paths, *tmp_tbi_paths, fa_path],
+                output_files=[gvcf_path, f'{gvcf_path}.tbi']
             )
 
 
@@ -221,12 +227,14 @@ class GenotypeGVCF(ShellTask):
     priority = 60
 
     def output(self):
-        return luigi.LocalTarget(
-            re.sub(r'\.g\.vcf\.gz$', '.vcf.gz', self.input()[0][0].path)
-        )
+        return [
+            luigi.LocalTarget(
+                re.sub(r'\.g\.vcf\.gz$', s, self.input()[0][0].path)
+            ) for s in ['.vcf.gz', '.vcf.gz.tbi']
+        ]
 
     def run(self):
-        vcf_path = self.output().path
+        vcf_path = self.output()[0].path
         run_id = '.'.join(Path(vcf_path).name.split('.')[:-3])
         print_log(f'Genotype a HaplotypeCaller GVCF:\t{run_id}')
         gatk = self.cf['gatk']
@@ -253,7 +261,7 @@ class GenotypeGVCF(ShellTask):
             input_files=[
                 gvcf_path, fa_path, dbsnp_vcf_path, evaluation_interval_path
             ],
-            output_files=vcf_path
+            output_files=[vcf_path, f'{vcf_path}.tbi']
         )
 
 
@@ -266,21 +274,24 @@ class FilterVariantTranches(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                re.sub(r'\.raw\.vcf\.gz$', s, self.input()[0].path)
-            ) for s in ['.vcf.gz', '.raw.cnn.vcf.gz']
+                re.sub(r'\.vcf\.gz$', s, self.input()[0][0].path)
+            ) for s in [
+                '.cnn.filtered.vcf.gz', '.cnn.filtered.vcf.gz.tbi',
+                '.cnn.vcf.gz', '.cnn.vcf.gz.tbi'
+            ]
         ]
 
     def run(self):
         filtered_vcf_path = self.output()[0].path
-        run_id = '.'.join(Path(filtered_vcf_path).name.split('.')[:-2])
+        run_id = '.'.join(Path(filtered_vcf_path).name.split('.')[:-5])
         print_log(f'Apply tranche filtering:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         save_memory = str(self.cf['save_memory']).lower()
-        raw_vcf_path = self.input()[0].path
-        cram_path = self.input()[1][1].path
+        raw_vcf_path = self.input()[0][0].path
+        cram_path = self.input()[1][2].path
         fa_path = self.input()[2].path
-        cnn_vcf_path = self.output()[1].path
+        cnn_vcf_path = self.output()[2].path
         resource_vcf_paths = [
             self.input()[3][0].path, self.input()[4][0].path,
             *[i[0].path for i in self.input()[5]]
@@ -300,7 +311,7 @@ class FilterVariantTranches(ShellTask):
                 + f' --disable-bam-index-caching {save_memory}'
             ),
             input_files=[raw_vcf_path, fa_path, cram_path],
-            output_files=cnn_vcf_path
+            output_files=[cnn_vcf_path, f'{cnn_vcf_path}.tbi']
         )
         self.run_shell(
             args=(
@@ -315,7 +326,7 @@ class FilterVariantTranches(ShellTask):
                 + f' --disable-bam-index-caching {save_memory}'
             ),
             input_files=[cnn_vcf_path, *resource_vcf_paths],
-            output_files=filtered_vcf_path
+            output_files=[filtered_vcf_path, f'{filtered_vcf_path}.tbi']
         )
 
 
