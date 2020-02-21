@@ -90,11 +90,9 @@ def run_analytical_pipeline(config_yml_path, work_dir_path='.',
 
     log_txt_path = str(log_dir.joinpath('luigi.log.txt'))
     log_cfg_path = str(log_dir.joinpath('luigi.log.cfg'))
-    for p in dirs.values():
-        d = Path(p)
-        if not d.is_dir():
-            print_log(f'Make a directory:\t{p}')
-            d.mkdir()
+    if not log_dir.is_dir():
+        print_log(f'Make a directory:\t{log_dir}')
+        log_dir.mkdir()
     render_template(
         template='{}.j2'.format(Path(log_cfg_path).name),
         data={'log_level': log_level, 'log_txt_path': log_txt_path},

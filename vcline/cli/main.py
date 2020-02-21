@@ -7,6 +7,8 @@ Usage:
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
         [--workers=<int>] [--split-intervals] [--ref-dir=<path>]
         [<work_dir_path>]
+    vcline download-funcotator-data [--debug|--info] [--cpus=<int>]
+        [<work_dir_path>]
     vcline write-af-only-vcf [--debug|--info] [--cpus=<int>]
         [--src-path=<path>|--src-url=<url>|--gnomad-url] [<work_dir_path>]
     vcline -h|--help
@@ -15,6 +17,8 @@ Usage:
 Commands:
     init                Create a config YAML template
     run                 Run the analytical pipeline
+    download-funcotator-data
+                        Download Funcotator data sources
     write-af-only-vcf   Extract and write only AF from VCF INFO
 
 Options:
@@ -45,7 +49,7 @@ from docopt import docopt
 from psutil import cpu_count
 
 from .. import __version__
-from ..task.resource import WriteAfOnlyVCF
+from ..task.resource import DownloadFuncotatorDataSources, WriteAfOnlyVCF
 from .pipeline import run_analytical_pipeline
 from .util import fetch_executable, load_default_url_dict, print_log
 
@@ -74,29 +78,43 @@ def main():
             max_n_worker=args['--workers'],
             split_intervals=args['--split-intervals'], log_level=log_level
         )
-    elif args['write-af-only-vcf']:
-        luigi.build(
-            [
-                WriteAfOnlyVCF(
-                    src_path=(
-                        str(Path(args['--src-path']).resolve())
-                        if args['--src-path'] else ''
-                    ),
-                    src_url=(
-                        '' if args['--src-path'] else (
-                            args['--src-url']
-                            or load_default_url_dict()['gnomad_vcf']
-                        )
-                    ),
-                    dest_dir_path=str(
-                        Path(args['<work_dir_path>'] or '.').resolve()
-                    ),
-                    n_cpu=int(args['--cpus'] or cpu_count()),
-                    **{c: fetch_executable(c) for c in ['curl', 'bgzip']}
-                )
-            ],
-            local_scheduler=True, log_level=log_level
-        )
+    else:
+        n_cpu = int(args['--cpus'] or cpu_count())
+        if args['download-funcotator-data']:
+            luigi.build(
+                [
+                    DownloadFuncotatorDataSources(
+                        dest_dir_path=str(
+                            Path(args['<work_dir_path>'] or '.').resolve()
+                        ),
+                        n_cpu=n_cpu, gatk=fetch_executable('gatk')
+                    )
+                ],
+                local_scheduler=True, log_level=log_level
+            )
+        elif args['write-af-only-vcf']:
+            luigi.build(
+                [
+                    WriteAfOnlyVCF(
+                        src_path=(
+                            str(Path(args['--src-path']).resolve())
+                            if args['--src-path'] else ''
+                        ),
+                        src_url=(
+                            '' if args['--src-path'] else (
+                                args['--src-url']
+                                or load_default_url_dict()['gnomad_vcf']
+                            )
+                        ),
+                        dest_dir_path=str(
+                            Path(args['<work_dir_path>'] or '.').resolve()
+                        ),
+                        n_cpu=n_cpu,
+                        **{c: fetch_executable(c) for c in ['curl', 'bgzip']}
+                    )
+                ],
+                local_scheduler=True, log_level=log_level
+            )
 
 
 def _write_config_yml(path):

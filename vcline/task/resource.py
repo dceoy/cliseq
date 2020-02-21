@@ -56,5 +56,35 @@ class WriteAfOnlyVCF(ShellTask):
         )
 
 
+class DownloadFuncotatorDataSources(ShellTask):
+    dest_dir_path = luigi.Parameter(default='.')
+    gatk = luigi.Parameter(default='gatk')
+    n_cpu = luigi.IntParameter(default=1)
+
+    def run(self):
+        run_id = Path(self.dest_dir_path).name
+        print_log(f'Download Funcotator data sources:\t{run_id}')
+        gatk_opts = ' --java-options "{}"'.format(
+            ' '.join([
+                '-Dsamjdk.compression_level=5',
+                '-XX:+UseParallelGC',
+                f'-XX:ParallelGCThreads={self.n_cpu}'
+            ])
+        )
+        self.setup_shell(
+            commands=self.gatk, cwd=self.dest_dir_path, quiet=False
+        )
+        self.run_shell(
+            args=[
+                (
+                    f'set -e && {self.gatk}{gatk_opts}'
+                    + ' FuncotatorDataSourceDownloader'
+                    + f' --{s}'
+                    + ' --validate-integrity'
+                ) for s in ['germline', 'somatic']
+            ]
+        )
+
+
 if __name__ == '__main__':
     luigi.run()
