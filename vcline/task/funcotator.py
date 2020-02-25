@@ -16,6 +16,7 @@ from .ref import ExtractTarFile, FetchReferenceFASTA
 
 class AnnotateGatkVCF(ShellTask):
     caller_type = luigi.Parameter(default='somatic')
+    funcotator_data_source_tar_path = luigi.Parameter()
     ref_fa_paths = luigi.ListParameter()
     fq_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
@@ -50,7 +51,7 @@ class AnnotateGatkVCF(ShellTask):
             ),
             FetchReferenceFASTA(ref_fa_paths=self.ref_fa_paths, cf=self.cf),
             ExtractTarFile(
-                tar_path=self.cf[f'funcotator_{self.caller_type}_tar'],
+                tar_path=self.funcotator_data_source_tar_path,
                 ref_dir_path=self.cf['ref_dir_path'],
                 log_dir_path=self.cf['log_dir_path']
             )
@@ -102,20 +103,25 @@ class CallVariantsWithGATK(luigi.Task):
     known_indel_vcf_paths = luigi.ListParameter()
     hapmap_vcf_path = luigi.Parameter()
     gnomad_vcf_path = luigi.Parameter()
+    funcotator_somatic_tar_path = luigi.Parameter()
+    funcotator_germline_tar_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 100
 
     def requires(self):
         return [
             AnnotateGatkVCF(
-                caller_type=t, fq_list=self.fq_list,
+                caller_type=k, funcotator_data_source_tar_path=v,
+                ref_fa_paths=self.ref_fa_paths, fq_list=self.fq_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
-                ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 known_indel_vcf_paths=self.known_indel_vcf_paths,
                 gnomad_vcf_path=self.gnomad_vcf_path,
                 hapmap_vcf_path=self.hapmap_vcf_path, cf=self.cf
-            ) for t in ['somatic', 'germline']
+            ) for k, v in {
+                'somatic': self.funcotator_somatic_tar_path,
+                'germline': self.funcotator_germline_tar_path
+            }.items()
         ]
 
     def output(self):

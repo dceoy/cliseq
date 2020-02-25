@@ -397,11 +397,11 @@ class ExtractTarFile(ShellTask):
         run_id = Path(dest_path).name
         print_log(f'Create a resource:\t{run_id}')
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=self.cf['ref_dir_path']
+            run_id=run_id, log_dir_path=self.log_dir_path,
+            cwd=self.ref_dir_path
         )
         self.run_shell(
-            args='tar -xvf {self.tar_path}',
+            args=f'tar -xvf {self.tar_path}',
             input_files=self.tar_path, output_files=dest_path
         )
 
