@@ -1,17 +1,15 @@
 #!/usr/bin/env python
 
-import os
 import re
 from pathlib import Path
 
 import luigi
-from luigi.tools import deps_tree
 from luigi.util import requires
 
 from ..cli.util import create_matched_id, print_log
 from .align import PrepareCRAMs
 from .base import ShellTask
-from .haplotypecaller import FilterVariantTranches, PrepareEvaluationIntervals
+from .haplotypecaller import PrepareEvaluationIntervals
 from .ref import (CreateEvaluationIntervalList, CreateFASTAIndex,
                   CreateGnomadBiallelicSnpVCF, FetchGnomadVCF,
                   FetchReferenceFASTA)
@@ -312,43 +310,6 @@ class FilterMutectCalls(ShellTask):
             ],
             output_files=[filtered_vcf_path, filtering_stats_path]
         )
-
-
-class CallVariantsWithGATK(luigi.Task):
-    ref_fa_paths = luigi.ListParameter()
-    fq_list = luigi.ListParameter()
-    read_groups = luigi.ListParameter()
-    sample_names = luigi.ListParameter()
-    dbsnp_vcf_path = luigi.Parameter()
-    known_indel_vcf_paths = luigi.ListParameter()
-    hapmap_vcf_path = luigi.Parameter()
-    gnomad_vcf_path = luigi.Parameter()
-    cf = luigi.DictParameter()
-    priority = 100
-
-    def requires(self):
-        return [
-            FilterVariantTranches(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                known_indel_vcf_paths=self.known_indel_vcf_paths,
-                hapmap_vcf_path=self.hapmap_vcf_path, cf=self.cf
-            ),
-            FilterMutectCalls(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                known_indel_vcf_paths=self.known_indel_vcf_paths,
-                gnomad_vcf_path=self.gnomad_vcf_path, cf=self.cf
-            )
-        ]
-
-    def output(self):
-        return self.input()
-
-    def run(self):
-        print('Task tree status:' + os.linesep + deps_tree.print_tree(self))
 
 
 if __name__ == '__main__':

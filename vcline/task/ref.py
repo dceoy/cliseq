@@ -61,6 +61,7 @@ class FetchReferenceFASTA(ShellTask):
 class FetchResourceVCF(ShellTask):
     resource_vcf_path = luigi.ListParameter()
     cf = luigi.DictParameter()
+    priority = 80
 
     def output(self):
         return [
@@ -371,6 +372,37 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
             args=f'set -e && {tabix} -p vcf {biallelic_snp_vcf_path}',
             input_files=biallelic_snp_vcf_path,
             output_files=f'{biallelic_snp_vcf_path}.tbi'
+        )
+
+
+class ExtractTarFile(ShellTask):
+    tar_path = luigi.Parameter()
+    ref_dir_path = luigi.Parameter()
+    log_dir_path = luigi.Parameter()
+    priority = 80
+
+    def output(self):
+        return luigi.LocalTarget(
+            str(
+                Path(self.ref_dir_path).joinpath(
+                    re.sub(
+                        r'\.tar\.(gz|bz2)$', '', Path(self.tar_path).name
+                    )
+                )
+            )
+        )
+
+    def run(self):
+        dest_path = self.output().path
+        run_id = Path(dest_path).name
+        print_log(f'Create a resource:\t{run_id}')
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            cwd=self.cf['ref_dir_path']
+        )
+        self.run_shell(
+            args='tar -xvf {self.tar_path}',
+            input_files=self.tar_path, output_files=dest_path
         )
 
 

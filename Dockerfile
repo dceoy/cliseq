@@ -34,6 +34,7 @@ RUN set -e \
       && make install
 
 RUN set -e \
+      && /opt/conda/envs/gatk/bin/pip install -U --no-cache-dir scipy \
       && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
         cutadapt /tmp/vcline \
         https://github.com/dceoy/shoper/archive/master.tar.gz

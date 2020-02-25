@@ -10,7 +10,7 @@ from pprint import pformat
 import luigi
 from psutil import cpu_count, virtual_memory
 
-from ..task.mutect2 import CallVariantsWithGATK
+from ..task.funcotator import CallVariantsWithGATK
 from .util import (fetch_executable, parse_fq_id, print_log, read_yml,
                    render_template)
 
@@ -45,6 +45,7 @@ def run_analytical_pipeline(config_yml_path, work_dir_path='.',
     save_memory = (memory_mb_per_worker < 8 * 1024)
     max_heap_size_mb = int(total_memory_mb / n_worker)
     common_config = {
+        'ref_version': (config.get('reference_version') or 'hg38'),
         'memory_mb_per_worker': memory_mb_per_worker,
         'n_cpu_per_worker': n_cpu_per_worker,
         'gatk_java_options': ' '.join([
@@ -136,11 +137,13 @@ def _read_config_yml(config_yml_path):
     for k in ['references', 'runs']:
         assert config.get(k)
     assert isinstance(config['references'], dict)
-    assert set(config['references'].keys()).intersection({
-        'ref_fa', 'known_indel_vcf', 'dbsnp_vcf'
-    })
+    assert {
+        'ref_fa', 'known_indel_vcf', 'dbsnp_vcf', 'hapmap_vcf', 'gnomad_vcf',
+        'funcotator_germline_tar', 'funcotator_somatic_tar'
+    }.issubset(set(config['references'].keys()))
     for k in ['ref_fa', 'known_indel_vcf', 'dbsnp_vcf', 'hapmap_vcf',
-              'omni_vcf', 'snp_1000g_vcf']:
+              'gnomad_vcf', 'funcotator_germline_tar',
+              'funcotator_somatic_tar']:
         v = config['references'].get(k)
         if k in ['ref_fa', 'known_indel_vcf']:
             assert isinstance(v, list)
