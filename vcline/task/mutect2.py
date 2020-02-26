@@ -28,10 +28,10 @@ class CalculateContamination(ShellTask):
                     Path(self.cf['mutect2_dir_path']).joinpath(
                         create_matched_id(
                             *[i[0].path for i in self.input()[0]]
-                        ) + f'.{s}.table'
+                        ) + s
                     )
                 )
-            ) for s in ['contamination', 'segment']
+            ) for s in ['.contamination.table', '.segment.table']
         ]
 
     def run(self):
@@ -263,11 +263,10 @@ class FilterMutectCalls(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                re.sub(r'\.vcf\.gz$', s, self.input()[0][0].path)
-            ) for s in [
-                '.filtered.vcf.gz', '.filtered.vcf.gz.tbi',
-                '.filtered.vcf.gz.stats'
-            ]
+                re.sub(
+                    r'\.vcf\.gz$', f'.filtered.{s}', self.input()[0][0].path
+                )
+            ) for s in ['vcf.gz', 'vcf.gz.tbi', 'vcf.gz.stats']
         ]
 
     def run(self):

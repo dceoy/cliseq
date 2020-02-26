@@ -266,25 +266,21 @@ class GenotypeGVCF(ShellTask):
         )
 
 
-@requires(GenotypeGVCF, CallVariantsWithHaplotypeCaller, FetchReferenceFASTA,
-          FetchHapmapVCF, FetchDbsnpVCF, FetchKnownIndelVCFs)
-class FilterVariantTranches(ShellTask):
+@requires(GenotypeGVCF, CallVariantsWithHaplotypeCaller, FetchReferenceFASTA)
+class CNNScoreVariants(ShellTask):
     cf = luigi.DictParameter()
     priority = 60
 
     def output(self):
         return [
             luigi.LocalTarget(
-                re.sub(r'\.vcf\.gz$', s, self.input()[0][0].path)
-            ) for s in [
-                '.cnn.filtered.vcf.gz', '.cnn.filtered.vcf.gz.tbi',
-                '.cnn.vcf.gz', '.cnn.vcf.gz.tbi'
-            ]
+                re.sub(r'\.vcf\.gz$', f'.cnn.{s}', self.input()[0][0].path)
+            ) for s in ['vcf.gz', 'vcf.gz.tbi']
         ]
 
     def run(self):
-        filtered_vcf_path = self.output()[0].path
-        run_id = '.'.join(Path(filtered_vcf_path).name.split('.')[:-5])
+        cnn_vcf_path = self.output()[0].path
+        run_id = '.'.join(Path(cnn_vcf_path).name.split('.')[:-5])
         self.print_log(f'Apply tranche filtering:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
@@ -292,11 +288,6 @@ class FilterVariantTranches(ShellTask):
         raw_vcf_path = self.input()[0][0].path
         cram_path = self.input()[1][2].path
         fa_path = self.input()[2].path
-        cnn_vcf_path = self.output()[2].path
-        resource_vcf_paths = [
-            self.input()[3][0].path, self.input()[4][0].path,
-            *[i[0].path for i in self.input()[5]]
-        ]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['haplotypecaller_dir_path']
@@ -314,6 +305,38 @@ class FilterVariantTranches(ShellTask):
             input_files=[raw_vcf_path, fa_path, cram_path],
             output_files=[cnn_vcf_path, f'{cnn_vcf_path}.tbi']
         )
+
+
+@requires(CNNScoreVariants, FetchHapmapVCF, FetchDbsnpVCF, FetchKnownIndelVCFs)
+class FilterVariantTranches(ShellTask):
+    cf = luigi.DictParameter()
+    priority = 60
+
+    def output(self):
+        return [
+            luigi.LocalTarget(
+                re.sub(
+                    r'\.vcf\.gz$', f'.filtered.{s}', self.input()[0][0].path
+                )
+            ) for s in ['vcf.gz', 'vcf.gz.tbi']
+        ]
+
+    def run(self):
+        filtered_vcf_path = self.output()[0].path
+        run_id = '.'.join(Path(filtered_vcf_path).name.split('.')[:-5])
+        self.print_log(f'Apply tranche filtering:\t{run_id}')
+        gatk = self.cf['gatk']
+        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        save_memory = str(self.cf['save_memory']).lower()
+        cnn_vcf_path = self.input()[0][0].path
+        resource_vcf_paths = [
+            self.input()[1][0].path, self.input()[2][0].path,
+            *[i[0].path for i in self.input()[3]]
+        ]
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
+            cwd=self.cf['haplotypecaller_dir_path']
+        )
         self.run_shell(
             args=(
                 f'set -e && {gatk}{gatk_opts} FilterVariantTranches'
@@ -321,7 +344,9 @@ class FilterVariantTranches(ShellTask):
                 + ''.join([f' --resource {p}' for p in resource_vcf_paths])
                 + f' --output {filtered_vcf_path}'
                 + ' --info-key CNN_2D'
+                + ' --snp-tranche 99.9'
                 + ' --snp-tranche 99.95'
+                + ' --indel-tranche 99.0'
                 + ' --indel-tranche 99.4'
                 + ' --invalidate-previous-filters'
                 + f' --disable-bam-index-caching {save_memory}'

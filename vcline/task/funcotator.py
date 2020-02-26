@@ -55,15 +55,17 @@ class AnnotateGatkVCF(ShellTask):
         ]
 
     def output(self):
-        return luigi.LocalTarget(
-            re.sub(
-                r'(\.vcf|\.vcf\.gz)$', '.funcotator.vcf',
-                self.input()[0][0].path
-            )
-        )
+        return [
+            luigi.LocalTarget(
+                re.sub(
+                    r'(\.vcf|\.vcf\.gz)$', f'.funcotator.{s}',
+                    self.input()[0][0].path
+                )
+            ) for s in ['vcf.gz', 'vcf.gz.tbi']
+        ]
 
     def run(self):
-        output_vcf_path = self.output().path
+        output_vcf_path = self.output()[0].path
         run_id = '.'.join(Path(output_vcf_path).name.split('.')[:-2])
         self.print_log(f'Annotate variants with Funcotator:\t{run_id}')
         gatk = self.cf['gatk']
@@ -87,7 +89,7 @@ class AnnotateGatkVCF(ShellTask):
                 + f' --output-file-format VCF'
             ),
             input_files=[input_vcf_path, fa_path, data_src_dir_path],
-            output_files=output_vcf_path
+            output_files=[output_vcf_path, f'{output_vcf_path}.tbi']
         )
 
 
