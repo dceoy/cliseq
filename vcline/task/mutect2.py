@@ -6,7 +6,7 @@ from pathlib import Path
 import luigi
 from luigi.util import requires
 
-from ..cli.util import create_matched_id, print_log
+from ..cli.util import create_matched_id
 from .align import PrepareCRAMs
 from .base import ShellTask
 from .haplotypecaller import PrepareEvaluationIntervals
@@ -37,7 +37,7 @@ class CalculateContamination(ShellTask):
     def run(self):
         contamination_table_path = self.output()[0].path
         run_id = '.'.join(Path(contamination_table_path).name.split('.')[:-2])
-        print_log(f'Calculate cross-sample contamination:\t{run_id}')
+        self.print_log(f'Calculate cross-sample contamination:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         n_cpu = self.cf['n_cpu_per_worker']
@@ -109,7 +109,7 @@ class CallVariantsWithMutect2(ShellTask):
     def run(self):
         raw_vcf_path = self.output()[0].path
         run_id = '.'.join(Path(raw_vcf_path).name.split('.')[:-3])
-        print_log(f'Call somatic variants with Mutect2:\t{run_id}')
+        self.print_log(f'Call somatic variants with Mutect2:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         samtools = self.cf['samtools']
@@ -273,7 +273,7 @@ class FilterMutectCalls(ShellTask):
     def run(self):
         filtered_vcf_path = self.output()[0].path
         run_id = '.'.join(Path(filtered_vcf_path).name.split('.')[:-4])
-        print_log(f'Filter somatic variants called by Mutect2:\t{run_id}')
+        self.print_log(f'Filter somatic variants called by Mutect2:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         save_memory = str(self.cf['save_memory']).lower()

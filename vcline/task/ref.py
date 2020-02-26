@@ -6,7 +6,6 @@ from pathlib import Path
 import luigi
 from luigi.util import requires
 
-from ..cli.util import print_log
 from .base import ShellTask
 
 
@@ -35,7 +34,7 @@ class FetchReferenceFASTA(ShellTask):
     def run(self):
         fa_path = self.output().path
         run_id = Path(fa_path).stem
-        print_log(f'Create a reference FASTA:\t{run_id}')
+        self.print_log(f'Create a reference FASTA:\t{run_id}')
         pigz = self.cf['pigz']
         pbzip2 = self.cf['pbzip2']
         n_cpu = self.cf['n_cpu_per_worker']
@@ -80,7 +79,7 @@ class FetchResourceVCF(ShellTask):
     def run(self):
         dest_vcf_path = self.output()[0].path
         run_id = Path(Path(dest_vcf_path).stem).stem
-        print_log(f'Create a VCF:\t{run_id}')
+        self.print_log(f'Create a VCF:\t{run_id}')
         bgzip = self.cf['bgzip']
         tabix = self.cf['tabix']
         n_cpu = self.cf['n_cpu_per_worker']
@@ -154,7 +153,7 @@ class FetchResourceFile(ShellTask):
     def run(self):
         dest_path = self.output().path
         run_id = Path(dest_path).stem
-        print_log(f'Create a resource:\t{run_id}')
+        self.print_log(f'Create a resource:\t{run_id}')
         src_path = self.resource_file_path
         pigz = self.cf['pigz']
         pbzip2 = self.cf['pbzip2']
@@ -183,7 +182,7 @@ class CreateFASTAIndex(ShellTask):
     def run(self):
         fa_path = self.input().path
         run_id = Path(fa_path).stem
-        print_log(f'Create a FASTA index:\t{run_id}')
+        self.print_log(f'Create a FASTA index:\t{run_id}')
         samtools = self.cf['samtools']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
@@ -209,7 +208,7 @@ class CreateBWAIndices(ShellTask):
     def run(self):
         fa_path = self.input().path
         run_id = Path(fa_path).stem
-        print_log(f'Create BWA indices:\t{run_id}')
+        self.print_log(f'Create BWA indices:\t{run_id}')
         bwa = self.cf['bwa']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
@@ -239,7 +238,7 @@ class CreateEvaluationIntervalList(ShellTask):
     def run(self):
         fa_path = self.input()[0].path
         run_id = Path(fa_path).stem
-        print_log(f'Create an evaluation interval list:\t{run_id}')
+        self.print_log(f'Create an evaluation interval list:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         fai_path = self.input()[1].path
@@ -277,7 +276,7 @@ class CreateSequenceDictionary(ShellTask):
     def run(self):
         fa_path = self.input().path
         run_id = Path(fa_path).stem
-        print_log(f'Create a sequence dictionary:\t{run_id}')
+        self.print_log(f'Create a sequence dictionary:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         self.setup_shell(
@@ -343,7 +342,7 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
     def run(self):
         input_vcf_path = self.input()[0][0].path
         run_id = Path(input_vcf_path).stem
-        print_log(f'Create a common biallelic SNP VCF:\t{run_id}')
+        self.print_log(f'Create a common biallelic SNP VCF:\t{run_id}')
         tabix = self.cf['tabix']
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
@@ -395,7 +394,7 @@ class ExtractTarFile(ShellTask):
     def run(self):
         dest_path = self.output().path
         run_id = Path(dest_path).name
-        print_log(f'Create a resource:\t{run_id}')
+        self.print_log(f'Create a resource:\t{run_id}')
         self.setup_shell(
             run_id=run_id, log_dir_path=self.log_dir_path,
             cwd=self.ref_dir_path

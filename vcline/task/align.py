@@ -6,7 +6,7 @@ from pathlib import Path
 import luigi
 from luigi.util import requires
 
-from ..cli.util import parse_fq_id, print_log
+from ..cli.util import parse_fq_id
 from .base import ShellTask
 from .ref import (CreateBWAIndices, CreateFASTAIndex, CreateSequenceDictionary,
                   FetchDbsnpVCF, FetchKnownIndelVCFs, FetchReferenceFASTA)
@@ -37,7 +37,7 @@ class AlignReads(ShellTask):
     def run(self):
         cram_path = self.output()[0].path
         run_id = Path(cram_path).stem
-        print_log(f'Align reads:\t{run_id}')
+        self.print_log(f'Align reads:\t{run_id}')
         bwa = self.cf['bwa']
         samtools = self.cf['samtools']
         n_cpu = self.cf['n_cpu_per_worker']
@@ -108,7 +108,7 @@ class MarkDuplicates(ShellTask):
     def run(self):
         input_cram_path = self.input()[0][0].path
         run_id = Path(input_cram_path).stem
-        print_log(f'Mark duplicates:\t{run_id}')
+        self.print_log(f'Mark duplicates:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         samtools = self.cf['samtools']
@@ -202,7 +202,7 @@ class ApplyBQSR(ShellTask):
     def run(self):
         input_cram_path = self.input()[0][0].path
         run_id = Path(input_cram_path).stem
-        print_log(f'Apply Base Quality Score Recalibration:\t{run_id}')
+        self.print_log(f'Apply Base Quality Score Recalibration:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         samtools = self.cf['samtools']
@@ -293,7 +293,7 @@ class RemoveDuplicatesAndUnmapped(ShellTask):
     def run(self):
         input_cram_path = self.input()[0][0].path
         run_id = Path(input_cram_path).stem
-        print_log(f'Remove duplicates and unmapped reads:\t{run_id}')
+        self.print_log(f'Remove duplicates and unmapped reads:\t{run_id}')
         samtools = self.cf['samtools']
         n_cpu = self.cf['n_cpu_per_worker']
         output_cram_path = self.output()[0].path

@@ -1,13 +1,10 @@
 #!/usr/bin/env python
 
-import os
 import re
 from pathlib import Path
 
 import luigi
-from luigi.tools import deps_tree
 
-from ..cli.util import print_log
 from .base import ShellTask
 from .haplotypecaller import FilterVariantTranches
 from .mutect2 import FilterMutectCalls
@@ -68,7 +65,7 @@ class AnnotateGatkVCF(ShellTask):
     def run(self):
         output_vcf_path = self.output().path
         run_id = '.'.join(Path(output_vcf_path).name.split('.')[:-2])
-        print_log(f'Annotate variants with Funcotator:\t{run_id}')
+        self.print_log(f'Annotate variants with Funcotator:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         input_vcf_path = self.input()[0][0].path
@@ -92,43 +89,6 @@ class AnnotateGatkVCF(ShellTask):
             input_files=[input_vcf_path, fa_path, data_src_dir_path],
             output_files=output_vcf_path
         )
-
-
-class CallVariantsWithGATK(luigi.Task):
-    ref_fa_paths = luigi.ListParameter()
-    fq_list = luigi.ListParameter()
-    read_groups = luigi.ListParameter()
-    sample_names = luigi.ListParameter()
-    dbsnp_vcf_path = luigi.Parameter()
-    known_indel_vcf_paths = luigi.ListParameter()
-    hapmap_vcf_path = luigi.Parameter()
-    gnomad_vcf_path = luigi.Parameter()
-    funcotator_somatic_tar_path = luigi.Parameter()
-    funcotator_germline_tar_path = luigi.Parameter()
-    cf = luigi.DictParameter()
-    priority = 100
-
-    def requires(self):
-        return [
-            AnnotateGatkVCF(
-                caller_type=k, funcotator_data_source_tar_path=v,
-                ref_fa_paths=self.ref_fa_paths, fq_list=self.fq_list,
-                read_groups=self.read_groups, sample_names=self.sample_names,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                known_indel_vcf_paths=self.known_indel_vcf_paths,
-                gnomad_vcf_path=self.gnomad_vcf_path,
-                hapmap_vcf_path=self.hapmap_vcf_path, cf=self.cf
-            ) for k, v in {
-                'somatic': self.funcotator_somatic_tar_path,
-                'germline': self.funcotator_germline_tar_path
-            }.items()
-        ]
-
-    def output(self):
-        return self.input()
-
-    def run(self):
-        print_log('Task tree:' + os.linesep + deps_tree.print_tree(self))
 
 
 if __name__ == '__main__':

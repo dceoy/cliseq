@@ -4,7 +4,6 @@ from pathlib import Path
 
 import luigi
 
-from ..cli.util import print_log
 from .base import ShellTask
 
 
@@ -31,7 +30,7 @@ class TrimAdapters(ShellTask):
 
     def run(self):
         run_id = self.sample_name
-        print_log(f'Trim adapters:\t{run_id}')
+        self.print_log(f'Trim adapters:\t{run_id}')
         cutadapt = self.cf['cutadapt']
         fastqc = self.cf['fastqc']
         pigz = self.cf['pigz']

@@ -6,7 +6,6 @@ from pathlib import Path
 import luigi
 from luigi.util import requires
 
-from ..cli.util import print_log
 from .align import PrepareCRAMs
 from .base import ShellTask
 from .ref import (CreateEvaluationIntervalList, CreateFASTAIndex,
@@ -33,7 +32,7 @@ class SplitEvaluationIntervals(ShellTask):
     def run(self):
         interval_path = self.input()[0].path
         run_id = Path(interval_path).stem
-        print_log(f'Split an evaluation interval list:\t{run_id}')
+        self.print_log(f'Split an evaluation interval list:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         fa_path = self.input()[1].path
@@ -99,7 +98,9 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
     def run(self):
         gvcf_path = self.output()[0].path
         run_id = '.'.join(Path(gvcf_path).name.split('.')[:-4])
-        print_log(f'Call germline variants with HaplotypeCaller:\t{run_id}')
+        self.print_log(
+            f'Call germline variants with HaplotypeCaller:\t{run_id}'
+        )
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         samtools = self.cf['samtools']
@@ -236,7 +237,7 @@ class GenotypeGVCF(ShellTask):
     def run(self):
         vcf_path = self.output()[0].path
         run_id = '.'.join(Path(vcf_path).name.split('.')[:-3])
-        print_log(f'Genotype a HaplotypeCaller GVCF:\t{run_id}')
+        self.print_log(f'Genotype a HaplotypeCaller GVCF:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         save_memory = str(self.cf['save_memory']).lower()
@@ -284,7 +285,7 @@ class FilterVariantTranches(ShellTask):
     def run(self):
         filtered_vcf_path = self.output()[0].path
         run_id = '.'.join(Path(filtered_vcf_path).name.split('.')[:-5])
-        print_log(f'Apply tranche filtering:\t{run_id}')
+        self.print_log(f'Apply tranche filtering:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         save_memory = str(self.cf['save_memory']).lower()

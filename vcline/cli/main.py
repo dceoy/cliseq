@@ -41,17 +41,18 @@ Args:
 import logging
 import os
 import shutil
+from math import floor
 from pathlib import Path
 
 import coloredlogs
-import luigi
 from docopt import docopt
-from psutil import cpu_count
+from psutil import cpu_count, virtual_memory
 
 from .. import __version__
+from ..task.pipeline import RunAnalyticalPipeline
 from ..task.resource import DownloadFuncotatorDataSources, WriteAfOnlyVCF
-from .pipeline import run_analytical_pipeline
-from .util import fetch_executable, load_default_url_dict, print_log
+from .util import (build_luigi_tasks, fetch_executable, load_default_url_dict,
+                   print_log, render_template)
 
 
 def main():
@@ -72,7 +73,7 @@ def main():
     if args['init']:
         _write_config_yml(path=args['--yml'])
     elif args['run']:
-        run_analytical_pipeline(
+        _run_analytical_pipeline(
             config_yml_path=args['--yml'], ref_dir_path=args['--ref-dir'],
             work_dir_path=args['<work_dir_path>'], max_n_cpu=args['--cpus'],
             max_n_worker=args['--workers'],
@@ -81,8 +82,8 @@ def main():
     else:
         n_cpu = int(args['--cpus'] or cpu_count())
         if args['download-funcotator-data']:
-            luigi.build(
-                [
+            build_luigi_tasks(
+                tasks=[
                     DownloadFuncotatorDataSources(
                         dest_dir_path=str(
                             Path(args['<work_dir_path>'] or '.').resolve()
@@ -90,11 +91,11 @@ def main():
                         n_cpu=n_cpu, gatk=fetch_executable('gatk')
                     )
                 ],
-                local_scheduler=True, log_level=log_level
+                log_level=log_level
             )
         elif args['write-af-only-vcf']:
-            luigi.build(
-                [
+            build_luigi_tasks(
+                tasks=[
                     WriteAfOnlyVCF(
                         src_path=(
                             str(Path(args['--src-path']).resolve())
@@ -113,7 +114,7 @@ def main():
                         **{c: fetch_executable(c) for c in ['curl', 'bgzip']}
                     )
                 ],
-                local_scheduler=True, log_level=log_level
+                log_level=log_level
             )
 
 
@@ -126,3 +127,45 @@ def _write_config_yml(path):
             str(Path(__file__).parent.joinpath('../static/vcline.yml')),
             Path(path).resolve()
         )
+
+
+def _run_analytical_pipeline(config_yml_path, work_dir_path='.',
+                             ref_dir_path=None, max_n_cpu=None,
+                             max_n_worker=None, split_intervals=False,
+                             log_level='WARNING'):
+    work_dir = Path(work_dir_path or '.').resolve()
+    assert work_dir.is_dir()
+    assert Path(config_yml_path).is_file()
+    log_dir = work_dir.joinpath('log')
+    if not log_dir.is_dir():
+        print_log(f'Make a directory:\t{log_dir}')
+        log_dir.mkdir()
+    log_txt_path = str(log_dir.joinpath('luigi.log.txt'))
+    log_cfg_path = str(log_dir.joinpath('luigi.log.cfg'))
+    render_template(
+        template='{}.j2'.format(Path(log_cfg_path).name),
+        data={'log_level': log_level, 'log_txt_path': log_txt_path},
+        output_path=log_cfg_path
+    )
+    n_worker = int(max_n_worker or max_n_cpu or cpu_count())
+    print_log(f'Run the analytical pipeline:\t{work_dir}')
+    build_luigi_tasks(
+        tasks=[
+            RunAnalyticalPipeline(
+                config_yml_path=config_yml_path, work_dir_path=str(work_dir),
+                log_dir_path=str(log_dir),
+                ref_dir_path=str(
+                    Path(ref_dir_path).resolve() if ref_dir_path
+                    else work_dir.joinpath('ref')
+                ),
+                n_cpu_per_worker=max(
+                    1, floor((max_n_cpu or cpu_count()) / n_worker)
+                ),
+                memory_mb_per_worker=int(
+                    virtual_memory().total / 1024 / 1024 / n_worker
+                ),
+                split_intervals=split_intervals, log_level=log_level
+            )
+        ],
+        workers=n_worker, log_level=log_level, logging_conf_file=log_cfg_path
+    )

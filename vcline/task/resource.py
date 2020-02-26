@@ -5,7 +5,6 @@ from pathlib import Path
 
 import luigi
 
-from ..cli.util import print_log
 from .base import ShellTask
 
 
@@ -30,7 +29,7 @@ class WriteAfOnlyVCF(ShellTask):
     def run(self):
         assert bool(self.src_url or self.src_path)
         run_id = Path(Path(self.src_url).stem).stem
-        print_log(f'Write AF-only VCF:\t{run_id}')
+        self.print_log(f'Write AF-only VCF:\t{run_id}')
         self.setup_shell(
             commands=[self.curl, self.bgzip, sys.executable],
             cwd=self.dest_dir_path, quiet=False
@@ -63,7 +62,7 @@ class DownloadFuncotatorDataSources(ShellTask):
 
     def run(self):
         run_id = Path(self.dest_dir_path).name
-        print_log(f'Download Funcotator data sources:\t{run_id}')
+        self.print_log(f'Download Funcotator data sources:\t{run_id}')
         gatk_opts = ' --java-options "{}"'.format(
             ' '.join([
                 '-Dsamjdk.compression_level=5',

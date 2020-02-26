@@ -8,8 +8,6 @@ import coloredlogs
 import luigi
 from shoper.shelloperator import ShellOperator
 
-from ..cli.util import print_log
-
 
 class BaseTask(luigi.Task):
     def __init__(self, *args, **kwargs):
@@ -34,6 +32,12 @@ class ShellTask(BaseTask):
         self.__run_kwargs = None
 
     @classmethod
+    def print_log(cls, message):
+        logger = logging.getLogger(cls.__name__)
+        logger.debug(message)
+        print(f'>>\t{message}', flush=True)
+
+    @classmethod
     def setup_shell(cls, run_id=None, log_dir_path=None, commands=None,
                     cwd=None, clear_log_txt=False, print_command=True,
                     quiet=True, executable='/bin/bash', **kwargs):
@@ -54,7 +58,7 @@ class ShellTask(BaseTask):
             if p:
                 d = Path(p).resolve()
                 if not d.is_dir():
-                    print_log(f'Make a directory:\t{d}')
+                    cls.print_log(f'Make a directory:\t{d}')
                     d.mkdir(exist_ok=True)
         if commands:
             cls.run_shell(args=list(cls._generate_version_commands(commands)))

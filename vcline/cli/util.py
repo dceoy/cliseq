@@ -4,7 +4,9 @@ import logging
 import os
 import re
 from pathlib import Path
+from pprint import pformat
 
+import luigi
 import yaml
 from jinja2 import Environment, FileSystemLoader
 
@@ -13,6 +15,14 @@ def print_log(message):
     logger = logging.getLogger(__name__)
     logger.debug(message)
     print(f'>>\t{message}', flush=True)
+
+
+def build_luigi_tasks(*args, **kwargs):
+    print_log(
+        'Task execution summary:' + os.linesep + luigi.build(
+            *args, **kwargs, local_scheduler=True, detailed_summary=True
+        ).summary_text
+    )
 
 
 def parse_fq_id(fq_path):
@@ -54,10 +64,58 @@ def fetch_executable(cmd):
         raise RuntimeError(f'command not found: {cmd}')
 
 
-def read_yml(path):
+def read_config_yml(config_yml_path):
+    config = _read_yml(path=str(Path(config_yml_path).resolve()))
+    assert isinstance(config, dict)
+    for k in ['references', 'runs']:
+        assert config.get(k)
+    assert isinstance(config['references'], dict)
+    assert {
+        'ref_fa', 'known_indel_vcf', 'dbsnp_vcf', 'hapmap_vcf', 'gnomad_vcf',
+        'funcotator_germline_tar', 'funcotator_somatic_tar'
+    }.issubset(set(config['references'].keys()))
+    for k in ['ref_fa', 'known_indel_vcf', 'dbsnp_vcf', 'hapmap_vcf',
+              'gnomad_vcf', 'funcotator_germline_tar',
+              'funcotator_somatic_tar']:
+        v = config['references'].get(k)
+        if k in ['ref_fa', 'known_indel_vcf']:
+            assert isinstance(v, list)
+            assert _has_unique_elements(v)
+            for s in v:
+                assert isinstance(s, str)
+        elif k == 'dbsnp_vcf' or v:
+            assert isinstance(v, str)
+    assert isinstance(config['runs'], list)
+    for r in config['runs']:
+        assert isinstance(r, dict)
+        assert set(r.keys()).intersection({'foreground', 'background'})
+        for t in ['foreground', 'background']:
+            assert isinstance(r[t], dict)
+            assert r[t].get('fq') or r[t].get('sam')
+            if r[t].get('fq'):
+                assert isinstance(r[t]['fq'], list)
+                assert _has_unique_elements(r[t]['fq'])
+                assert len(r[t]['fq']) <= 2
+            else:
+                assert isinstance(r[t]['sam'], str)
+            if r[t].get('read_group'):
+                assert isinstance(r[k]['read_group'], dict)
+                for k, v in r[t]['read_group'].items():
+                    assert re.fullmatch(r'[A-Z]{2}', k)
+                    assert type(v) not in [list, dict]
+    return config
+
+
+def _read_yml(path):
+    logger = logging.getLogger(__name__)
     with open(path, 'r') as f:
         d = yaml.load(f, Loader=yaml.FullLoader)
+    logger.debug('YAML data:' + os.linesep + pformat(d))
     return d
+
+
+def _has_unique_elements(elements):
+    return len(set(elements)) == len(tuple(elements))
 
 
 def render_template(template, data, output_path):
@@ -77,6 +135,6 @@ def render_template(template, data, output_path):
 
 
 def load_default_url_dict():
-    return read_yml(
+    return _read_yml(
         path=str(Path(__file__).parent.joinpath('../static/urls.yml'))
     )
