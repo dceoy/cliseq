@@ -280,8 +280,8 @@ class CNNScoreVariants(ShellTask):
 
     def run(self):
         cnn_vcf_path = self.output()[0].path
-        run_id = '.'.join(Path(cnn_vcf_path).name.split('.')[:-5])
-        self.print_log(f'Apply tranche filtering:\t{run_id}')
+        run_id = '.'.join(Path(cnn_vcf_path).name.split('.')[:-4])
+        self.print_log(f'Score variants with CNN:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         save_memory = str(self.cf['save_memory']).lower()

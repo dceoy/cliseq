@@ -66,7 +66,7 @@ class AnnotateGatkVCF(ShellTask):
 
     def run(self):
         output_vcf_path = self.output()[0].path
-        run_id = '.'.join(Path(output_vcf_path).name.split('.')[:-2])
+        run_id = '.'.join(Path(output_vcf_path).name.split('.')[:-3])
         self.print_log(f'Annotate variants with Funcotator:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
