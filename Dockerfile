@@ -4,9 +4,7 @@ ENV DEBIAN_FRONTEND noninteractive
 
 COPY --from=dceoy/gatk:latest /usr/local /usr/local
 COPY --from=dceoy/gatk:latest /opt/conda /opt/conda
-COPY --from=dceoy/samtools:latest /usr/local/src/htslib /usr/local/src/htslib
 COPY --from=dceoy/samtools:latest /usr/local/src/samtools /usr/local/src/samtools
-COPY --from=dceoy/bcftools:latest /usr/local/src/bcftools /usr/local/src/bcftools
 COPY --from=dceoy/bwa:latest /usr/local/src/bwa /usr/local/src/bwa
 COPY --from=dceoy/trim_galore:latest /usr/local/src/FastQC /usr/local/src/FastQC
 COPY --from=dceoy/trim_galore:latest /usr/local/src/TrimGalore /usr/local/src/TrimGalore
@@ -26,11 +24,7 @@ RUN set -e \
       && ln -s /usr/local/src/bwa/bwa /usr/local/bin \
       && ln -s /usr/local/src/FastQC/fastqc /usr/local/bin \
       && ln -s /usr/local/src/TrimGalore/trim_galore /usr/local/bin \
-      && cd /usr/local/src/htslib \
-      && make install \
       && cd /usr/local/src/samtools \
-      && make install \
-      && cd /usr/local/src/bcftools \
       && make install
 
 RUN set -e \

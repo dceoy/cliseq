@@ -80,8 +80,8 @@ class RunAnalyticalPipeline(luigi.Task):
             'split_intervals': self.split_intervals,
             **{
                 c: fetch_executable(c) for c in [
-                    'bgzip', 'bcftools', 'bwa', 'cutadapt', 'fastqc', 'gatk',
-                    'pbzip2', 'pigz', 'samtools', 'tabix', 'trim_galore'
+                    'bgzip', 'bwa', 'cutadapt', 'fastqc', 'gatk', 'pbzip2',
+                    'pigz', 'samtools', 'tabix', 'trim_galore'
                 ]
             },
             **{
