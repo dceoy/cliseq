@@ -5,9 +5,13 @@ ENV DEBIAN_FRONTEND noninteractive
 COPY --from=dceoy/gatk:latest /usr/local /usr/local
 COPY --from=dceoy/gatk:latest /opt/conda /opt/conda
 COPY --from=dceoy/samtools:latest /usr/local/src/samtools /usr/local/src/samtools
+COPY --from=dceoy/manta:latest /usr/local/src/manta /usr/local/src/manta
+COPY --from=dceoy/strelka:latest /usr/local/src/strelka /usr/local/src/strelka
 COPY --from=dceoy/bwa:latest /usr/local/src/bwa /usr/local/src/bwa
 COPY --from=dceoy/trim_galore:latest /usr/local/src/FastQC /usr/local/src/FastQC
 COPY --from=dceoy/trim_galore:latest /usr/local/src/TrimGalore /usr/local/src/TrimGalore
+COPY --from=dceoy/manta:latest /usr/local/src/manta /usr/local/src/manta
+COPY --from=dceoy/strelka:latest /usr/local/src/strelka /usr/local/src/strelka
 ADD . /tmp/vcline
 
 RUN set -e \
@@ -21,10 +25,13 @@ RUN set -e \
       && rm -rf /var/lib/apt/lists/*
 
 RUN set -e \
-      && ln -s /usr/local/src/bwa/bwa /usr/local/bin \
-      && ln -s /usr/local/src/FastQC/fastqc /usr/local/bin \
-      && ln -s /usr/local/src/TrimGalore/trim_galore /usr/local/bin \
+      && find /usr/local/src/{bwa,FastQC,TrimGalore} -maxdepth 1 -type f -executable \
+        -exec ln -s {} /usr/local/bin \; \
       && cd /usr/local/src/samtools \
+      && make install \
+      && cd /usr/local/src/manta \
+      && make install \
+      && cd /usr/local/src/strelka \
       && make install
 
 RUN set -e \
