@@ -12,7 +12,7 @@ from .ref import ExtractTarFile, FetchReferenceFASTA
 
 
 class AnnotateGatkVCF(ShellTask):
-    caller_type = luigi.Parameter(default='somatic')
+    variant_caller = luigi.Parameter(default='mutect2')
     funcotator_data_source_tar_path = luigi.Parameter()
     ref_fa_paths = luigi.ListParameter()
     fq_list = luigi.ListParameter()
@@ -26,7 +26,7 @@ class AnnotateGatkVCF(ShellTask):
     priority = 10
 
     def requires(self):
-        assert self.caller_type in {'somatic', 'germline'}
+        assert self.variant_caller in {'mutect2', 'haplotypecaller'}
         return [
             (
                 FilterMutectCalls(
@@ -36,7 +36,7 @@ class AnnotateGatkVCF(ShellTask):
                     dbsnp_vcf_path=self.dbsnp_vcf_path,
                     known_indel_vcf_paths=self.known_indel_vcf_paths,
                     gnomad_vcf_path=self.gnomad_vcf_path, cf=self.cf
-                ) if self.caller_type == 'somatic'
+                ) if self.variant_caller == 'mutect2'
                 else FilterVariantTranches(
                     fq_list=self.fq_list, read_groups=self.read_groups,
                     sample_names=self.sample_names,

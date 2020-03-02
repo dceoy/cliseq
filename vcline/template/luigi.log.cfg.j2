@@ -21,7 +21,7 @@ args=(sys.stdout,)
 class=FileHandler
 level={{ log_level }}
 formatter=customFormatter
-args=('{{ log_txt_path }}', 'w')
+args=('{{ log_txt_path }}', 'a')
 
 [formatter_customFormatter]
 format=%(asctime)s %(name)-18s %(levelname)-9s %(message)s

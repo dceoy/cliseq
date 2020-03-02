@@ -9,10 +9,11 @@ import luigi
 from luigi.tools import deps_tree
 
 from ..cli.util import fetch_executable, parse_fq_id, read_config_yml
+from .align import PrepareCRAMs
 from .funcotator import AnnotateGatkVCF
 
 
-class CallVariantsWithGATK(luigi.WrapperTask):
+class CallVariants(luigi.WrapperTask):
     ref_fa_paths = luigi.ListParameter()
     fq_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
@@ -24,23 +25,33 @@ class CallVariantsWithGATK(luigi.WrapperTask):
     funcotator_somatic_tar_path = luigi.Parameter()
     funcotator_germline_tar_path = luigi.Parameter()
     cf = luigi.DictParameter()
+    variant_callers = luigi.DictParameter()
     priority = 100
 
     def requires(self):
-        return [
-            AnnotateGatkVCF(
-                caller_type=k, funcotator_data_source_tar_path=v,
+        if any(self.variant_callers.values()):
+            return [
+                AnnotateGatkVCF(
+                    variant_caller=k, funcotator_data_source_tar_path=v,
+                    ref_fa_paths=self.ref_fa_paths, fq_list=self.fq_list,
+                    read_groups=self.read_groups,
+                    sample_names=self.sample_names,
+                    dbsnp_vcf_path=self.dbsnp_vcf_path,
+                    known_indel_vcf_paths=self.known_indel_vcf_paths,
+                    gnomad_vcf_path=self.gnomad_vcf_path,
+                    hapmap_vcf_path=self.hapmap_vcf_path, cf=self.cf
+                ) for k, v in {
+                    'mutect2': self.funcotator_somatic_tar_path,
+                    'haplotypecaller': self.funcotator_germline_tar_path
+                }.items() if self.variant_callers.get(k)
+            ]
+        else:
+            return PrepareCRAMs(
                 ref_fa_paths=self.ref_fa_paths, fq_list=self.fq_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
-                known_indel_vcf_paths=self.known_indel_vcf_paths,
-                gnomad_vcf_path=self.gnomad_vcf_path,
-                hapmap_vcf_path=self.hapmap_vcf_path, cf=self.cf
-            ) for k, v in {
-                'somatic': self.funcotator_somatic_tar_path,
-                'germline': self.funcotator_germline_tar_path
-            }.items()
-        ]
+                known_indel_vcf_paths=self.known_indel_vcf_paths, cf=self.cf
+            )
 
     def output(self):
         return self.input()
@@ -92,6 +103,13 @@ class RunAnalyticalPipeline(luigi.Task):
             'log_dir_path': str(Path(self.log_dir_path).resolve())
         }
         fb_keys = ['foreground', 'background']
+        reference_file_paths = self._resolve_input_file_paths(
+            path_dict=config['references']
+        )
+        variant_callers = (
+            config.get('variant_callers')
+            or {'haplotypecaller': True, 'mutect2': True}
+        )
         task_kwargs = [
             {
                 'fq_list': [
@@ -106,14 +124,12 @@ class RunAnalyticalPipeline(luigi.Task):
                         or parse_fq_id(fq_path=r[k]['fq'][0])
                     ) for k in fb_keys
                 ],
-                'cf': common_config,
-                **self._resolve_input_file_paths(
-                    path_dict=config['references']
-                )
+                'cf': common_config, 'variant_callers': variant_callers,
+                **reference_file_paths
              } for r in config['runs']
         ]
         logger.debug('task_kwargs:' + os.linesep + pformat(task_kwargs))
-        return [CallVariantsWithGATK(**d) for d in task_kwargs]
+        return [CallVariants(**d) for d in task_kwargs]
 
     @staticmethod
     def _resolve_input_file_paths(path_list=None, path_dict=None):

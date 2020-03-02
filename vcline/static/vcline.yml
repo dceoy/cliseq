@@ -46,11 +46,6 @@ runs:
         SM: sample02.blood_frozen
         PL: ILLUMINA
         LB: LIBRARY-2
-# - foreground:
-#     sam: /path/to/sample03.tumor_FFPE.cram
-#   background:
-#     sam: /path/to/sample03.blood_frozen.cram
-# - foreground:
-#     sam: /path/to/sample04.tumor_FFPE.bam
-#   background:
-#     sam: /path/to/sample04.blood_frozen.bam
+variant_callers:
+  haplotypecaller: true
+  mutect2: true
