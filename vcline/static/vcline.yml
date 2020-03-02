@@ -49,3 +49,5 @@ runs:
 variant_callers:
   haplotypecaller: true
   mutect2: true
+  strelka: true
+  manta: true

@@ -10,7 +10,7 @@ from luigi.tools import deps_tree
 
 from ..cli.util import fetch_executable, parse_fq_id, read_config_yml
 from .align import PrepareCRAMs
-from .funcotator import AnnotateGatkVCF
+from .funcotator import AnnotateVariantsWithFuncotator
 
 
 class CallVariants(luigi.WrapperTask):
@@ -31,7 +31,7 @@ class CallVariants(luigi.WrapperTask):
     def requires(self):
         if any(self.variant_callers.values()):
             return [
-                AnnotateGatkVCF(
+                AnnotateVariantsWithFuncotator(
                     variant_caller=k, funcotator_data_source_tar_path=v,
                     ref_fa_paths=self.ref_fa_paths, fq_list=self.fq_list,
                     read_groups=self.read_groups,
@@ -41,8 +41,11 @@ class CallVariants(luigi.WrapperTask):
                     gnomad_vcf_path=self.gnomad_vcf_path,
                     hapmap_vcf_path=self.hapmap_vcf_path, cf=self.cf
                 ) for k, v in {
+                    'haplotypecaller': self.funcotator_germline_tar_path,
                     'mutect2': self.funcotator_somatic_tar_path,
-                    'haplotypecaller': self.funcotator_germline_tar_path
+                    'manta_somatic': self.funcotator_somatic_tar_path,
+                    'manta_diploid': self.funcotator_germline_tar_path,
+                    'strelka': self.funcotator_somatic_tar_path
                 }.items() if self.variant_callers.get(k)
             ]
         else:
@@ -92,12 +95,17 @@ class RunAnalyticalPipeline(luigi.Task):
             **{
                 c: fetch_executable(c) for c in [
                     'bgzip', 'bwa', 'cutadapt', 'fastqc', 'gatk', 'pbzip2',
-                    'pigz', 'samtools', 'tabix', 'trim_galore'
+                    'pigz', 'configManta.py',
+                    'configureStrelkaSomaticWorkflow.py', 'samtools', 'tabix',
+                    'trim_galore'
                 ]
             },
             **{
                 f'{k}_dir_path': str(Path(self.work_dir_path).joinpath(k))
-                for k in ['trim', 'align', 'haplotypecaller', 'mutect2']
+                for k in [
+                    'trim', 'align', 'haplotypecaller', 'mutect2', 'strelka',
+                    'manta'
+                ]
             },
             'ref_dir_path': str(Path(self.ref_dir_path).resolve()),
             'log_dir_path': str(Path(self.log_dir_path).resolve())
@@ -107,8 +115,10 @@ class RunAnalyticalPipeline(luigi.Task):
             path_dict=config['references']
         )
         variant_callers = (
-            config.get('variant_callers')
-            or {'haplotypecaller': True, 'mutect2': True}
+            config.get('variant_callers') or {
+                'haplotypecaller': True, 'mutect2': True,
+                'strelka': True, 'manta': True
+            }
         )
         task_kwargs = [
             {
