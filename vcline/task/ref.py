@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import re
+import sys
 from pathlib import Path
 
 import luigi
@@ -238,7 +239,7 @@ class CreateEvaluationIntervalList(ShellTask):
     def run(self):
         fa_path = self.input()[0].path
         run_id = Path(fa_path).stem
-        self.print_log(f'Create an evaluation interval list:\t{run_id}')
+        self.print_log(f'Create an evaluation interval_list:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         fai_path = self.input()[1].path
@@ -253,9 +254,53 @@ class CreateEvaluationIntervalList(ShellTask):
                 + f'{gatk}{gatk_opts} ScatterIntervalsByNs'
                 + f' --REFERENCE {fa_path}'
                 + f' --OUTPUT {interval_list_path}'
-                + ' --OUTPUT_TYPE=ACGT'
+                + ' --OUTPUT_TYPE ACGT'
+                + ' --MAX_TO_MERGE 600'
             ),
             input_files=[fa_path, fai_path], output_files=interval_list_path
+        )
+
+
+@requires(CreateEvaluationIntervalList)
+class CreateEvaluationIntervalListBED(ShellTask):
+    cf = luigi.DictParameter()
+    priority = 90
+
+    def output(self):
+        return [
+            luigi.LocalTarget(self.input().path + f'.bed.gz{s}')
+            for s in ['', '.tbi']
+        ]
+
+    def run(self):
+        interval_list_path = self.input().path
+        run_id = Path(interval_list_path).stem
+        self.print_log(f'Create an evaluation interval_list BED:\t{run_id}')
+        bgzip = self.cf['bgzip']
+        tabix = self.cf['tabix']
+        n_cpu = self.cf['n_cpu_per_worker']
+        interval_bed_path = self.output()[0].path
+        pyscript_path = str(
+            Path(__file__).parent.parent.joinpath(
+                'script/interval_list2bed.py'
+            ).resolve()
+        )
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=[bgzip, tabix], cwd=self.cf['ref_dir_path']
+        )
+        self.run_shell(
+            args=(
+                f'set -eo pipefail && '
+                + f'{sys.executable} {pyscript_path} {interval_list_path}'
+                + f' | {bgzip} -@ {n_cpu} -c > {interval_bed_path}'
+            ),
+            input_files=interval_list_path, output_files=interval_bed_path
+        )
+        self.run_shell(
+            args=f'set -e && {tabix} -p bed {interval_bed_path}',
+            input_files=interval_bed_path,
+            output_files=f'{interval_bed_path}.tbi'
         )
 
 

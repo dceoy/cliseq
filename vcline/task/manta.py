@@ -10,10 +10,10 @@ from luigi.util import requires
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMs
 from .base import ShellTask
-from .ref import FetchReferenceFASTA
+from .ref import CreateEvaluationIntervalListBED, FetchReferenceFASTA
 
 
-@requires(PrepareCRAMs, FetchReferenceFASTA)
+@requires(PrepareCRAMs, FetchReferenceFASTA, CreateEvaluationIntervalListBED)
 class CallStructualVariantsWithManta(ShellTask):
     cf = luigi.DictParameter()
     priority = 10
@@ -48,6 +48,7 @@ class CallStructualVariantsWithManta(ShellTask):
         memory_gb = max(floor(self.cf['memory_mb_per_worker'] / 1024), 1)
         input_cram_paths = [i[0].path for i in self.input()[0]]
         fa_path = self.input()[1].path
+        bed_path = self.input()[2][0].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=config_script, cwd=self.cf['manta_dir_path']
@@ -58,9 +59,10 @@ class CallStructualVariantsWithManta(ShellTask):
                 + f' --tumorBam={input_cram_paths[0]}'
                 + f' --normalBam={input_cram_paths[1]}'
                 + f' --referenceFasta={fa_path}'
+                + f' --callRegions={bed_path}'
                 + f' --runDir={run_dir_path}'
             ),
-            input_files=[*input_cram_paths, fa_path],
+            input_files=[*input_cram_paths, fa_path, bed_path],
             output_files=run_script
         )
         self.run_shell(
@@ -70,7 +72,9 @@ class CallStructualVariantsWithManta(ShellTask):
                 + f' --memGb={memory_gb}'
                 + ' --mode=local'
             ),
-            input_files=[*input_cram_paths, fa_path],
+            input_files=[
+                run_script, *input_cram_paths, fa_path, bed_path
+            ],
             output_files=output_file_paths
         )
 

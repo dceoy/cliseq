@@ -11,10 +11,11 @@ from ..cli.util import create_matched_id
 from .align import PrepareCRAMs
 from .base import ShellTask
 from .manta import CallStructualVariantsWithManta
-from .ref import FetchReferenceFASTA
+from .ref import CreateEvaluationIntervalListBED, FetchReferenceFASTA
 
 
-@requires(PrepareCRAMs, FetchReferenceFASTA, CallStructualVariantsWithManta)
+@requires(PrepareCRAMs, FetchReferenceFASTA, CallStructualVariantsWithManta,
+          CreateEvaluationIntervalListBED)
 class CallVariantsWithStrelka(ShellTask):
     cf = luigi.DictParameter()
     priority = 10
@@ -49,6 +50,7 @@ class CallVariantsWithStrelka(ShellTask):
                 'candidateSmallIndels.vcf.gz'
             )
         )
+        bed_path = self.input()[3][0].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=config_script, cwd=self.cf['strelka_dir_path']
@@ -60,9 +62,12 @@ class CallVariantsWithStrelka(ShellTask):
                 + f' --normalBam={input_cram_paths[1]}'
                 + f' --referenceFasta={fa_path}'
                 + f' --indelCandidates={manta_indel_vcf_path}'
+                + f' --callRegions={bed_path}'
                 + f' --runDir={run_dir_path}'
             ),
-            input_files=[*input_cram_paths, fa_path, manta_indel_vcf_path],
+            input_files=[
+                *input_cram_paths, fa_path, manta_indel_vcf_path, bed_path
+            ],
             output_files=run_script
         )
         self.run_shell(
@@ -72,7 +77,10 @@ class CallVariantsWithStrelka(ShellTask):
                 + f' --memGb={memory_gb}'
                 + ' --mode=local'
             ),
-            input_files=[*input_cram_paths, fa_path],
+            input_files=[
+                run_script, *input_cram_paths, fa_path, manta_indel_vcf_path,
+                bed_path
+            ],
             output_files=output_file_paths
         )
 

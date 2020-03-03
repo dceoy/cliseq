@@ -36,7 +36,9 @@ class WriteAfOnlyVCF(ShellTask):
         )
         dest_path = self.output().path
         pyscript_path = str(
-            Path(__file__).parent.parent.joinpath('cli/afonlyvcf.py').resolve()
+            Path(__file__).parent.parent.joinpath(
+                'script/extract_af_only_vcf.py'
+            ).resolve()
         )
         self.run_shell(
             args=(
