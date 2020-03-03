@@ -10,7 +10,8 @@ from .base import ShellTask
 from .haplotypecaller import FilterVariantTranches
 from .manta import CallStructualVariantsWithManta
 from .mutect2 import FilterMutectCalls
-from .ref import ExtractTarFile, FetchReferenceFASTA
+from .ref import (CreateEvaluationIntervalList, ExtractTarFile,
+                  FetchReferenceFASTA)
 from .strelka import CallVariantsWithStrelka
 
 
@@ -68,6 +69,9 @@ class AnnotateVariantsWithFuncotator(ShellTask):
                 tar_path=self.funcotator_data_source_tar_path,
                 ref_dir_path=self.cf['ref_dir_path'],
                 log_dir_path=self.cf['log_dir_path']
+            ),
+            CreateEvaluationIntervalList(
+                ref_fa_paths=self.ref_fa_paths, cf=self.cf
             )
         ]
 
@@ -105,6 +109,7 @@ class AnnotateVariantsWithFuncotator(ShellTask):
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         fa_path = self.input()[1].path
         data_src_dir_path = self.input()[2].path
+        evaluation_interval_path = self.input()[3].path
         ref_version = self.cf['ref_version']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
@@ -119,12 +124,16 @@ class AnnotateVariantsWithFuncotator(ShellTask):
                     f'set -e && {gatk}{gatk_opts} Funcotator'
                     + f' --variant {input_vcf_path}'
                     + f' --reference {fa_path}'
+                    + f' --intervals {evaluation_interval_path}'
                     + f' --ref-version {ref_version}'
                     + f' --data-sources-path {data_src_dir_path}'
                     + f' --output {output_vcf_path}'
                     + f' --output-file-format VCF'
                 ),
-                input_files=[input_vcf_path, fa_path, data_src_dir_path],
+                input_files=[
+                    input_vcf_path, fa_path, data_src_dir_path,
+                    evaluation_interval_path
+                ],
                 output_files=[output_vcf_path, f'{output_vcf_path}.tbi']
             )
 

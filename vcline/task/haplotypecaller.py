@@ -266,7 +266,8 @@ class GenotypeGVCF(ShellTask):
         )
 
 
-@requires(GenotypeGVCF, CallVariantsWithHaplotypeCaller, FetchReferenceFASTA)
+@requires(GenotypeGVCF, CallVariantsWithHaplotypeCaller, FetchReferenceFASTA,
+          CreateEvaluationIntervalList)
 class CNNScoreVariants(ShellTask):
     cf = luigi.DictParameter()
     priority = 60
@@ -288,6 +289,7 @@ class CNNScoreVariants(ShellTask):
         raw_vcf_path = self.input()[0][0].path
         cram_path = self.input()[1][2].path
         fa_path = self.input()[2].path
+        evaluation_interval_path = self.input()[3].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['haplotypecaller_dir_path']
@@ -298,16 +300,20 @@ class CNNScoreVariants(ShellTask):
                 + f' --reference {fa_path}'
                 + f' --input {cram_path}'
                 + f' --variant {raw_vcf_path}'
+                + f' --intervals {evaluation_interval_path}'
                 + f' --output {cnn_vcf_path}'
                 + ' --tensor-type read_tensor'
                 + f' --disable-bam-index-caching {save_memory}'
             ),
-            input_files=[raw_vcf_path, fa_path, cram_path],
+            input_files=[
+                raw_vcf_path, fa_path, cram_path, evaluation_interval_path
+            ],
             output_files=[cnn_vcf_path, f'{cnn_vcf_path}.tbi']
         )
 
 
-@requires(CNNScoreVariants, FetchHapmapVCF, FetchDbsnpVCF, FetchKnownIndelVCFs)
+@requires(CNNScoreVariants, FetchHapmapVCF, FetchDbsnpVCF, FetchKnownIndelVCFs,
+          CreateEvaluationIntervalList)
 class FilterVariantTranches(ShellTask):
     cf = luigi.DictParameter()
     priority = 60
@@ -333,6 +339,7 @@ class FilterVariantTranches(ShellTask):
             self.input()[1][0].path, self.input()[2][0].path,
             *[i[0].path for i in self.input()[3]]
         ]
+        evaluation_interval_path = self.input()[4].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['haplotypecaller_dir_path']
@@ -342,6 +349,7 @@ class FilterVariantTranches(ShellTask):
                 f'set -e && {gatk}{gatk_opts} FilterVariantTranches'
                 + f' --variant {cnn_vcf_path}'
                 + ''.join([f' --resource {p}' for p in resource_vcf_paths])
+                + f' --intervals {evaluation_interval_path}'
                 + f' --output {filtered_vcf_path}'
                 + ' --info-key CNN_2D'
                 + ' --snp-tranche 99.9'
@@ -351,7 +359,9 @@ class FilterVariantTranches(ShellTask):
                 + ' --invalidate-previous-filters'
                 + f' --disable-bam-index-caching {save_memory}'
             ),
-            input_files=[cnn_vcf_path, *resource_vcf_paths],
+            input_files=[
+                cnn_vcf_path, *resource_vcf_paths, evaluation_interval_path
+            ],
             output_files=[filtered_vcf_path, f'{filtered_vcf_path}.tbi']
         )
 
