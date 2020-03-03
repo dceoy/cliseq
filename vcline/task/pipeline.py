@@ -22,6 +22,7 @@ class CallVariants(luigi.WrapperTask):
     known_indel_vcf_paths = luigi.ListParameter()
     hapmap_vcf_path = luigi.Parameter()
     gnomad_vcf_path = luigi.Parameter()
+    evaluation_interval_path = luigi.Parameter()
     funcotator_somatic_tar_path = luigi.Parameter()
     funcotator_germline_tar_path = luigi.Parameter()
     cf = luigi.DictParameter()
@@ -39,7 +40,9 @@ class CallVariants(luigi.WrapperTask):
                     dbsnp_vcf_path=self.dbsnp_vcf_path,
                     known_indel_vcf_paths=self.known_indel_vcf_paths,
                     gnomad_vcf_path=self.gnomad_vcf_path,
-                    hapmap_vcf_path=self.hapmap_vcf_path, cf=self.cf
+                    hapmap_vcf_path=self.hapmap_vcf_path,
+                    evaluation_interval_path=self.evaluation_interval_path,
+                    cf=self.cf
                 ) for k, v in {
                     'haplotypecaller': self.funcotator_germline_tar_path,
                     'mutect2': self.funcotator_somatic_tar_path,

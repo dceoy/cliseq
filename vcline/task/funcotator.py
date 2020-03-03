@@ -10,7 +10,7 @@ from .base import ShellTask
 from .haplotypecaller import FilterVariantTranches
 from .manta import CallStructualVariantsWithManta
 from .mutect2 import FilterMutectCalls
-from .ref import (CreateEvaluationIntervalList, ExtractTarFile,
+from .ref import (ExtractTarFile, FetchEvaluationIntervalList,
                   FetchReferenceFASTA)
 from .strelka import CallVariantsWithStrelka
 
@@ -26,6 +26,7 @@ class AnnotateVariantsWithFuncotator(ShellTask):
     known_indel_vcf_paths = luigi.ListParameter()
     hapmap_vcf_path = luigi.Parameter()
     gnomad_vcf_path = luigi.Parameter()
+    evaluation_interval_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 10
 
@@ -36,7 +37,9 @@ class AnnotateVariantsWithFuncotator(ShellTask):
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 known_indel_vcf_paths=self.known_indel_vcf_paths,
-                hapmap_vcf_path=self.hapmap_vcf_path, cf=self.cf
+                hapmap_vcf_path=self.hapmap_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
             )
         elif self.variant_caller == 'mutect2':
             variant_calling = FilterMutectCalls(
@@ -44,21 +47,27 @@ class AnnotateVariantsWithFuncotator(ShellTask):
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 known_indel_vcf_paths=self.known_indel_vcf_paths,
-                gnomad_vcf_path=self.gnomad_vcf_path, cf=self.cf
+                gnomad_vcf_path=self.gnomad_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
             )
         elif self.variant_caller in {'manta_somatic', 'manta_diploid'}:
             variant_calling = CallStructualVariantsWithManta(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
-                known_indel_vcf_paths=self.known_indel_vcf_paths, cf=self.cf
+                known_indel_vcf_paths=self.known_indel_vcf_paths,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
             )
         elif self.variant_caller == 'strelka':
             variant_calling = CallVariantsWithStrelka(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
-                known_indel_vcf_paths=self.known_indel_vcf_paths, cf=self.cf
+                known_indel_vcf_paths=self.known_indel_vcf_paths,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
             )
         else:
             raise ValueError(f'invalid variant_caller: {self.variant_caller}')
@@ -70,8 +79,9 @@ class AnnotateVariantsWithFuncotator(ShellTask):
                 ref_dir_path=self.cf['ref_dir_path'],
                 log_dir_path=self.cf['log_dir_path']
             ),
-            CreateEvaluationIntervalList(
-                ref_fa_paths=self.ref_fa_paths, cf=self.cf
+            FetchEvaluationIntervalList(
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
             )
         ]
 

@@ -72,10 +72,11 @@ def read_config_yml(config_yml_path):
     assert isinstance(config['references'], dict)
     assert {
         'ref_fa', 'known_indel_vcf', 'dbsnp_vcf', 'hapmap_vcf', 'gnomad_vcf',
-        'funcotator_germline_tar', 'funcotator_somatic_tar'
+        'evaluation_interval', 'funcotator_germline_tar',
+        'funcotator_somatic_tar'
     }.issubset(set(config['references'].keys()))
     for k in ['ref_fa', 'known_indel_vcf', 'dbsnp_vcf', 'hapmap_vcf',
-              'gnomad_vcf', 'funcotator_germline_tar',
+              'gnomad_vcf', 'evaluation_interval', 'funcotator_germline_tar',
               'funcotator_somatic_tar']:
         v = config['references'].get(k)
         if k in ['ref_fa', 'known_indel_vcf']:
@@ -83,7 +84,7 @@ def read_config_yml(config_yml_path):
             assert _has_unique_elements(v)
             for s in v:
                 assert isinstance(s, str)
-        elif k == 'dbsnp_vcf' or v:
+        else:
             assert isinstance(v, str)
     assert isinstance(config['runs'], list)
     for r in config['runs']:

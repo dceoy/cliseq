@@ -8,12 +8,11 @@ from luigi.util import requires
 
 from .align import PrepareCRAMs
 from .base import ShellTask
-from .ref import (CreateEvaluationIntervalList, CreateFASTAIndex,
-                  FetchDbsnpVCF, FetchHapmapVCF, FetchKnownIndelVCFs,
-                  FetchReferenceFASTA)
+from .ref import (CreateFASTAIndex, FetchDbsnpVCF, FetchEvaluationIntervalList,
+                  FetchHapmapVCF, FetchKnownIndelVCFs, FetchReferenceFASTA)
 
 
-@requires(CreateEvaluationIntervalList, FetchReferenceFASTA)
+@requires(FetchEvaluationIntervalList, FetchReferenceFASTA)
 class SplitEvaluationIntervals(ShellTask):
     cf = luigi.DictParameter()
     priority = 40
@@ -56,17 +55,19 @@ class SplitEvaluationIntervals(ShellTask):
 
 
 class PrepareEvaluationIntervals(luigi.WrapperTask):
-    ref_fa_paths = luigi.ListParameter()
+    evaluation_interval_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 40
 
     def requires(self):
         return (
             SplitEvaluationIntervals(
-                ref_fa_paths=self.ref_fa_paths, cf=self.cf
-            ) if self.cf['split_intervals'] else
-            CreateEvaluationIntervalList(
-                ref_fa_paths=self.ref_fa_paths, cf=self.cf
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
+            ) if self.cf['split_intervals']
+            else FetchEvaluationIntervalList(
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
             )
         )
 
@@ -222,7 +223,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
 
 
 @requires(CallVariantsWithHaplotypeCaller, FetchReferenceFASTA,
-          FetchDbsnpVCF, CreateEvaluationIntervalList)
+          FetchDbsnpVCF, FetchEvaluationIntervalList)
 class GenotypeGVCF(ShellTask):
     cf = luigi.DictParameter()
     priority = 60
@@ -267,7 +268,7 @@ class GenotypeGVCF(ShellTask):
 
 
 @requires(GenotypeGVCF, CallVariantsWithHaplotypeCaller, FetchReferenceFASTA,
-          CreateEvaluationIntervalList)
+          FetchEvaluationIntervalList)
 class CNNScoreVariants(ShellTask):
     cf = luigi.DictParameter()
     priority = 60
@@ -313,7 +314,7 @@ class CNNScoreVariants(ShellTask):
 
 
 @requires(CNNScoreVariants, FetchHapmapVCF, FetchDbsnpVCF, FetchKnownIndelVCFs,
-          CreateEvaluationIntervalList)
+          FetchEvaluationIntervalList)
 class FilterVariantTranches(ShellTask):
     cf = luigi.DictParameter()
     priority = 60

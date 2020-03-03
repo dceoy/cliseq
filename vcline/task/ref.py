@@ -222,46 +222,21 @@ class CreateBWAIndices(ShellTask):
         )
 
 
-@requires(FetchReferenceFASTA, CreateFASTAIndex)
-class CreateEvaluationIntervalList(ShellTask):
+class FetchEvaluationIntervalList(luigi.WrapperTask):
+    evaluation_interval_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 90
 
+    def requires(self):
+        return FetchResourceFile(
+            resource_file_path=self.evaluation_interval_path, cf=self.cf
+        )
+
     def output(self):
-        return luigi.LocalTarget(
-            str(
-                Path(self.cf['ref_dir_path']).joinpath(
-                    Path(self.input()[0].path).stem + '.interval_list'
-                )
-            )
-        )
-
-    def run(self):
-        fa_path = self.input()[0].path
-        run_id = Path(fa_path).stem
-        self.print_log(f'Create an evaluation interval_list:\t{run_id}')
-        gatk = self.cf['gatk']
-        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        fai_path = self.input()[1].path
-        interval_list_path = self.output().path
-        self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=gatk, cwd=self.cf['ref_dir_path']
-        )
-        self.run_shell(
-            args=(
-                'set -e && '
-                + f'{gatk}{gatk_opts} ScatterIntervalsByNs'
-                + f' --REFERENCE {fa_path}'
-                + f' --OUTPUT {interval_list_path}'
-                + ' --OUTPUT_TYPE ACGT'
-                + ' --MAX_TO_MERGE 600'
-            ),
-            input_files=[fa_path, fai_path], output_files=interval_list_path
-        )
+        return self.input()
 
 
-@requires(CreateEvaluationIntervalList)
+@requires(FetchEvaluationIntervalList)
 class CreateEvaluationIntervalListBED(ShellTask):
     cf = luigi.DictParameter()
     priority = 90
@@ -367,7 +342,7 @@ class FetchGnomadVCF(luigi.WrapperTask):
 
 
 @requires(FetchGnomadVCF, FetchReferenceFASTA,
-          CreateEvaluationIntervalList)
+          FetchEvaluationIntervalList)
 class CreateGnomadBiallelicSnpVCF(ShellTask):
     cf = luigi.DictParameter()
     priority = 50
