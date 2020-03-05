@@ -10,6 +10,7 @@ from luigi.tools import deps_tree
 
 from ..cli.util import fetch_executable, parse_fq_id, read_config_yml
 from .align import PrepareCRAMs
+from .base import BaseTask
 from .funcotator import AnnotateVariantsWithFuncotator
 
 
@@ -63,7 +64,7 @@ class CallVariants(luigi.WrapperTask):
         return self.input()
 
 
-class RunAnalyticalPipeline(luigi.Task):
+class RunAnalyticalPipeline(BaseTask):
     config_yml_path = luigi.Parameter()
     dest_dir_path = luigi.Parameter(default='.')
     log_dir_path = luigi.Parameter(default='log')

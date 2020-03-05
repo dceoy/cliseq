@@ -8,18 +8,18 @@ keys=consoleHandler,fileHandler
 keys=customFormatter
 
 [logger_root]
-level={{ log_level }}
+level=NOTSET
 handlers=consoleHandler,fileHandler
 
 [handler_consoleHandler]
 class=StreamHandler
-level={{ log_level }}
+level={{ console_log_level }}
 formatter=customFormatter
 args=(sys.stdout,)
 
 [handler_fileHandler]
 class=FileHandler
-level={{ log_level }}
+level={{ file_log_level }}
 formatter=customFormatter
 args=('{{ log_txt_path }}', 'a')
 

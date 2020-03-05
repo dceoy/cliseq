@@ -49,7 +49,6 @@ from datetime import datetime
 from math import floor
 from pathlib import Path
 
-import coloredlogs
 from docopt import docopt
 from psutil import cpu_count, virtual_memory
 
@@ -73,7 +72,6 @@ def main():
         format='%(asctime)s %(levelname)-8s %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S', level=log_level
     )
-    coloredlogs.install(level=log_level)
     logger = logging.getLogger(__name__)
     logger.debug(f'args:{os.linesep}{args}')
     if args['init']:
@@ -160,15 +158,21 @@ def _run_analytical_pipeline(config_yml_path, dest_dir_path='.',
     if not log_dir.is_dir():
         print_log(f'Make a directory:\t{log_dir}')
         log_dir.mkdir()
+    file_log_level = 'DEBUG' if log_level in {'DEBUG', 'INFO'} else 'INFO'
     log_txt_path = str(
         log_dir.joinpath(
-            datetime.now().strftime('luigi.%Y%m%d_%H%M%S.log.txt')
+            'luigi.{0}.{1}.log.txt'.format(
+                datetime.now().strftime('%Y%m%d_%H%M%S'), file_log_level
+            )
         )
     )
     log_cfg_path = str(log_dir.joinpath('luigi.log.cfg'))
     render_template(
         template='{}.j2'.format(Path(log_cfg_path).name),
-        data={'log_level': log_level, 'log_txt_path': log_txt_path},
+        data={
+            'console_log_level': log_level, 'file_log_level': file_log_level,
+            'log_txt_path': log_txt_path
+        },
         output_path=log_cfg_path
     )
     n_worker = int(max_n_worker or max_n_cpu or cpu_count())

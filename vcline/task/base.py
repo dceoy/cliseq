@@ -4,7 +4,6 @@ import logging
 from datetime import timedelta
 from pathlib import Path
 
-import coloredlogs
 import luigi
 from shoper.shelloperator import ShellOperator
 
@@ -12,11 +11,10 @@ from shoper.shelloperator import ShellOperator
 class BaseTask(luigi.Task):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        coloredlogs.install(level=logging.root.level)
 
     @luigi.Task.event_handler(luigi.Event.PROCESSING_TIME)
     def print_execution_time(self, processing_time):
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger('execution-time')
         message = '{0}.{1}:\t{2} elapsed.'.format(
             self.__class__.__module__, self.__class__.__name__,
             timedelta(seconds=processing_time)
@@ -50,8 +48,8 @@ class ShellTask(BaseTask):
                 ) if run_id else None
             ),
             quiet=quiet, clear_log_txt=clear_log_txt,
-            logger=logging.getLogger(__name__), print_command=print_command,
-            executable=executable
+            logger=logging.getLogger(cls.__name__),
+            print_command=print_command, executable=executable
         )
         cls.__run_kwargs = {'cwd': cwd, **kwargs}
         for p in [log_dir_path, cwd]:
