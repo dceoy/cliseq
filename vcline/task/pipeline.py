@@ -65,7 +65,7 @@ class CallVariants(luigi.WrapperTask):
 
 class RunAnalyticalPipeline(luigi.Task):
     config_yml_path = luigi.Parameter()
-    work_dir_path = luigi.Parameter(default='.')
+    dest_dir_path = luigi.Parameter(default='.')
     log_dir_path = luigi.Parameter(default='log')
     ref_dir_path = luigi.Parameter(default='')
     n_cpu_per_worker = luigi.IntParameter(default=1)
@@ -104,7 +104,7 @@ class RunAnalyticalPipeline(luigi.Task):
                 ]
             },
             **{
-                f'{k}_dir_path': str(Path(self.work_dir_path).joinpath(k))
+                f'{k}_dir_path': str(Path(self.dest_dir_path).joinpath(k))
                 for k in [
                     'trim', 'align', 'haplotypecaller', 'mutect2', 'strelka',
                     'manta'

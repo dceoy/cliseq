@@ -6,11 +6,13 @@ Usage:
     vcline init [--debug|--info] [--yml=<path>]
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
         [--workers=<int>] [--split-intervals] [--ref-dir=<path>]
-        [<work_dir_path>]
+        <dest_dir_path>
     vcline download-funcotator-data [--debug|--info] [--cpus=<int>]
-        [<work_dir_path>]
+        <dest_dir_path>
+    vcline create-interval-list [--debug|--info] [--cpus=<int>]
+        <fa_path> <bed_path> <dest_dir_path>
     vcline write-af-only-vcf [--debug|--info] [--cpus=<int>]
-        [--src-path=<path>|--src-url=<url>|--gnomad-url] [<work_dir_path>]
+        [--src-path=<path>|--src-url=<url>|--gnomad-url] <dest_dir_path>
     vcline -h|--help
     vcline --version
 
@@ -35,7 +37,9 @@ Options:
     --gnomad-url        Specify the URL of gnomAD VCF (default)
 
 Args:
-    <work_dir_path>     Working directory path [default: .]
+    <dest_dir_path>     Destination directory path
+    <fa_path>           Path to a reference genome file
+    <bed_path>          Path to a BED file
 """
 
 import logging
@@ -51,7 +55,8 @@ from psutil import cpu_count, virtual_memory
 
 from .. import __version__
 from ..task.pipeline import RunAnalyticalPipeline
-from ..task.resource import DownloadFuncotatorDataSources, WriteAfOnlyVCF
+from ..task.resource import (CreateIntervalListWithBED,
+                             DownloadFuncotatorDataSources, WriteAfOnlyVCF)
 from .util import (build_luigi_tasks, fetch_executable, load_default_url_dict,
                    print_log, render_template)
 
@@ -76,7 +81,7 @@ def main():
     elif args['run']:
         _run_analytical_pipeline(
             config_yml_path=args['--yml'], ref_dir_path=args['--ref-dir'],
-            work_dir_path=args['<work_dir_path>'], max_n_cpu=args['--cpus'],
+            dest_dir_path=args['<dest_dir_path>'], max_n_cpu=args['--cpus'],
             max_n_worker=args['--workers'],
             split_intervals=args['--split-intervals'], log_level=log_level
         )
@@ -87,7 +92,7 @@ def main():
                 tasks=[
                     DownloadFuncotatorDataSources(
                         dest_dir_path=str(
-                            Path(args['<work_dir_path>'] or '.').resolve()
+                            Path(args['<dest_dir_path>']).resolve()
                         ),
                         n_cpu=n_cpu, gatk=fetch_executable('gatk')
                     )
@@ -109,10 +114,24 @@ def main():
                             )
                         ),
                         dest_dir_path=str(
-                            Path(args['<work_dir_path>'] or '.').resolve()
+                            Path(args['<dest_dir_path>']).resolve()
                         ),
                         n_cpu=n_cpu,
                         **{c: fetch_executable(c) for c in ['curl', 'bgzip']}
+                    )
+                ],
+                log_level=log_level
+            )
+        elif args['create-interval-list']:
+            build_luigi_tasks(
+                tasks=[
+                    CreateIntervalListWithBED(
+                        fa_path=str(Path(args['<fa_path>']).resolve()),
+                        bed_path=str(Path(args['<bed_path>']).resolve()),
+                        dest_dir_path=str(
+                            Path(args['<dest_dir_path>']).resolve()
+                        ),
+                        n_cpu=n_cpu, gatk=fetch_executable('gatk')
                     )
                 ],
                 log_level=log_level
@@ -130,14 +149,14 @@ def _write_config_yml(path):
         )
 
 
-def _run_analytical_pipeline(config_yml_path, work_dir_path='.',
+def _run_analytical_pipeline(config_yml_path, dest_dir_path='.',
                              ref_dir_path=None, max_n_cpu=None,
                              max_n_worker=None, split_intervals=False,
                              log_level='WARNING'):
-    work_dir = Path(work_dir_path or '.').resolve()
-    assert work_dir.is_dir()
+    dest_dir = Path(dest_dir_path).resolve()
+    assert dest_dir.is_dir()
     assert Path(config_yml_path).is_file()
-    log_dir = work_dir.joinpath('log')
+    log_dir = dest_dir.joinpath('log')
     if not log_dir.is_dir():
         print_log(f'Make a directory:\t{log_dir}')
         log_dir.mkdir()
@@ -153,15 +172,15 @@ def _run_analytical_pipeline(config_yml_path, work_dir_path='.',
         output_path=log_cfg_path
     )
     n_worker = int(max_n_worker or max_n_cpu or cpu_count())
-    print_log(f'Run the analytical pipeline:\t{work_dir}')
+    print_log(f'Run the analytical pipeline:\t{dest_dir}')
     build_luigi_tasks(
         tasks=[
             RunAnalyticalPipeline(
-                config_yml_path=config_yml_path, work_dir_path=str(work_dir),
+                config_yml_path=config_yml_path, dest_dir_path=str(dest_dir),
                 log_dir_path=str(log_dir),
                 ref_dir_path=str(
                     Path(ref_dir_path).resolve() if ref_dir_path
-                    else work_dir.joinpath('ref')
+                    else dest_dir.joinpath('ref')
                 ),
                 n_cpu_per_worker=max(
                     1, floor((max_n_cpu or cpu_count()) / n_worker)

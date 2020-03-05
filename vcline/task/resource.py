@@ -78,12 +78,66 @@ class DownloadFuncotatorDataSources(ShellTask):
         self.run_shell(
             args=[
                 (
-                    f'set -e && {self.gatk}{gatk_opts}'
-                    + ' FuncotatorDataSourceDownloader'
+                    f'set -e && '
+                    + f'{self.gatk}{gatk_opts} FuncotatorDataSourceDownloader'
                     + f' --{s}'
                     + ' --validate-integrity'
                 ) for s in ['germline', 'somatic']
             ]
+        )
+
+
+class CreateIntervalListWithBED(ShellTask):
+    fa_path = luigi.Parameter()
+    bed_path = luigi.Parameter()
+    dest_dir_path = luigi.Parameter(default='.')
+    gatk = luigi.Parameter(default='gatk')
+    n_cpu = luigi.IntParameter(default=1)
+
+    def output(self):
+        return [
+            luigi.LocalTarget(
+                str(Path(self.dest_dir_path).joinpath(n).resolve())
+            ) for n in [
+                (Path(self.bed_path).stem + '.interval_list'),
+                (Path(self.fa_path).stem + '.dict')
+            ]
+        ]
+
+    def run(self):
+        interval_list_path = self.output()[0].path
+        run_id = Path(interval_list_path).stem
+        self.print_log(f'Create an interval_list file:\t{run_id}')
+        gatk_opts = ' --java-options "{}"'.format(
+            ' '.join([
+                '-Dsamjdk.compression_level=5',
+                '-XX:+UseParallelGC',
+                f'-XX:ParallelGCThreads={self.n_cpu}'
+            ])
+        )
+        seq_dict_path = self.output()[1].path
+        self.setup_shell(
+            commands=self.gatk, cwd=self.dest_dir_path, quiet=False
+        )
+        self.run_shell(
+            args=(
+                'set -e && '
+                + f'{self.gatk}{gatk_opts} CreateSequenceDictionary'
+                + f' --REFERENCE {self.fa_path}'
+                + f' --OUTPUT {seq_dict_path}'
+            ),
+            input_files=self.fa_path, output_files=seq_dict_path
+        )
+        self.run_shell(
+            args=(
+                f'set -e && '
+                + f'{self.gatk}{gatk_opts} BedToIntervalList'
+                + f' --INPUT {self.bed_path}'
+                + f' --OUTPUT {interval_list_path}'
+                + f' --SEQUENCE_DICTIONARY {seq_dict_path}'
+            ),
+            input_files=[self.bed_path, seq_dict_path],
+            output_files=interval_list_path
         )
 
 

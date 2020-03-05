@@ -299,6 +299,7 @@ class CreateSequenceDictionary(ShellTask):
         self.print_log(f'Create a sequence dictionary:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        seq_dict_path = self.output().path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=gatk, cwd=self.cf['ref_dir_path']
@@ -308,8 +309,9 @@ class CreateSequenceDictionary(ShellTask):
                 'set -e && '
                 + f'{gatk}{gatk_opts} CreateSequenceDictionary'
                 + f' --REFERENCE {fa_path}'
+                + f' --OUTPUT {seq_dict_path}'
             ),
-            input_files=fa_path, output_files=self.output().path
+            input_files=fa_path, output_files=seq_dict_path
         )
 
 
