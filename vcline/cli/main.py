@@ -41,6 +41,7 @@ Args:
 import logging
 import os
 import shutil
+from datetime import datetime
 from math import floor
 from pathlib import Path
 
@@ -140,7 +141,11 @@ def _run_analytical_pipeline(config_yml_path, work_dir_path='.',
     if not log_dir.is_dir():
         print_log(f'Make a directory:\t{log_dir}')
         log_dir.mkdir()
-    log_txt_path = str(log_dir.joinpath('luigi.log.txt'))
+    log_txt_path = str(
+        log_dir.joinpath(
+            datetime.now().strftime('luigi.%Y%m%d_%H%M%S.log.txt')
+        )
+    )
     log_cfg_path = str(log_dir.joinpath('luigi.log.cfg'))
     render_template(
         template='{}.j2'.format(Path(log_cfg_path).name),
