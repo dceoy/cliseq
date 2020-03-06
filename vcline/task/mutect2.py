@@ -17,7 +17,7 @@ from .ref import (CreateFASTAIndex, CreateGnomadBiallelicSnpVCF,
 
 @requires(PrepareCRAMs, FetchReferenceFASTA, FetchEvaluationIntervalList,
           CreateGnomadBiallelicSnpVCF)
-class CalculateContamination(ShellTask):
+class GetMatchedPileupSummaries(ShellTask):
     cf = luigi.DictParameter()
     priority = 50
 
@@ -26,28 +26,24 @@ class CalculateContamination(ShellTask):
             luigi.LocalTarget(
                 str(
                     Path(self.cf['mutect2_dir_path']).joinpath(
-                        create_matched_id(
-                            *[i[0].path for i in self.input()[0]]
-                        ) + s
+                        Path(i[0].path).stem + '.pileup.table'
                     )
                 )
-            ) for s in ['.contamination.table', '.segment.table']
+            ) for i in self.input()[0]
         ]
 
     def run(self):
-        contamination_table_path = self.output()[0].path
-        run_id = '.'.join(Path(contamination_table_path).name.split('.')[:-2])
-        self.print_log(f'Calculate cross-sample contamination:\t{run_id}')
+        input_cram_paths = [i[0].path for i in self.input()[0]]
+        run_id = create_matched_id(*input_cram_paths)
+        self.print_log(f'Get pileup summaries:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        n_cpu = self.cf['n_cpu_per_worker']
+        asynchronous = (self.cf['n_cpu_per_worker'] > 1)
         save_memory = str(self.cf['save_memory']).lower()
-        input_cram_paths = [i[0].path for i in self.input()[0]]
+        pileup_table_paths = [o.path for o in self.output()]
         fa_path = self.input()[1].path
         evaluation_interval_path = self.input()[2].path
         gnomad_common_biallelic_vcf_path = self.input()[3][0].path
-        pileup_table_paths = [f'{p}.pileup.table' for p in input_cram_paths]
-        segment_table_path = self.output()[1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['mutect2_dir_path']
@@ -68,7 +64,37 @@ class CalculateContamination(ShellTask):
                 *input_cram_paths, fa_path, evaluation_interval_path,
                 gnomad_common_biallelic_vcf_path
             ],
-            output_files=pileup_table_paths, asynchronous=(n_cpu > 1)
+            output_files=pileup_table_paths, asynchronous=asynchronous
+        )
+
+
+@requires(GetMatchedPileupSummaries)
+class CalculateContamination(ShellTask):
+    cf = luigi.DictParameter()
+    priority = 50
+
+    def output(self):
+        return [
+            luigi.LocalTarget(
+                str(
+                    Path(self.cf['mutect2_dir_path']).joinpath(
+                        create_matched_id(*[i.path for i in self.input()]) + s
+                    )
+                )
+            ) for s in ['.contamination.table', '.segment.table']
+        ]
+
+    def run(self):
+        contamination_table_path = self.output()[0].path
+        run_id = '.'.join(Path(contamination_table_path).name.split('.')[:-2])
+        self.print_log(f'Calculate cross-sample contamination:\t{run_id}')
+        gatk = self.cf['gatk']
+        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        pileup_table_paths = [i.path for i in self.input()]
+        segment_table_path = self.output()[1].path
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
+            cwd=self.cf['mutect2_dir_path']
         )
         self.run_shell(
             args=(
@@ -204,7 +230,7 @@ class CallVariantsWithMutect2(ShellTask):
                         + f' -o {output_cram_path} {tmp_bam_paths[0]}'
                     )
                 ),
-                (f'set -e && rm -f ' + ' '.join(tmp_bam_paths))
+                ('rm -f ' + ' '.join(tmp_bam_paths))
             ],
             input_files=[*tmp_bam_paths, fa_path, fai_path],
             output_files=output_cram_path
@@ -233,7 +259,7 @@ class CallVariantsWithMutect2(ShellTask):
                         + ''.join([f' --stats {s}' for s in tmp_stats_paths])
                         + f' --output {raw_stats_path}'
                     ),
-                    (f'set -e && rm -f ' + ' '.join(tmp_stats_paths))
+                    ('rm -f ' + ' '.join(tmp_stats_paths))
                 ],
                 input_files=tmp_stats_paths, output_files=raw_stats_path
             )
@@ -244,10 +270,7 @@ class CallVariantsWithMutect2(ShellTask):
                         + ''.join([f' --INPUT {v}' for v in tmp_vcf_paths])
                         + f' --OUTPUT {raw_vcf_path}'
                     ),
-                    (
-                        f'set -e && rm -f '
-                        + ' '.join([*tmp_vcf_paths, *tmp_tbi_paths])
-                    )
+                    ('rm -f ' + ' '.join([*tmp_vcf_paths, *tmp_tbi_paths]))
                 ],
                 input_files=[*tmp_vcf_paths, *tmp_tbi_paths],
                 output_files=raw_vcf_path

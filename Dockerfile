@@ -94,7 +94,7 @@ RUN set -e \
 
 ENV ROOTSYS /opt/root
 ENV PYTHONPATH ${ROOTSYS}/lib:/opt/manta/lib/python:/opt/strelka/lib/python:${PYTHONPATH}
-ENV PATH ${PATH}:/opt/conda/envs/gatk/bin:/opt/conda/envs/smoove-env/bin:/opt/conda/bin:/opt/manta/bin:/opt/strelka/bin
+ENV PATH /opt/conda/envs/gatk/bin:/opt/conda/envs/smoove-env/bin:/opt/conda/bin:/opt/manta/bin:/opt/strelka/bin:${PATH}
 ENV LD_LIBRARY_PATH ${ROOTSYS}/lib:/usr/local/src/cnvnator/yeppp-1.0.0/binaries/linux/x86_64:${LD_LIBRARY_PATH}
 
 ENTRYPOINT ["/opt/conda/bin/vcline"]

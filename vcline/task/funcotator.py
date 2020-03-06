@@ -86,24 +86,26 @@ class AnnotateVariantsWithFuncotator(ShellTask):
         ]
 
     def output(self):
-        if self.variant_caller.startswith('manta_'):
-            input_vcf_paths = [
-                i.path for i in self.input()[0] if
-                Path(i.path).name.startswith(self.variant_caller.split('_')[1])
-            ]
-        else:
-            input_vcf_paths = [
-                i.path for i in self.input()[0] if i.path.endswith('.vcf.gz')
-            ]
         return [
             luigi.LocalTarget(v + i) for v, i in product(
                 [
                     re.sub(r'\.vcf\.gz$', '.Funcotator.vcf.gz', p)
-                    for p in input_vcf_paths
+                    for p in self._generate_input_vcf_paths()
                 ],
                 ['', '.tbi']
             )
         ]
+
+    def _generate_input_vcf_paths(self):
+        prefix = (
+            self.variant_caller.split('_')[1]
+            if '_' in self.variant_caller else None
+        )
+        for i in self.input()[0]:
+            p = i.path
+            if ((prefix is None or Path(p).name.startswith(prefix))
+                    and p.endswith('.vcf.gz')):
+                yield p
 
     def run(self):
         output_vcf_paths = [
@@ -117,6 +119,8 @@ class AnnotateVariantsWithFuncotator(ShellTask):
         self.print_log(f'Annotate variants with Funcotator:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        asynchronous = (self.cf['n_cpu_per_worker'] > 1)
+        input_vcf_paths = list(self._generate_input_vcf_paths())
         fa_path = self.input()[1].path
         data_src_dir_path = self.input()[2].path
         evaluation_interval_path = self.input()[3].path
@@ -125,27 +129,28 @@ class AnnotateVariantsWithFuncotator(ShellTask):
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=str(Path(output_vcf_paths[0]).parent)
         )
-        for output_vcf_path in output_vcf_paths:
-            input_vcf_path = re.sub(
-                r'\.Funcotator\.vcf\.gz', '.vcf.gz', output_vcf_path
-            )
-            self.run_shell(
-                args=(
+        self.run_shell(
+            args=[
+                (
                     f'set -e && {gatk}{gatk_opts} Funcotator'
-                    + f' --variant {input_vcf_path}'
+                    + f' --variant {i}'
                     + f' --reference {fa_path}'
                     + f' --intervals {evaluation_interval_path}'
                     + f' --ref-version {ref_version}'
                     + f' --data-sources-path {data_src_dir_path}'
-                    + f' --output {output_vcf_path}'
-                    + f' --output-file-format VCF'
-                ),
-                input_files=[
-                    input_vcf_path, fa_path, data_src_dir_path,
-                    evaluation_interval_path
-                ],
-                output_files=[output_vcf_path, f'{output_vcf_path}.tbi']
-            )
+                    + f' --output {o}'
+                    + ' --output-file-format VCF'
+                ) for i, o in zip(input_vcf_paths, output_vcf_paths)
+            ],
+            input_files=[
+                *input_vcf_paths, fa_path, data_src_dir_path,
+                evaluation_interval_path
+            ],
+            output_files=[
+                *output_vcf_paths, *[f'{o}.tbi' for o in output_vcf_paths]
+            ],
+            asynchronous=asynchronous
+        )
 
 
 if __name__ == '__main__':

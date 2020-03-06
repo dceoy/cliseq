@@ -16,7 +16,7 @@ class BaseTask(luigi.Task):
     @luigi.Task.event_handler(luigi.Event.PROCESSING_TIME)
     def print_execution_time(self, processing_time):
         logger = logging.getLogger('task-timer')
-        message = '{0}.{1} total elapsed time:\t{2}'.format(
+        message = '{0}.{1} - total elapsed time:\t{2}'.format(
             self.__class__.__module__, self.__class__.__name__,
             timedelta(seconds=processing_time)
         )
@@ -32,10 +32,10 @@ class ShellTask(BaseTask):
         self.__run_kwargs = None
 
     @classmethod
-    def print_log(cls, message):
+    def print_log(cls, message, new_line=True):
         logger = logging.getLogger(cls.__name__)
         logger.info(message)
-        print(f'>>\t{message}', flush=True)
+        print((os.linesep if new_line else '') + f'>>\t{message}', flush=True)
 
     @classmethod
     def setup_shell(cls, run_id=None, log_dir_path=None, commands=None,
@@ -59,7 +59,7 @@ class ShellTask(BaseTask):
             if p:
                 d = Path(p).resolve()
                 if not d.is_dir():
-                    cls.print_log(f'Make a directory:\t{d}')
+                    cls.print_log(f'Make a directory:\t{d}', new_line=False)
                     d.mkdir(exist_ok=True)
         if commands:
             cls.run_shell(args=list(cls._generate_version_commands(commands)))
@@ -75,12 +75,11 @@ class ShellTask(BaseTask):
         if 'asynchronous' in kwargs:
             cls.__sh.wait()
         elapsed_timedelta = datetime.now() - start_datetime
-        message = 'shell elapsed time:\t{}'.format(elapsed_timedelta)
+        message = f'shell elapsed time:\t{elapsed_timedelta}'
         logger.info(message)
-        print(message, flush=True)
         if cls.__log_txt_path:
             with open(cls.__log_txt_path, 'a') as f:
-                f.write(message + os.linesep)
+                f.write(f'### {message}{os.linesep}')
 
     @staticmethod
     def _generate_version_commands(commands):

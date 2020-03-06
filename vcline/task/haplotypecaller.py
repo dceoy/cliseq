@@ -190,7 +190,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                         + f' -o {output_cram_path} {tmp_bam_paths[0]}'
                     )
                 ),
-                (f'set -e && rm -f ' + ' '.join(tmp_bam_paths))
+                ('rm -f ' + ' '.join(tmp_bam_paths))
             ],
             input_files=[*tmp_bam_paths, fa_path, fai_path],
             output_files=output_cram_path
@@ -212,10 +212,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                         + ''.join([f' --variant {g}' for g in tmp_gvcf_paths])
                         + f' --output {gvcf_path}'
                     ),
-                    (
-                        f'set -e && rm -f '
-                        + ' '.join([*tmp_gvcf_paths, *tmp_tbi_paths])
-                    )
+                    ('rm -f ' + ' '.join([*tmp_gvcf_paths, *tmp_tbi_paths]))
                 ],
                 input_files=[*tmp_gvcf_paths, *tmp_tbi_paths, fa_path],
                 output_files=[gvcf_path, f'{gvcf_path}.tbi']
