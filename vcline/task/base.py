@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
 import logging
-from datetime import timedelta
+import os
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import luigi
@@ -14,8 +15,8 @@ class BaseTask(luigi.Task):
 
     @luigi.Task.event_handler(luigi.Event.PROCESSING_TIME)
     def print_execution_time(self, processing_time):
-        logger = logging.getLogger('execution-time')
-        message = '{0}.{1}:\t{2} elapsed.'.format(
+        logger = logging.getLogger('task-timer')
+        message = '{0}.{1} total elapsed time:\t{2}'.format(
             self.__class__.__module__, self.__class__.__name__,
             timedelta(seconds=processing_time)
         )
@@ -26,28 +27,30 @@ class BaseTask(luigi.Task):
 class ShellTask(BaseTask):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.__log_txt_path = None
         self.__sh = None
         self.__run_kwargs = None
 
     @classmethod
     def print_log(cls, message):
         logger = logging.getLogger(cls.__name__)
-        logger.debug(message)
+        logger.info(message)
         print(f'>>\t{message}', flush=True)
 
     @classmethod
     def setup_shell(cls, run_id=None, log_dir_path=None, commands=None,
                     cwd=None, clear_log_txt=False, print_command=True,
                     quiet=True, executable='/bin/bash', **kwargs):
+        cls.__log_txt_path = (
+            str(
+                Path(log_dir_path or '.').joinpath(
+                    f'{cls.__module__}.{cls.__name__}.{run_id}.sh.log.txt'
+                ).resolve()
+            ) if run_id else None
+        )
         cls.__sh = ShellOperator(
-            log_txt=(
-                str(
-                    Path(log_dir_path or '.').joinpath(
-                        f'{cls.__module__}.{cls.__name__}.{run_id}.sh.log.txt'
-                    ).resolve()
-                ) if run_id else None
-            ),
-            quiet=quiet, clear_log_txt=clear_log_txt,
+            log_txt=cls.__log_txt_path, quiet=quiet,
+            clear_log_txt=clear_log_txt,
             logger=logging.getLogger(cls.__name__),
             print_command=print_command, executable=executable
         )
@@ -63,12 +66,21 @@ class ShellTask(BaseTask):
 
     @classmethod
     def run_shell(cls, *args, **kwargs):
+        logger = logging.getLogger(cls.__name__)
+        start_datetime = datetime.now()
         cls.__sh.run(
             *args, **kwargs,
             **{k: v for k, v in cls.__run_kwargs.items() if k not in kwargs}
         )
         if 'asynchronous' in kwargs:
             cls.__sh.wait()
+        elapsed_timedelta = datetime.now() - start_datetime
+        message = 'shell elapsed time:\t{}'.format(elapsed_timedelta)
+        logger.info(message)
+        print(message, flush=True)
+        if cls.__log_txt_path:
+            with open(cls.__log_txt_path, 'a') as f:
+                f.write(message + os.linesep)
 
     @staticmethod
     def _generate_version_commands(commands):
