@@ -114,7 +114,7 @@ class RunAnalyticalPipeline(BaseTask):
             'ref_dir_path': str(Path(self.ref_dir_path).resolve()),
             'log_dir_path': str(Path(self.log_dir_path).resolve())
         }
-        fb_keys = ['foreground', 'background']
+        matched_keys = ['tumor', 'normal']
         reference_file_paths = self._resolve_input_file_paths(
             path_dict=config['references']
         )
@@ -128,15 +128,15 @@ class RunAnalyticalPipeline(BaseTask):
             {
                 'fq_list': [
                     list(self._resolve_input_file_paths(path_list=r[k]['fq']))
-                    for k in fb_keys if r[k].get('fq')
+                    for k in matched_keys if r[k].get('fq')
                 ],
                 'read_groups':
-                [(r[k].get('read_group') or dict()) for k in fb_keys],
+                [(r[k].get('read_group') or dict()) for k in matched_keys],
                 'sample_names': [
                     (
                         (r[k].get('read_group') or dict()).get('SM')
                         or parse_fq_id(fq_path=r[k]['fq'][0])
-                    ) for k in fb_keys
+                    ) for k in matched_keys
                 ],
                 'cf': common_config, 'variant_callers': variant_callers,
                 **reference_file_paths

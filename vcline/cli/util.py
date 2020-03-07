@@ -34,10 +34,8 @@ def parse_fq_id(fq_path):
     )
 
 
-def create_matched_id(foreground_name, background_name):
-    fragments = [
-        Path(n).stem.split('.') for n in [foreground_name, background_name]
-    ]
+def create_matched_id(tumor_name, normal_name):
+    fragments = [Path(n).stem.split('.') for n in [tumor_name, normal_name]]
     if fragments[0][-1] != fragments[1][-1]:
         somatic_id = '.'.join(['.'.join(f) for f in fragments])
     else:
@@ -89,8 +87,8 @@ def read_config_yml(config_yml_path):
     assert isinstance(config['runs'], list)
     for r in config['runs']:
         assert isinstance(r, dict)
-        assert set(r.keys()).intersection({'foreground', 'background'})
-        for t in ['foreground', 'background']:
+        assert set(r.keys()).intersection({'tumor', 'normal'})
+        for t in ['tumor', 'normal']:
             assert isinstance(r[t], dict)
             assert r[t].get('fq') or r[t].get('sam')
             if r[t].get('fq'):

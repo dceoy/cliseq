@@ -20,15 +20,15 @@ references:
   funcotator_germline_tar: /path/to/funcotator_dataSources.v1.6.20190124g.tar.gz
   funcotator_somatic_tar: /path/to/funcotator_dataSources.v1.6.20190124s.tar.gz
 runs:
-  - foreground:
+  - tumor:
       fq:
         - /path/to/sample01.tumor_FFPE.R1.fq.gz
         - /path/to/sample01.tumor_FFPE.R2.fq.gz
-    background:
+    normal:
       fq:
         - /path/to/sample01.blood_frozen.R1.fq.gz
         - /path/to/sample01.blood_frozen.R2.fq.gz
-  - foreground:
+  - tumor:
       fq:
         - /path/to/sample02.tumor_FFPE.R1.fq.gz
         - /path/to/sample02.tumor_FFPE.R2.fq.gz
@@ -38,7 +38,7 @@ runs:
         SM: sample02.tumor_FFPE
         PL: ILLUMINA
         LB: LIBRARY-1
-    background:
+    normal:
       fq:
         - /path/to/sample02.blood_frozen.R1.fq.gz
         - /path/to/sample02.blood_frozen.R2.fq.gz
