@@ -60,11 +60,11 @@ class GetMatchedPileupSummaries(ShellTask):
                     + f' --disable-bam-index-caching {save_memory}'
                 ) for c, t in zip(input_cram_paths, pileup_table_paths)
             ],
-            input_files=[
+            input_files_or_dirs=[
                 *input_cram_paths, fa_path, evaluation_interval_path,
                 gnomad_common_biallelic_vcf_path
             ],
-            output_files=pileup_table_paths, asynchronous=asynchronous
+            output_files_or_dirs=pileup_table_paths, asynchronous=asynchronous
         )
 
 
@@ -104,8 +104,8 @@ class CalculateContamination(ShellTask):
                 + f' --output {contamination_table_path}'
                 + f' --tumor-segmentation {segment_table_path}'
             ),
-            input_files=pileup_table_paths,
-            output_files=[contamination_table_path, segment_table_path]
+            input_files_or_dirs=pileup_table_paths,
+            output_files_or_dirs=[contamination_table_path, segment_table_path]
         )
 
 
@@ -202,11 +202,11 @@ class CallVariantsWithMutect2(ShellTask):
                     f1r2_paths
                 )
             ],
-            input_files=[
+            input_files_or_dirs=[
                 *input_cram_paths, fa_path, *evaluation_interval_paths,
                 gnomad_vcf_path
             ],
-            output_files=[
+            output_files_or_dirs=[
                 *tmp_vcf_paths, *tmp_tbi_paths, *tmp_bam_paths, *f1r2_paths,
                 *tmp_stats_paths
             ],
@@ -232,16 +232,16 @@ class CallVariantsWithMutect2(ShellTask):
                 ),
                 ('rm -f ' + ' '.join(tmp_bam_paths))
             ],
-            input_files=[*tmp_bam_paths, fa_path, fai_path],
-            output_files=output_cram_path
+            input_files_or_dirs=[*tmp_bam_paths, fa_path, fai_path],
+            output_files_or_dirs=output_cram_path
         )
         self.run_shell(
             args=[
                 f'set -e && {samtools} quickcheck -v {output_cram_path}',
                 f'set -e && {samtools} index -@ {n_cpu} {output_cram_path}'
             ],
-            input_files=output_cram_path,
-            output_files=f'{output_cram_path}.crai'
+            input_files_or_dirs=output_cram_path,
+            output_files_or_dirs=f'{output_cram_path}.crai'
         )
         self.run_shell(
             args=(
@@ -249,7 +249,7 @@ class CallVariantsWithMutect2(ShellTask):
                 + ''.join([f' --input {f}' for f in f1r2_paths])
                 + f' --output {ob_priors_path}'
             ),
-            input_files=f1r2_paths, output_files=ob_priors_path
+            input_files_or_dirs=f1r2_paths, output_files_or_dirs=ob_priors_path
         )
         if len(tmp_vcf_paths) > 1:
             self.run_shell(
@@ -261,7 +261,8 @@ class CallVariantsWithMutect2(ShellTask):
                     ),
                     ('rm -f ' + ' '.join(tmp_stats_paths))
                 ],
-                input_files=tmp_stats_paths, output_files=raw_stats_path
+                input_files_or_dirs=tmp_stats_paths,
+                output_files_or_dirs=raw_stats_path
             )
             self.run_shell(
                 args=[
@@ -272,8 +273,8 @@ class CallVariantsWithMutect2(ShellTask):
                     ),
                     ('rm -f ' + ' '.join([*tmp_vcf_paths, *tmp_tbi_paths]))
                 ],
-                input_files=[*tmp_vcf_paths, *tmp_tbi_paths],
-                output_files=raw_vcf_path
+                input_files_or_dirs=[*tmp_vcf_paths, *tmp_tbi_paths],
+                output_files_or_dirs=raw_vcf_path
             )
 
 
@@ -325,12 +326,12 @@ class FilterMutectCalls(ShellTask):
                 + f' --filtering-stats {filtering_stats_path}'
                 + f' --disable-bam-index-caching {save_memory}'
             ),
-            input_files=[
+            input_files_or_dirs=[
                 raw_vcf_path, fa_path, evaluation_interval_path,
                 raw_stats_path, ob_priors_path,
                 contamination_table_path, segment_table_path,
             ],
-            output_files=[filtered_vcf_path, filtering_stats_path]
+            output_files_or_dirs=[filtered_vcf_path, filtering_stats_path]
         )
 
 

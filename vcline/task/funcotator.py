@@ -142,11 +142,11 @@ class AnnotateVariantsWithFuncotator(ShellTask):
                     + ' --output-file-format VCF'
                 ) for i, o in zip(input_vcf_paths, output_vcf_paths)
             ],
-            input_files=[
+            input_files_or_dirs=[
                 *input_vcf_paths, fa_path, data_src_dir_path,
                 evaluation_interval_path
             ],
-            output_files=[
+            output_files_or_dirs=[
                 *output_vcf_paths, *[f'{o}.tbi' for o in output_vcf_paths]
             ],
             asynchronous=asynchronous

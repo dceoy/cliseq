@@ -51,8 +51,8 @@ class TrimAdapters(ShellTask):
                     )
                 ])
             ),
-            input_files=self.fq_paths,
-            output_files=[o.path for o in self.output()]
+            input_files_or_dirs=self.fq_paths,
+            output_files_or_dirs=[o.path for o in self.output()]
         )
 
 

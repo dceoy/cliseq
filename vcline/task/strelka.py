@@ -65,10 +65,10 @@ class CallVariantsWithStrelka(ShellTask):
                 + f' --callRegions={bed_path}'
                 + f' --runDir={run_dir_path}'
             ),
-            input_files=[
+            input_files_or_dirs=[
                 *input_cram_paths, fa_path, manta_indel_vcf_path, bed_path
             ],
-            output_files=run_script
+            output_files_or_dirs=[run_script, run_dir_path]
         )
         self.run_shell(
             args=(
@@ -77,11 +77,11 @@ class CallVariantsWithStrelka(ShellTask):
                 + f' --memGb={memory_gb}'
                 + ' --mode=local'
             ),
-            input_files=[
+            input_files_or_dirs=[
                 run_script, *input_cram_paths, fa_path, manta_indel_vcf_path,
                 bed_path
             ],
-            output_files=output_file_paths
+            output_files_or_dirs=[*output_file_paths, run_dir_path]
         )
 
 

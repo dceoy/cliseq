@@ -77,15 +77,16 @@ class AlignReads(ShellTask):
                 + f' | {samtools} view -@ {n_cpu} -T {fa_path} -CS'
                 + f' -o {cram_path} -'
             ),
-            input_files=[fa_path, *index_paths, *fq_paths],
-            output_files=cram_path
+            input_files_or_dirs=[fa_path, *index_paths, *fq_paths],
+            output_files_or_dirs=cram_path
         )
         self.run_shell(
             args=[
                 f'set -e && {samtools} quickcheck -v {cram_path}',
                 f'set -e && {samtools} index -@ {n_cpu} {cram_path}'
             ],
-            input_files=cram_path, output_files=f'{cram_path}.crai'
+            input_files_or_dirs=cram_path,
+            output_files_or_dirs=f'{cram_path}.crai'
         )
 
 
@@ -135,8 +136,8 @@ class MarkDuplicates(ShellTask):
                 + f' --OUTPUT {tmp_bam_paths[0]}'
                 + ' --ASSUME_SORT_ORDER coordinate'
             ),
-            input_files=[input_cram_path, fa_path],
-            output_files=tmp_bam_paths[0]
+            input_files_or_dirs=[input_cram_path, fa_path],
+            output_files_or_dirs=tmp_bam_paths[0]
         )
         self.run_shell(
             args=[
@@ -147,7 +148,8 @@ class MarkDuplicates(ShellTask):
                 ),
                 f'rm -f {tmp_bam_paths[0]}'
             ],
-            input_files=tmp_bam_paths[0], output_files=tmp_bam_paths[1]
+            input_files_or_dirs=tmp_bam_paths[0],
+            output_files_or_dirs=tmp_bam_paths[1]
         )
         self.run_shell(
             args=[
@@ -159,7 +161,8 @@ class MarkDuplicates(ShellTask):
                 ),
                 f'rm -f {tmp_bam_paths[1]}'
             ],
-            input_files=tmp_bam_paths[1], output_files=tmp_bam_paths[2]
+            input_files_or_dirs=tmp_bam_paths[1],
+            output_files_or_dirs=tmp_bam_paths[2]
         )
         self.run_shell(
             args=[
@@ -169,16 +172,16 @@ class MarkDuplicates(ShellTask):
                 ),
                 f'rm -f {tmp_bam_paths[2]}'
             ],
-            input_files=[tmp_bam_paths[2], fa_path],
-            output_files=output_cram_path
+            input_files_or_dirs=[tmp_bam_paths[2], fa_path],
+            output_files_or_dirs=output_cram_path
         )
         self.run_shell(
             args=[
                 f'set -e && {samtools} quickcheck -v {output_cram_path}',
                 f'set -e && {samtools} index -@ {n_cpu} {output_cram_path}'
             ],
-            input_files=output_cram_path,
-            output_files=f'{output_cram_path}.crai'
+            input_files_or_dirs=output_cram_path,
+            output_files_or_dirs=f'{output_cram_path}.crai'
         )
 
 
@@ -231,11 +234,11 @@ class ApplyBQSR(ShellTask):
                     f' --known-sites {p}' for p in known_site_vcf_gz_paths
                 ])
             ),
-            input_files=[
+            input_files_or_dirs=[
                 input_cram_path, fa_path, fa_dict_path,
                 *known_site_vcf_gz_paths
             ],
-            output_files=bqsr_csv_path
+            output_files_or_dirs=bqsr_csv_path
         )
         self.run_shell(
             args=(
@@ -251,8 +254,8 @@ class ApplyBQSR(ShellTask):
                 + ' --use-original-qualities'
                 + ' --create-output-bam-index false'
             ),
-            input_files=[input_cram_path, fa_path, bqsr_csv_path],
-            output_files=tmp_bam_path
+            input_files_or_dirs=[input_cram_path, fa_path, bqsr_csv_path],
+            output_files_or_dirs=tmp_bam_path
         )
         self.run_shell(
             args=[
@@ -262,15 +265,16 @@ class ApplyBQSR(ShellTask):
                 ),
                 f'rm -f {tmp_bam_path}'
             ],
-            input_files=[tmp_bam_path, fa_path], output_files=output_cram_path
+            input_files_or_dirs=[tmp_bam_path, fa_path],
+            output_files_or_dirs=output_cram_path
         )
         self.run_shell(
             args=[
                 f'set -e && {samtools} quickcheck -v {output_cram_path}',
                 f'set -e && {samtools} index -@ {n_cpu} {output_cram_path}'
             ],
-            input_files=output_cram_path,
-            output_files=f'{output_cram_path}.crai'
+            input_files_or_dirs=output_cram_path,
+            output_files_or_dirs=f'{output_cram_path}.crai'
         )
 
 
@@ -308,16 +312,16 @@ class RemoveDuplicatesAndUnmapped(ShellTask):
                 f'set -e && {samtools} view -@ {n_cpu} -T {fa_path}'
                 + f' -F 1028 -CS -o {output_cram_path} {input_cram_path}'
             ),
-            input_files=[input_cram_path, fa_path],
-            output_files=output_cram_path
+            input_files_or_dirs=[input_cram_path, fa_path],
+            output_files_or_dirs=output_cram_path
         )
         self.run_shell(
             args=[
                 f'set -e && {samtools} quickcheck -v {output_cram_path}',
                 f'set -e && {samtools} index -@ {n_cpu} {output_cram_path}'
             ],
-            input_files=output_cram_path,
-            output_files=f'{output_cram_path}.crai'
+            input_files_or_dirs=output_cram_path,
+            output_files_or_dirs=f'{output_cram_path}.crai'
         )
 
 

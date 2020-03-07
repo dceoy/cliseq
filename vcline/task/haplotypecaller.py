@@ -49,8 +49,8 @@ class SplitEvaluationIntervals(ShellTask):
                 + f' --scatter-count {scatter_count}'
                 + ' --output {}'.format(self.cf['haplotypecaller_dir_path'])
             ),
-            input_files=[interval_path, fa_path],
-            output_files=[o.path for o in self.output()]
+            input_files_or_dirs=[interval_path, fa_path],
+            output_files_or_dirs=[o.path for o in self.output()]
         )
 
 
@@ -165,11 +165,13 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                     evaluation_interval_paths, tmp_gvcf_paths, tmp_bam_paths
                 )
             ],
-            input_files=[
+            input_files_or_dirs=[
                 input_cram_path, fa_path, dbsnp_vcf_path,
                 *evaluation_interval_paths
             ],
-            output_files=[*tmp_gvcf_paths, *tmp_tbi_paths, *tmp_bam_paths],
+            output_files_or_dirs=[
+                *tmp_gvcf_paths, *tmp_tbi_paths, *tmp_bam_paths
+            ],
             asynchronous=(len(evaluation_interval_paths) > 1)
         )
         self.run_shell(
@@ -192,16 +194,16 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                 ),
                 ('rm -f ' + ' '.join(tmp_bam_paths))
             ],
-            input_files=[*tmp_bam_paths, fa_path, fai_path],
-            output_files=output_cram_path
+            input_files_or_dirs=[*tmp_bam_paths, fa_path, fai_path],
+            output_files_or_dirs=output_cram_path
         )
         self.run_shell(
             args=[
                 f'set -e && {samtools} quickcheck -v {output_cram_path}',
                 f'set -e && {samtools} index -@ {n_cpu} {output_cram_path}'
             ],
-            input_files=output_cram_path,
-            output_files=f'{output_cram_path}.crai'
+            input_files_or_dirs=output_cram_path,
+            output_files_or_dirs=f'{output_cram_path}.crai'
         )
         if len(tmp_gvcf_paths) > 1:
             self.run_shell(
@@ -214,8 +216,8 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                     ),
                     ('rm -f ' + ' '.join([*tmp_gvcf_paths, *tmp_tbi_paths]))
                 ],
-                input_files=[*tmp_gvcf_paths, *tmp_tbi_paths, fa_path],
-                output_files=[gvcf_path, f'{gvcf_path}.tbi']
+                input_files_or_dirs=[*tmp_gvcf_paths, *tmp_tbi_paths, fa_path],
+                output_files_or_dirs=[gvcf_path, f'{gvcf_path}.tbi']
             )
 
 
@@ -257,10 +259,10 @@ class GenotypeGVCF(ShellTask):
                 + f' --output {vcf_path}'
                 + f' --disable-bam-index-caching {save_memory}'
             ),
-            input_files=[
+            input_files_or_dirs=[
                 gvcf_path, fa_path, dbsnp_vcf_path, evaluation_interval_path
             ],
-            output_files=[vcf_path, f'{vcf_path}.tbi']
+            output_files_or_dirs=[vcf_path, f'{vcf_path}.tbi']
         )
 
 
@@ -303,10 +305,10 @@ class CNNScoreVariants(ShellTask):
                 + ' --tensor-type read_tensor'
                 + f' --disable-bam-index-caching {save_memory}'
             ),
-            input_files=[
+            input_files_or_dirs=[
                 raw_vcf_path, fa_path, cram_path, evaluation_interval_path
             ],
-            output_files=[cnn_vcf_path, f'{cnn_vcf_path}.tbi']
+            output_files_or_dirs=[cnn_vcf_path, f'{cnn_vcf_path}.tbi']
         )
 
 
@@ -357,10 +359,12 @@ class FilterVariantTranches(ShellTask):
                 + ' --invalidate-previous-filters'
                 + f' --disable-bam-index-caching {save_memory}'
             ),
-            input_files=[
+            input_files_or_dirs=[
                 cnn_vcf_path, *resource_vcf_paths, evaluation_interval_path
             ],
-            output_files=[filtered_vcf_path, f'{filtered_vcf_path}.tbi']
+            output_files_or_dirs=[
+                filtered_vcf_path, f'{filtered_vcf_path}.tbi'
+            ]
         )
 
 

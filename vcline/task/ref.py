@@ -54,7 +54,8 @@ class FetchReferenceFASTA(ShellTask):
                 a = 'cat {p} {r} {fa_path}'
             args.append(f'set -e && {a}')
         self.run_shell(
-            args=args, input_files=self.ref_fa_paths, output_files=fa_path
+            args=args, input_files_or_dirs=self.ref_fa_paths,
+            output_files_or_dirs=fa_path
         )
 
 
@@ -98,11 +99,13 @@ class FetchResourceVCF(ShellTask):
                     )
                 )
             ),
-            input_files=self.resource_vcf_path, output_files=dest_vcf_path
+            input_files_or_dirs=self.resource_vcf_path,
+            output_files_or_dirs=dest_vcf_path
         )
         self.run_shell(
             args=f'set -e && {tabix} -p vcf {dest_vcf_path}',
-            input_files=dest_vcf_path, output_files=f'{dest_vcf_path}.tbi'
+            input_files_or_dirs=dest_vcf_path,
+            output_files_or_dirs=f'{dest_vcf_path}.tbi'
         )
 
 
@@ -169,7 +172,10 @@ class FetchResourceFile(ShellTask):
             a = f'{pbzip2} -p{n_cpu} -dc {src_path} > {dest_path}'
         else:
             a = f'cp {src_path} {dest_path}'
-        self.run_shell(args=a, input_files=src_path, output_files=dest_path)
+        self.run_shell(
+            args=a, input_files_or_dirs=src_path,
+            output_files_or_dirs=dest_path
+        )
 
 
 @requires(FetchReferenceFASTA)
@@ -191,7 +197,8 @@ class CreateFASTAIndex(ShellTask):
         )
         self.run_shell(
             args=f'set -e && {samtools} faidx {fa_path}',
-            input_files=fa_path, output_files=self.output().path
+            input_files_or_dirs=fa_path,
+            output_files_or_dirs=self.output().path
         )
 
 
@@ -217,8 +224,8 @@ class CreateBWAIndices(ShellTask):
         )
         self.run_shell(
             args=f'set -e && {bwa} index {fa_path}',
-            input_files=fa_path,
-            output_files=[o.path for o in self.output()]
+            input_files_or_dirs=fa_path,
+            output_files_or_dirs=[o.path for o in self.output()]
         )
 
 
@@ -270,12 +277,13 @@ class CreateEvaluationIntervalListBED(ShellTask):
                 + f'{sys.executable} {pyscript_path} {interval_list_path}'
                 + f' | {bgzip} -@ {n_cpu} -c > {interval_bed_path}'
             ),
-            input_files=interval_list_path, output_files=interval_bed_path
+            input_files_or_dirs=interval_list_path,
+            output_files_or_dirs=interval_bed_path
         )
         self.run_shell(
             args=f'set -e && {tabix} -p bed {interval_bed_path}',
-            input_files=interval_bed_path,
-            output_files=f'{interval_bed_path}.tbi'
+            input_files_or_dirs=interval_bed_path,
+            output_files_or_dirs=f'{interval_bed_path}.tbi'
         )
 
 
@@ -311,7 +319,7 @@ class CreateSequenceDictionary(ShellTask):
                 + f' --REFERENCE {fa_path}'
                 + f' --OUTPUT {seq_dict_path}'
             ),
-            input_files=fa_path, output_files=seq_dict_path
+            input_files_or_dirs=fa_path, output_files_or_dirs=seq_dict_path
         )
 
 
@@ -386,13 +394,13 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
                 + ' --restrict-alleles-to BIALLELIC'
                 + ' --lenient'
             ),
-            input_files=input_vcf_path,
-            output_files=biallelic_snp_vcf_path
+            input_files_or_dirs=input_vcf_path,
+            output_files_or_dirs=biallelic_snp_vcf_path
         )
         self.run_shell(
             args=f'set -e && {tabix} -p vcf {biallelic_snp_vcf_path}',
-            input_files=biallelic_snp_vcf_path,
-            output_files=f'{biallelic_snp_vcf_path}.tbi'
+            input_files_or_dirs=biallelic_snp_vcf_path,
+            output_files_or_dirs=f'{biallelic_snp_vcf_path}.tbi'
         )
 
 
@@ -423,7 +431,7 @@ class ExtractTarFile(ShellTask):
         )
         self.run_shell(
             args=f'tar -xvf {self.tar_path}',
-            input_files=self.tar_path, output_files=dest_path
+            input_files_or_dirs=self.tar_path, output_files_or_dirs=dest_path
         )
 
 

@@ -52,8 +52,8 @@ class WriteAfOnlyVCF(ShellTask):
                 ) + f' | {sys.executable} {pyscript_path}'
                 + f' | {self.bgzip} -@ {self.n_cpu} -c > {dest_path}'
             ),
-            input_files=(self.src_path if self.src_path else None),
-            output_files=dest_path
+            input_files_or_dirs=(self.src_path if self.src_path else None),
+            output_files_or_dirs=dest_path
         )
 
 
@@ -126,7 +126,8 @@ class CreateIntervalListWithBED(ShellTask):
                 + f' --REFERENCE {self.fa_path}'
                 + f' --OUTPUT {seq_dict_path}'
             ),
-            input_files=self.fa_path, output_files=seq_dict_path
+            input_files_or_dirs=self.fa_path,
+            output_files_or_dirs=seq_dict_path
         )
         self.run_shell(
             args=(
@@ -136,8 +137,8 @@ class CreateIntervalListWithBED(ShellTask):
                 + f' --OUTPUT {interval_list_path}'
                 + f' --SEQUENCE_DICTIONARY {seq_dict_path}'
             ),
-            input_files=[self.bed_path, seq_dict_path],
-            output_files=interval_list_path
+            input_files_or_dirs=[self.bed_path, seq_dict_path],
+            output_files_or_dirs=interval_list_path
         )
 
 
