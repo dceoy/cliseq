@@ -28,8 +28,8 @@ def build_luigi_tasks(*args, **kwargs):
 def parse_fq_id(fq_path):
     return (
         re.sub(
-            r'([\._]R[12][\._]|\.fq\.|\.fastq\.).+$', '',
-            Path(fq_path).name
+            r'([\._]read[12][\._]|[\._]r[12][\._]|\.fq\.|\.fastq\.).+$', '',
+            Path(fq_path).name, flags=re.IGNORECASE
         ) or Path(Path(fq_path).stem).stem
     )
 
