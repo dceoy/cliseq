@@ -70,7 +70,7 @@ class AlignReads(ShellTask):
         self.run_shell(
             args=(
                 'set -eo pipefail && '
-                + f'{bwa} mem -t {n_cpu} -R \'{rg}\' -T 0 -PY {fa_path}'
+                + f'{bwa} mem -t {n_cpu} -R \'{rg}\' -T 0 -P {fa_path}'
                 + ''.join([f' {a}' for a in fq_paths])
                 + f' | {samtools} view -bS -'
                 + f' | {samtools} sort -@ {n_cpu} -m {memory_per_thread}'

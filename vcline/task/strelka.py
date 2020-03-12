@@ -46,11 +46,14 @@ class CallVariantsWithStrelka(ShellTask):
         input_cram_paths = [i[0].path for i in self.input()[0]]
         fa_path = self.input()[1].path
         manta_indel_vcf_path = str(
-            Path(self.input()[2][0].path).joinpath(
+            Path(self.input()[2][0].path).parent.joinpath(
                 'candidateSmallIndels.vcf.gz'
             )
         )
         bed_path = self.input()[3][0].path
+        export_pythonpath = 'export PYTHONPATH="{}"'.format(
+            Path(config_script).resolve().parent.parent.joinpath('lib/python')
+        )
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=config_script, cwd=self.cf['strelka_dir_path'],
@@ -58,7 +61,7 @@ class CallVariantsWithStrelka(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -e && {config_script}'
+                f'set -e && {export_pythonpath} && {config_script}'
                 + f' --tumorBam={input_cram_paths[0]}'
                 + f' --normalBam={input_cram_paths[1]}'
                 + f' --referenceFasta={fa_path}'
@@ -73,7 +76,7 @@ class CallVariantsWithStrelka(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -e && {run_script}'
+                f'set -e && {export_pythonpath} && {run_script}'
                 + f' --jobs={n_cpu}'
                 + f' --memGb={memory_gb}'
                 + ' --mode=local'
