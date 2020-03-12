@@ -30,7 +30,7 @@ class CallStructualVariantsWithManta(ShellTask):
                 )
             ) for v, i in product(
                 [
-                    'somaticSV.vcf.gz', 'diploidSV.vcf.gz', 'tumorSV.vcf.gz',
+                    'somaticSV.vcf.gz', 'diploidSV.vcf.gz',
                     'candidateSV.vcf.gz', 'candidateSmallIndels.vcf.gz'
                 ],
                 ['', '.tbi']
