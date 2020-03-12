@@ -64,12 +64,13 @@ class AlignReads(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[bwa, samtools], cwd=self.cf['align_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed'],
             env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
             args=(
                 'set -eo pipefail && '
-                + f'{bwa} mem -t {n_cpu} -R \'{rg}\' -T 0 -pY {fa_path}'
+                + f'{bwa} mem -t {n_cpu} -R \'{rg}\' -T 0 -PY {fa_path}'
                 + ''.join([f' {a}' for a in fq_paths])
                 + f' | {samtools} view -bS -'
                 + f' | {samtools} sort -@ {n_cpu} -m {memory_per_thread}'
@@ -125,6 +126,7 @@ class MarkDuplicates(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[gatk, samtools], cwd=self.cf['align_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed'],
             env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
@@ -221,6 +223,7 @@ class ApplyBQSR(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[gatk, samtools], cwd=self.cf['align_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed'],
             env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
@@ -305,6 +308,7 @@ class RemoveDuplicatesAndUnmapped(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=samtools, cwd=self.cf['align_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed'],
             env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(

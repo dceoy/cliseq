@@ -39,8 +39,9 @@ class ShellTask(BaseTask):
 
     @classmethod
     def setup_shell(cls, run_id=None, log_dir_path=None, commands=None,
-                    cwd=None, clear_log_txt=False, print_command=True,
-                    quiet=True, executable='/bin/bash', **kwargs):
+                    cwd=None, remove_if_failed=True, clear_log_txt=False,
+                    print_command=True, quiet=True, executable='/bin/bash',
+                    **kwargs):
         cls.__log_txt_path = (
             str(
                 Path(log_dir_path or '.').joinpath(
@@ -54,7 +55,9 @@ class ShellTask(BaseTask):
             logger=logging.getLogger(cls.__name__),
             print_command=print_command, executable=executable
         )
-        cls.__run_kwargs = {'cwd': cwd, **kwargs}
+        cls.__run_kwargs = {
+            'cwd': cwd, 'remove_if_failed': remove_if_failed, **kwargs
+        }
         for p in [log_dir_path, cwd]:
             if p:
                 d = Path(p).resolve()

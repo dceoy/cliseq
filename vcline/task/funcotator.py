@@ -127,7 +127,8 @@ class AnnotateVariantsWithFuncotator(ShellTask):
         ref_version = self.cf['ref_version']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=str(Path(output_vcf_paths[0]).parent)
+            cwd=str(Path(output_vcf_paths[0]).parent),
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=[

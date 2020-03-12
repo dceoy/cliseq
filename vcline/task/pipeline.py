@@ -72,6 +72,7 @@ class RunAnalyticalPipeline(BaseTask):
     n_cpu_per_worker = luigi.IntParameter(default=1)
     memory_mb_per_worker = luigi.IntParameter(default=(16 * 1024))
     split_intervals = luigi.BoolParameter(default=False)
+    skip_cleaning = luigi.BoolParameter(default=False)
     log_level = luigi.Parameter(default='WARNING')
 
     def requires(self):
@@ -96,6 +97,7 @@ class RunAnalyticalPipeline(BaseTask):
             ),
             'save_memory': (self.memory_mb_per_worker < 8 * 1024),
             'split_intervals': self.split_intervals,
+            'remove_if_failed': (not self.skip_cleaning),
             **{
                 c: fetch_executable(c) for c in [
                     'bgzip', 'bwa', 'cutadapt', 'fastqc', 'gatk', 'pbzip2',

@@ -41,7 +41,8 @@ class FetchReferenceFASTA(ShellTask):
         n_cpu = self.cf['n_cpu_per_worker']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[pigz, pbzip2], cwd=self.cf['ref_dir_path']
+            commands=[pigz, pbzip2], cwd=self.cf['ref_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         args = list()
         for i, p in enumerate(self.ref_fa_paths):
@@ -87,7 +88,8 @@ class FetchResourceVCF(ShellTask):
         n_cpu = self.cf['n_cpu_per_worker']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[bgzip, tabix], cwd=self.cf['ref_dir_path']
+            commands=[bgzip, tabix], cwd=self.cf['ref_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
@@ -164,7 +166,8 @@ class FetchResourceFile(ShellTask):
         n_cpu = self.cf['n_cpu_per_worker']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[pigz, pbzip2], cwd=self.cf['ref_dir_path']
+            commands=[pigz, pbzip2], cwd=self.cf['ref_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         if src_path.endswith('.gz'):
             a = f'{pigz} -p {n_cpu} -dc {src_path} > {dest_path}'
@@ -220,7 +223,8 @@ class CreateBWAIndices(ShellTask):
         bwa = self.cf['bwa']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=bwa, cwd=self.cf['ref_dir_path']
+            commands=bwa, cwd=self.cf['ref_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=f'set -e && {bwa} index {fa_path}',
@@ -269,7 +273,8 @@ class CreateEvaluationIntervalListBED(ShellTask):
         )
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[bgzip, tabix], cwd=self.cf['ref_dir_path']
+            commands=[bgzip, tabix], cwd=self.cf['ref_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
@@ -310,7 +315,8 @@ class CreateSequenceDictionary(ShellTask):
         seq_dict_path = self.output().path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=gatk, cwd=self.cf['ref_dir_path']
+            commands=gatk, cwd=self.cf['ref_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
@@ -381,7 +387,8 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
         biallelic_snp_vcf_path = self.output()[0].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[tabix, gatk], cwd=self.cf['ref_dir_path']
+            commands=[tabix, gatk], cwd=self.cf['ref_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(

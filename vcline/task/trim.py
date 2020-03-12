@@ -39,7 +39,8 @@ class TrimAdapters(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[cutadapt, fastqc, pigz, trim_galore],
-            cwd=self.cf['trim_dir_path']
+            cwd=self.cf['trim_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(

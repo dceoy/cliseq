@@ -53,7 +53,8 @@ class CallVariantsWithStrelka(ShellTask):
         bed_path = self.input()[3][0].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=config_script, cwd=self.cf['strelka_dir_path']
+            commands=config_script, cwd=self.cf['strelka_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(

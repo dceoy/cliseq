@@ -5,8 +5,8 @@ Variant Calling Pipeline for Clinical Sequencing
 Usage:
     vcline init [--debug|--info] [--yml=<path>]
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
-        [--workers=<int>] [--split-intervals] [--ref-dir=<path>]
-        <dest_dir_path>
+        [--workers=<int>] [--split-intervals] [--skip-cleaning]
+        [--ref-dir=<path>] <dest_dir_path>
     vcline download-funcotator-data [--debug|--info] [--cpus=<int>]
         <dest_dir_path>
     vcline create-interval-list [--debug|--info] [--cpus=<int>]
@@ -31,6 +31,7 @@ Options:
     --cpus=<int>        Limit CPU cores used
     --workers=<int>     Specify the maximum number of workers [default: 2]
     --split-intervals   Split evaluation intervals
+    --skip-cleaning     Skip incomlete file removal when a task fails
     --ref-dir=<path>    Specify a reference directory path
     --src-url=<url>     Specify a source URL
     --src-path=<path>   Specify a source PATH
@@ -81,7 +82,8 @@ def main():
             config_yml_path=args['--yml'], ref_dir_path=args['--ref-dir'],
             dest_dir_path=args['<dest_dir_path>'], max_n_cpu=args['--cpus'],
             max_n_worker=args['--workers'],
-            split_intervals=args['--split-intervals'], log_level=log_level
+            split_intervals=args['--split-intervals'],
+            skip_cleaning=args['--skip-cleaning'], log_level=log_level
         )
     else:
         n_cpu = int(args['--cpus'] or cpu_count())
@@ -150,7 +152,7 @@ def _write_config_yml(path):
 def _run_analytical_pipeline(config_yml_path, dest_dir_path='.',
                              ref_dir_path=None, max_n_cpu=None,
                              max_n_worker=None, split_intervals=False,
-                             log_level='WARNING'):
+                             skip_cleaning=False, log_level='WARNING'):
     dest_dir = Path(dest_dir_path).resolve()
     assert dest_dir.is_dir()
     assert Path(config_yml_path).is_file()
@@ -192,7 +194,8 @@ def _run_analytical_pipeline(config_yml_path, dest_dir_path='.',
                 memory_mb_per_worker=int(
                     virtual_memory().total / 1024 / 1024 / n_worker
                 ),
-                split_intervals=split_intervals, log_level=log_level
+                split_intervals=split_intervals, skip_cleaning=skip_cleaning,
+                log_level=log_level
             )
         ],
         workers=n_worker, log_level=log_level, logging_conf_file=log_cfg_path

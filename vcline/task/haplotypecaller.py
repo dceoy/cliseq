@@ -38,7 +38,8 @@ class SplitEvaluationIntervals(ShellTask):
         scatter_count = self.cf['n_cpu_per_worker']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['haplotypecaller_dir_path']
+            cwd=self.cf['haplotypecaller_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
@@ -134,6 +135,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[gatk, samtools], cwd=self.cf['haplotypecaller_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed'],
             env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
@@ -247,7 +249,8 @@ class GenotypeGVCF(ShellTask):
         evaluation_interval_path = self.input()[3].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['haplotypecaller_dir_path']
+            cwd=self.cf['haplotypecaller_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
@@ -292,7 +295,8 @@ class CNNScoreVariants(ShellTask):
         evaluation_interval_path = self.input()[3].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['haplotypecaller_dir_path']
+            cwd=self.cf['haplotypecaller_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
@@ -342,7 +346,8 @@ class FilterVariantTranches(ShellTask):
         evaluation_interval_path = self.input()[4].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['haplotypecaller_dir_path']
+            cwd=self.cf['haplotypecaller_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(

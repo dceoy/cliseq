@@ -46,7 +46,8 @@ class GetMatchedPileupSummaries(ShellTask):
         gnomad_common_biallelic_vcf_path = self.input()[3][0].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['mutect2_dir_path']
+            cwd=self.cf['mutect2_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=[
@@ -94,7 +95,8 @@ class CalculateContamination(ShellTask):
         segment_table_path = self.output()[1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['mutect2_dir_path']
+            cwd=self.cf['mutect2_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
@@ -178,6 +180,7 @@ class CallVariantsWithMutect2(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[gatk, samtools], cwd=self.cf['mutect2_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed'],
             env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
@@ -310,7 +313,8 @@ class FilterMutectCalls(ShellTask):
         segment_table_path = self.input()[3][1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['mutect2_dir_path']
+            cwd=self.cf['mutect2_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
