@@ -14,11 +14,14 @@ references:
   hapmap_vcf: /path/to/hapmap_3.3.hg38.vcf.gz
   # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/hapmap_3.3.hg38.vcf.gz
   gnomad_vcf: /path/to/gnomad.genomes.r3.0.sites.af-only.vcf.gz
+  # downloaded with vcline write-af-only-vcf
   # https://storage.cloud.google.com/gnomad-public/release/3.0/vcf/genomes/gnomad.genomes.r3.0.sites.vcf.bgz
   evaluation_interval: /path/to/wgs_calling_regions.hg38.interval_list
   # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/wgs_calling_regions.hg38.interval_list
   funcotator_germline_tar: /path/to/funcotator_dataSources.v1.6.20190124g.tar.gz
+  # downloaded with vcline download-funcotator-data
   funcotator_somatic_tar: /path/to/funcotator_dataSources.v1.6.20190124s.tar.gz
+  # downloaded with vcline download-funcotator-data
 runs:
   - tumor:
       fq:

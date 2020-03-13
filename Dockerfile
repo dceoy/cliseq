@@ -26,6 +26,7 @@ COPY --from=dceoy/smoove:latest /usr/local/bin/bpbio /usr/local/bin/bpbio
 COPY --from=dceoy/smoove:latest /usr/local/bin/gargs /usr/local/bin/gargs
 COPY --from=dceoy/smoove:latest /usr/local/bin/goleft /usr/local/bin/goleft
 COPY --from=dceoy/smoove:latest /usr/local/bin/smoove /usr/local/bin/smoove
+ADD https://bootstrap.pypa.io/get-pip.py /tmp/get-pip.py
 ADD . /tmp/vcline
 
 RUN set -e \
@@ -62,8 +63,10 @@ RUN set -e \
       && make install
 
 RUN set -e \
+      && /opt/conda/bin/python3 /tmp/get-pip.py \
       && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
-        cutadapt pip /tmp/vcline
+        cutadapt pip /tmp/vcline \
+      && rm -f /tmp/get-pip.py
 
 FROM ubuntu:latest
 

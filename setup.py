@@ -25,7 +25,7 @@ setup(
         'console_scripts': ['vcline=vcline.cli.main:main']
     },
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
         'Environment :: Console',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',

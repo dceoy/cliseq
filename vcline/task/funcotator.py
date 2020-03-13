@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
+import re
 from itertools import product
 from pathlib import Path
 
 import luigi
+from luigi.util import requires
 
 from .base import ShellTask
 from .haplotypecaller import FilterVariantTranches
@@ -14,9 +16,8 @@ from .ref import (ExtractTarFile, FetchEvaluationIntervalList,
 from .strelka import CallVariantsWithStrelka
 
 
-class AnnotateVariantsWithFuncotator(ShellTask):
-    variant_caller = luigi.Parameter(default='mutect2')
-    funcotator_data_source_tar_path = luigi.Parameter()
+class RunVariantCaller(luigi.WrapperTask):
+    variant_caller = luigi.Parameter()
     ref_fa_paths = luigi.ListParameter()
     fq_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
@@ -31,7 +32,7 @@ class AnnotateVariantsWithFuncotator(ShellTask):
 
     def requires(self):
         if self.variant_caller == 'haplotypecaller':
-            variant_calling = FilterVariantTranches(
+            return FilterVariantTranches(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
@@ -41,7 +42,7 @@ class AnnotateVariantsWithFuncotator(ShellTask):
                 cf=self.cf
             )
         elif self.variant_caller == 'mutect2':
-            variant_calling = FilterMutectCalls(
+            return FilterMutectCalls(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
@@ -51,7 +52,7 @@ class AnnotateVariantsWithFuncotator(ShellTask):
                 cf=self.cf
             )
         elif self.variant_caller in {'manta_somatic', 'manta_diploid'}:
-            variant_calling = CallStructualVariantsWithManta(
+            return CallStructualVariantsWithManta(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
@@ -60,7 +61,7 @@ class AnnotateVariantsWithFuncotator(ShellTask):
                 cf=self.cf
             )
         elif self.variant_caller == 'strelka':
-            variant_calling = CallVariantsWithStrelka(
+            return CallVariantsWithStrelka(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
@@ -70,19 +71,16 @@ class AnnotateVariantsWithFuncotator(ShellTask):
             )
         else:
             raise ValueError(f'invalid variant_caller: {self.variant_caller}')
-        return [
-            variant_calling,
-            FetchReferenceFASTA(ref_fa_paths=self.ref_fa_paths, cf=self.cf),
-            ExtractTarFile(
-                tar_path=self.funcotator_data_source_tar_path,
-                ref_dir_path=self.cf['ref_dir_path'],
-                log_dir_path=self.cf['log_dir_path']
-            ),
-            FetchEvaluationIntervalList(
-                evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
-            )
-        ]
+
+    def output(self):
+        return self.input()
+
+
+@requires(RunVariantCaller, FetchReferenceFASTA)
+class NormalizeVCF(ShellTask):
+    variant_caller = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 10
 
     def output(self):
         return [
@@ -110,10 +108,93 @@ class AnnotateVariantsWithFuncotator(ShellTask):
                         (
                             [Path(p).parent.parent.parent.name, vc]
                             if vc in {'manta', 'strelka'} else list()
-                        ) + [Path(Path(p).stem).stem, 'Funcotator.vcf.gz']
+                        ) + [Path(Path(p).stem).stem, 'norm.vcf.gz']
                     )
                 )
             )
+
+    def run(self):
+        output_vcf_paths = list(self._generate_output_vcf_paths())
+        run_id = '.'.join(Path(output_vcf_paths[0]).name.split('.')[:-3])
+        self.print_log(f'Normalize VCF:\t{run_id}')
+        bcftools = self.cf['bcftools']
+        tabix = self.cf['tabix']
+        n_cpu = self.cf['n_cpu_per_worker']
+        fa_path = self.input()[1].path
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=bcftools, cwd=self.cf['funcotator_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
+        )
+        for i, o in zip(self._generate_input_vcf_paths(), output_vcf_paths):
+            self.run_shell(
+                args=(
+                    f'set -e && {bcftools} norm'
+                    + f' --fasta-ref {fa_path}'
+                    + ' --check-ref w'
+                    + ' --rm-dup exact'
+                    + ' --multiallelics -'
+                    + ' --output-type z'
+                    + f' --threads {n_cpu}'
+                    + f' --output {o}'
+                    + f' {i}'
+                ),
+                input_files_or_dirs=[i, fa_path], output_files_or_dirs=o
+            )
+            self.run_shell(
+                args=f'set -e && {tabix} -p vcf {o}',
+                input_files_or_dirs=o, output_files_or_dirs=f'{o}.tbi'
+            )
+
+
+class AnnotateVariantsWithFuncotator(ShellTask):
+    variant_caller = luigi.Parameter(default='mutect2')
+    funcotator_data_source_tar_path = luigi.Parameter()
+    ref_fa_paths = luigi.ListParameter()
+    fq_list = luigi.ListParameter()
+    read_groups = luigi.ListParameter()
+    sample_names = luigi.ListParameter()
+    dbsnp_vcf_path = luigi.Parameter()
+    known_indel_vcf_paths = luigi.ListParameter()
+    hapmap_vcf_path = luigi.Parameter()
+    gnomad_vcf_path = luigi.Parameter()
+    evaluation_interval_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 10
+
+    def requires(self):
+        return [
+            NormalizeVCF(
+                variant_caller=self.variant_caller,
+                ref_fa_paths=self.ref_fa_paths, fq_list=self.fq_list,
+                read_groups=self.read_groups, sample_names=self.sample_names,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                known_indel_vcf_paths=self.known_indel_vcf_paths,
+                hapmap_vcf_path=self.hapmap_vcf_path,
+                gnomad_vcf_path=self.gnomad_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
+            ),
+            FetchReferenceFASTA(ref_fa_paths=self.ref_fa_paths, cf=self.cf),
+            ExtractTarFile(
+                tar_path=self.funcotator_data_source_tar_path,
+                ref_dir_path=self.cf['ref_dir_path'],
+                log_dir_path=self.cf['log_dir_path']
+            ),
+            FetchEvaluationIntervalList(
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
+            )
+        ]
+
+    def output(self):
+        return [
+            luigi.LocalTarget(
+                re.sub(
+                    r'(\.vcf\.gz|\.vcf\.gz\.tbi)$', r'\.Funcotator\1', i.path
+                )
+            ) for i in self.input()[0]
+        ]
 
     def run(self):
         output_vcf_paths = [
@@ -123,8 +204,9 @@ class AnnotateVariantsWithFuncotator(ShellTask):
         self.print_log(f'Annotate variants with Funcotator:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        asynchronous = (self.cf['n_cpu_per_worker'] > 1)
-        input_vcf_paths = list(self._generate_input_vcf_paths())
+        input_vcf_paths = [
+            i.path for i in self.input() if i.path.endswith('.vcf.gz')
+        ]
         fa_path = self.input()[1].path
         data_src_dir_path = self.input()[2].path
         evaluation_interval_path = self.input()[3].path
@@ -154,7 +236,9 @@ class AnnotateVariantsWithFuncotator(ShellTask):
             output_files_or_dirs=[
                 *output_vcf_paths, *[f'{o}.tbi' for o in output_vcf_paths]
             ],
-            asynchronous=asynchronous
+            asynchronous=(
+                1 < len(input_vcf_paths) <= self.cf['n_cpu_per_worker']
+            )
         )
 
 

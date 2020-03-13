@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import re
 from pathlib import Path
 
 import luigi
@@ -18,11 +19,8 @@ class TrimAdapters(ShellTask):
             luigi.LocalTarget(
                 str(
                     Path(self.cf['trim_dir_path']).joinpath(
-                        (
-                            Path(Path(p).stem).stem
-                            if p.endswith(('.fastq.gz', '.fq.gz'))
-                            else Path(p).name
-                        ) + f'_val_{i + 1}.fq.gz'
+                        re.sub(r'\.(fastq|fq)\.(gz|bz2)$', '', Path(p).name)
+                        + f'_val_{i + 1}.fq.gz'
                     )
                 )
             ) for i, p in enumerate(self.fq_paths)
@@ -53,14 +51,16 @@ class TrimAdapters(ShellTask):
             self.run_shell(
                 args=(
                     f'set -eo pipefail && '
-                    + '{pbzip2} -p{n_cpu} -dc {i}'
-                    + ' | {pigz} -p {n_cpu} -c - > {o}'
+                    + f'{pbzip2} -p{n_cpu} -dc {i}'
+                    + f' | {pigz} -p {n_cpu} -c - > {o}'
                 ),
                 input_files_or_dirs=i, output_files_or_dirs=o
             )
         self.run_shell(
             args=(
                 f'set -e && {trim_galore} --cores={n_cpu} --illumina'
+                + ' --output_dir {}'.format(self.cf['trim_dir_path'])
+                + ' --fastqc'
                 + (' --paired ' if len(work_fq_paths) > 1 else ' ')
                 + ' '.join(work_fq_paths)
             ),
