@@ -110,7 +110,7 @@ class RunAnalyticalPipeline(BaseTask):
                 f'{k}_dir_path': str(Path(self.dest_dir_path).joinpath(k))
                 for k in [
                     'trim', 'align', 'haplotypecaller', 'mutect2', 'strelka',
-                    'manta'
+                    'manta', 'funcotator'
                 ]
             },
             'ref_dir_path': str(Path(self.ref_dir_path).resolve()),

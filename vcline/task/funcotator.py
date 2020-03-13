@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import re
 from itertools import product
 from pathlib import Path
 
@@ -87,13 +86,8 @@ class AnnotateVariantsWithFuncotator(ShellTask):
 
     def output(self):
         return [
-            luigi.LocalTarget(v + i) for v, i in product(
-                [
-                    re.sub(r'\.vcf\.gz$', '.Funcotator.vcf.gz', p)
-                    for p in self._generate_input_vcf_paths()
-                ],
-                ['', '.tbi']
-            )
+            luigi.LocalTarget(v + i) for v, i
+            in product(self._generate_output_vcf_paths(), ['', '.tbi'])
         ]
 
     def _generate_input_vcf_paths(self):
@@ -103,19 +97,29 @@ class AnnotateVariantsWithFuncotator(ShellTask):
         )
         for i in self.input()[0]:
             p = i.path
-            if ((prefix is None or Path(p).name.startswith(prefix))
-                    and p.endswith('.vcf.gz')):
+            if (p.endswith('.vcf.gz')
+                    and (prefix is None or Path(p).name.startswith(prefix))):
                 yield p
+
+    def _generate_output_vcf_paths(self):
+        vc = self.variant_caller.split('_')[0]
+        for p in self._generate_input_vcf_paths():
+            yield str(
+                Path(self.cf['funcotator_dir_path']).joinpath(
+                    '.'.join(
+                        (
+                            [Path(p).parent.parent.parent.name, vc]
+                            if vc in {'manta', 'strelka'} else list()
+                        ) + [Path(Path(p).stem).stem, 'Funcotator.vcf.gz']
+                    )
+                )
+            )
 
     def run(self):
         output_vcf_paths = [
             o.path for o in self.output() if o.path.endswith('.vcf.gz')
         ]
-        run_id = (
-            Path(output_vcf_paths[0]).parent.parent.parent.name
-            if self.variant_caller in {'manta', 'strelka'} else
-            '.'.join(Path(output_vcf_paths[0]).name.split('.')[:-3])
-        )
+        run_id = '.'.join(Path(output_vcf_paths[0]).name.split('.')[:-3])
         self.print_log(f'Annotate variants with Funcotator:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
@@ -127,7 +131,7 @@ class AnnotateVariantsWithFuncotator(ShellTask):
         ref_version = self.cf['ref_version']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=str(Path(output_vcf_paths[0]).parent),
+            cwd=self.cf['funcotator_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
