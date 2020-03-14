@@ -3,21 +3,21 @@ reference_version: hg38
 references:
   ref_fa:
     - /path/to/Homo_sapiens_assembly38.fasta.bz2
-    # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta
+    # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta
   known_indel_vcf:
     - /path/to/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
-    # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
+    # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
     - /path/to/Homo_sapiens_assembly38.known_indels.vcf.gz
-    # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.known_indels.vcf.gz
+    # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.known_indels.vcf.gz
   dbsnp_vcf: /path/to/Homo_sapiens_assembly38.dbsnp138.vcf.gz
-  # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.dbsnp138.vcf
+  # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.dbsnp138.vcf
   hapmap_vcf: /path/to/hapmap_3.3.hg38.vcf.gz
-  # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/hapmap_3.3.hg38.vcf.gz
+  # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/hapmap_3.3.hg38.vcf.gz
   gnomad_vcf: /path/to/gnomad.genomes.r3.0.sites.af-only.vcf.gz
   # downloaded with vcline write-af-only-vcf
-  # https://storage.cloud.google.com/gnomad-public/release/3.0/vcf/genomes/gnomad.genomes.r3.0.sites.vcf.bgz
+  # https://storage.googleapis.com/gnomad-public/release/3.0/vcf/genomes/gnomad.genomes.r3.0.sites.vcf.bgz
   evaluation_interval: /path/to/wgs_calling_regions.hg38.interval_list
-  # https://storage.cloud.google.com/genomics-public-data/resources/broad/hg38/v0/wgs_calling_regions.hg38.interval_list
+  # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/wgs_calling_regions.hg38.interval_list
   funcotator_germline_tar: /path/to/funcotator_dataSources.v1.6.20190124g.tar.gz
   # downloaded with vcline download-funcotator-data
   funcotator_somatic_tar: /path/to/funcotator_dataSources.v1.6.20190124s.tar.gz
