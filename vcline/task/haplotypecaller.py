@@ -9,7 +9,7 @@ from luigi.util import requires
 from .align import PrepareCRAMs
 from .base import ShellTask
 from .ref import (CreateFASTAIndex, FetchDbsnpVCF, FetchEvaluationIntervalList,
-                  FetchHapmapVCF, FetchKnownIndelVCFs, FetchReferenceFASTA)
+                  FetchHapmapVCF, FetchMillsIndelVCF, FetchReferenceFASTA)
 
 
 @requires(FetchEvaluationIntervalList, FetchReferenceFASTA)
@@ -316,7 +316,7 @@ class CNNScoreVariants(ShellTask):
         )
 
 
-@requires(CNNScoreVariants, FetchHapmapVCF, FetchDbsnpVCF, FetchKnownIndelVCFs,
+@requires(CNNScoreVariants, FetchHapmapVCF, FetchMillsIndelVCF,
           FetchEvaluationIntervalList)
 class FilterVariantTranches(ShellTask):
     cf = luigi.DictParameter()
@@ -339,11 +339,8 @@ class FilterVariantTranches(ShellTask):
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         save_memory = str(self.cf['save_memory']).lower()
         cnn_vcf_path = self.input()[0][0].path
-        resource_vcf_paths = [
-            self.input()[1][0].path, self.input()[2][0].path,
-            *[i[0].path for i in self.input()[3]]
-        ]
-        evaluation_interval_path = self.input()[4].path
+        resource_vcf_paths = [self.input()[1][0].path, self.input()[2][0].path]
+        evaluation_interval_path = self.input()[3].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['haplotypecaller_dir_path'],

@@ -63,7 +63,6 @@ class FetchReferenceFASTA(ShellTask):
 class FetchResourceVCF(ShellTask):
     resource_vcf_path = luigi.ListParameter()
     cf = luigi.DictParameter()
-    priority = 80
 
     def output(self):
         return [
@@ -114,7 +113,7 @@ class FetchResourceVCF(ShellTask):
 class FetchDbsnpVCF(luigi.WrapperTask):
     dbsnp_vcf_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 80
+    priority = 70
 
     def requires(self):
         return FetchResourceVCF(
@@ -125,16 +124,29 @@ class FetchDbsnpVCF(luigi.WrapperTask):
         return self.input()
 
 
-class FetchKnownIndelVCFs(luigi.WrapperTask):
-    known_indel_vcf_paths = luigi.ListParameter()
+class FetchMillsIndelVCF(luigi.WrapperTask):
+    mills_indel_vcf_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 80
+    priority = 70
 
     def requires(self):
-        return [
-            FetchResourceVCF(resource_vcf_path=p, cf=self.cf)
-            for p in self.known_indel_vcf_paths
-        ]
+        return FetchResourceVCF(
+            resource_vcf_path=self.mills_indel_vcf_path, cf=self.cf
+        )
+
+    def output(self):
+        return self.input()
+
+
+class FetchKnownIndelVCF(luigi.WrapperTask):
+    known_indel_vcf_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 70
+
+    def requires(self):
+        return FetchResourceVCF(
+            resource_vcf_path=self.known_indel_vcf_path, cf=self.cf
+        )
 
     def output(self):
         return self.input()
@@ -143,7 +155,6 @@ class FetchKnownIndelVCFs(luigi.WrapperTask):
 class FetchResourceFile(ShellTask):
     resource_file_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 80
 
     def output(self):
         return luigi.LocalTarget(
@@ -184,7 +195,7 @@ class FetchResourceFile(ShellTask):
 @requires(FetchReferenceFASTA)
 class CreateFASTAIndex(ShellTask):
     cf = luigi.DictParameter()
-    priority = 80
+    priority = 70
 
     def output(self):
         return luigi.LocalTarget(self.input().path + '.fai')
@@ -236,7 +247,7 @@ class CreateBWAIndices(ShellTask):
 class FetchEvaluationIntervalList(luigi.WrapperTask):
     evaluation_interval_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 90
+    priority = 80
 
     def requires(self):
         return FetchResourceFile(
@@ -250,7 +261,7 @@ class FetchEvaluationIntervalList(luigi.WrapperTask):
 @requires(FetchEvaluationIntervalList)
 class CreateEvaluationIntervalListBED(ShellTask):
     cf = luigi.DictParameter()
-    priority = 90
+    priority = 70
 
     def output(self):
         return [
@@ -295,7 +306,7 @@ class CreateEvaluationIntervalListBED(ShellTask):
 @requires(FetchReferenceFASTA)
 class CreateSequenceDictionary(ShellTask):
     cf = luigi.DictParameter()
-    priority = 80
+    priority = 70
 
     def output(self):
         return luigi.LocalTarget(
@@ -332,7 +343,7 @@ class CreateSequenceDictionary(ShellTask):
 class FetchHapmapVCF(luigi.WrapperTask):
     hapmap_vcf_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 50
+    priority = 70
 
     def requires(self):
         return FetchResourceVCF(
@@ -346,7 +357,7 @@ class FetchHapmapVCF(luigi.WrapperTask):
 class FetchGnomadVCF(luigi.WrapperTask):
     gnomad_vcf_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 50
+    priority = 80
 
     def requires(self):
         return FetchResourceVCF(
@@ -361,7 +372,7 @@ class FetchGnomadVCF(luigi.WrapperTask):
           FetchEvaluationIntervalList)
 class CreateGnomadBiallelicSnpVCF(ShellTask):
     cf = luigi.DictParameter()
-    priority = 50
+    priority = 90
 
     def output(self):
         return [
@@ -413,14 +424,12 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
 
 class ExtractTarFile(ShellTask):
     tar_path = luigi.Parameter()
-    ref_dir_path = luigi.Parameter()
-    log_dir_path = luigi.Parameter()
-    priority = 80
+    cf = luigi.DictParameter()
 
     def output(self):
         return luigi.LocalTarget(
             str(
-                Path(self.ref_dir_path).joinpath(
+                Path(self.cf['ref_dir_path']).joinpath(
                     re.sub(
                         r'\.tar\.(gz|bz2)$', '', Path(self.tar_path).name
                     )
@@ -433,13 +442,27 @@ class ExtractTarFile(ShellTask):
         run_id = Path(dest_path).name
         self.print_log(f'Create a resource:\t{run_id}')
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.log_dir_path,
-            cwd=self.ref_dir_path
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            cwd=self.cf['ref_dir_path']
         )
         self.run_shell(
             args=f'tar -xvf {self.tar_path}',
             input_files_or_dirs=self.tar_path, output_files_or_dirs=dest_path
         )
+
+
+class ExtractFuncotatorTarFile(luigi.WrapperTask):
+    funcotator_data_source_tar_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 80
+
+    def requires(self):
+        return ExtractTarFile(
+            tar_path=self.funcotator_data_source_tar_path, cf=self.cf
+        )
+
+    def output(self):
+        return self.input()
 
 
 if __name__ == '__main__':

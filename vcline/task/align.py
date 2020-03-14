@@ -9,7 +9,8 @@ from luigi.util import requires
 from ..cli.util import parse_fq_id
 from .base import ShellTask
 from .ref import (CreateBWAIndices, CreateFASTAIndex, CreateSequenceDictionary,
-                  FetchDbsnpVCF, FetchKnownIndelVCFs, FetchReferenceFASTA)
+                  FetchDbsnpVCF, FetchKnownIndelVCF, FetchMillsIndelVCF,
+                  FetchReferenceFASTA)
 from .trim import TrimAdapters
 
 
@@ -188,7 +189,8 @@ class MarkDuplicates(ShellTask):
 
 
 @requires(MarkDuplicates, FetchReferenceFASTA, CreateFASTAIndex,
-          CreateSequenceDictionary, FetchDbsnpVCF, FetchKnownIndelVCFs)
+          CreateSequenceDictionary, FetchDbsnpVCF, FetchMillsIndelVCF,
+          FetchKnownIndelVCF)
 class ApplyBQSR(ShellTask):
     cf = luigi.DictParameter()
     priority = 80
@@ -215,9 +217,7 @@ class ApplyBQSR(ShellTask):
         output_cram_path = self.output()[0].path
         fa_path = self.input()[1].path
         fa_dict_path = self.input()[3].path
-        known_site_vcf_gz_paths = [
-            self.input()[4][0].path, *[o[0].path for o in self.input()[5]]
-        ]
+        known_site_vcf_gz_paths = [i[0].path for i in self.input()[4:7]]
         bqsr_csv_path = self.output()[2].path
         tmp_bam_path = re.sub(r'\.cram$', '.bam', output_cram_path)
         self.setup_shell(
@@ -335,7 +335,8 @@ class PrepareCRAMs(luigi.WrapperTask):
     read_groups = luigi.ListParameter()
     sample_names = luigi.ListParameter()
     dbsnp_vcf_path = luigi.Parameter()
-    known_indel_vcf_paths = luigi.ListParameter()
+    mills_indel_vcf_path = luigi.Parameter()
+    known_indel_vcf_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 100
 
@@ -345,7 +346,8 @@ class PrepareCRAMs(luigi.WrapperTask):
                 fq_paths=f, read_group=r, sample_name=n,
                 ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
-                known_indel_vcf_paths=self.known_indel_vcf_paths, cf=self.cf
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
             ) for f, r, n
             in zip(self.fq_list, self.read_groups, self.sample_names)
         ]

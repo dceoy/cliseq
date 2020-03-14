@@ -20,7 +20,8 @@ class CallVariants(luigi.WrapperTask):
     read_groups = luigi.ListParameter()
     sample_names = luigi.ListParameter()
     dbsnp_vcf_path = luigi.Parameter()
-    known_indel_vcf_paths = luigi.ListParameter()
+    mills_indel_vcf_path = luigi.Parameter()
+    known_indel_vcf_path = luigi.Parameter()
     hapmap_vcf_path = luigi.Parameter()
     gnomad_vcf_path = luigi.Parameter()
     evaluation_interval_path = luigi.Parameter()
@@ -39,7 +40,8 @@ class CallVariants(luigi.WrapperTask):
                     read_groups=self.read_groups,
                     sample_names=self.sample_names,
                     dbsnp_vcf_path=self.dbsnp_vcf_path,
-                    known_indel_vcf_paths=self.known_indel_vcf_paths,
+                    mills_indel_vcf_path=self.mills_indel_vcf_path,
+                    known_indel_vcf_path=self.known_indel_vcf_path,
                     gnomad_vcf_path=self.gnomad_vcf_path,
                     hapmap_vcf_path=self.hapmap_vcf_path,
                     evaluation_interval_path=self.evaluation_interval_path,
@@ -57,7 +59,8 @@ class CallVariants(luigi.WrapperTask):
                 ref_fa_paths=self.ref_fa_paths, fq_list=self.fq_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
-                known_indel_vcf_paths=self.known_indel_vcf_paths, cf=self.cf
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
             )
 
     def output(self):
@@ -100,10 +103,9 @@ class RunAnalyticalPipeline(BaseTask):
             'remove_if_failed': (not self.skip_cleaning),
             **{
                 c: fetch_executable(c) for c in [
-                    'bgzip', 'bwa', 'cutadapt', 'fastqc', 'gatk', 'pbzip2',
-                    'pigz', 'configManta.py',
-                    'configureStrelkaSomaticWorkflow.py', 'samtools', 'tabix',
-                    'trim_galore'
+                    'bcftools', 'bgzip', 'bwa', 'cutadapt', 'fastqc', 'gatk',
+                    'pbzip2', 'pigz', 'samtools', 'tabix', 'trim_galore',
+                    'configManta.py', 'configureStrelkaSomaticWorkflow.py'
                 ]
             },
             **{

@@ -85,6 +85,7 @@ RUN set -e \
       && apt-get -y install --no-install-recommends --no-install-suggests \
         apt-transport-https apt-utils ca-certificates curl openjdk-8-jre \
         libcurl3-gnutls libgsl23 libncurses5 pbzip2 perl pigz python r-base \
+        wget \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*

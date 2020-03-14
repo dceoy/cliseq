@@ -7,40 +7,43 @@ Usage:
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
         [--workers=<int>] [--split-intervals] [--skip-cleaning]
         [--ref-dir=<path>] <dest_dir_path>
+    vcline download-resources [--debug|--info] [--cpus=<int>]
+        <dest_dir_path>
     vcline download-funcotator-data [--debug|--info] [--cpus=<int>]
         <dest_dir_path>
+    vcline write-af-only-vcf [--debug|--info] [--cpus=<int>]
+        [--src-path=<path>|--src-url=<url>] <dest_dir_path>
     vcline create-interval-list [--debug|--info] [--cpus=<int>]
         <fa_path> <bed_path> <dest_dir_path>
-    vcline write-af-only-vcf [--debug|--info] [--cpus=<int>]
-        [--src-path=<path>|--src-url=<url>|--gnomad-url] <dest_dir_path>
     vcline -h|--help
     vcline --version
 
 Commands:
-    init                Create a config YAML template
-    run                 Run the analytical pipeline
+    init                    Create a config YAML template
+    run                     Run the analytical pipeline
+    download-resources      Download and process resource data
     download-funcotator-data
-                        Download Funcotator data sources
-    write-af-only-vcf   Extract and write only AF from VCF INFO
+                            Download Funcotator data sources
+    write-af-only-vcf       Extract and write only AF from VCF INFO
+    create-interval-list    Create an interval_list from BED
 
 Options:
-    -h, --help          Print help and exit
-    --version           Print version and exit
-    --debug, --info     Execute a command with debug|info messages
-    --yml=<path>        Specify a config YAML path [default: vcline.yml]
-    --cpus=<int>        Limit CPU cores used
-    --workers=<int>     Specify the maximum number of workers [default: 2]
-    --split-intervals   Split evaluation intervals
-    --skip-cleaning     Skip incomlete file removal when a task fails
-    --ref-dir=<path>    Specify a reference directory path
-    --src-url=<url>     Specify a source URL
-    --src-path=<path>   Specify a source PATH
-    --gnomad-url        Specify the URL of gnomAD VCF (default)
+    -h, --help              Print help and exit
+    --version               Print version and exit
+    --debug, --info         Execute a command with debug|info messages
+    --yml=<path>            Specify a config YAML path [default: vcline.yml]
+    --cpus=<int>            Limit CPU cores used
+    --workers=<int>         Specify the maximum number of workers [default: 2]
+    --split-intervals       Split evaluation intervals
+    --skip-cleaning         Skip incomlete file removal when a task fails
+    --ref-dir=<path>        Specify a reference directory path
+    --src-url=<url>         Specify a source URL
+    --src-path=<path>       Specify a source PATH
 
 Args:
-    <dest_dir_path>     Destination directory path
-    <fa_path>           Path to a reference genome file
-    <bed_path>          Path to a BED file
+    <dest_dir_path>         Destination directory path
+    <fa_path>               Path to a reference genome file
+    <bed_path>              Path to a BED file
 """
 
 import logging
@@ -56,7 +59,8 @@ from psutil import cpu_count, virtual_memory
 from .. import __version__
 from ..task.pipeline import RunAnalyticalPipeline
 from ..task.resource import (CreateIntervalListWithBED,
-                             DownloadFuncotatorDataSources, WriteAfOnlyVCF)
+                             DownloadFuncotatorDataSources,
+                             DownloadResourceFiles, WriteAfOnlyVCF)
 from .util import (build_luigi_tasks, fetch_executable, load_default_url_dict,
                    print_log, render_template)
 
@@ -86,15 +90,47 @@ def main():
             skip_cleaning=args['--skip-cleaning'], log_level=log_level
         )
     else:
+        dest_dir_path = str(Path(args['<dest_dir_path>']).resolve())
         n_cpu = int(args['--cpus'] or cpu_count())
-        if args['download-funcotator-data']:
+        if args['download-resources']:
+            resource_url_dict = load_default_url_dict()
+            build_luigi_tasks(
+                tasks=[
+                    DownloadResourceFiles(
+                        urls=list(resource_url_dict.values()),
+                        dest_dir_path=dest_dir_path, n_cpu=n_cpu,
+                        **{
+                            c: fetch_executable(c)
+                            for c in ['wget', 'pbzip2', 'bgzip']
+                        }
+                    ),
+                    DownloadFuncotatorDataSources(
+                        dest_dir_path=dest_dir_path, n_cpu=n_cpu,
+                        gatk=fetch_executable('gatk')
+                    )
+                ],
+                log_level=log_level
+            )
+            build_luigi_tasks(
+                tasks=[
+                    WriteAfOnlyVCF(
+                        src_path=str(
+                            Path(dest_dir_path).joinpath(
+                                Path(resource_url_dict['gnomad_vcf']).name
+                            )
+                        ),
+                        dest_dir_path=dest_dir_path, n_cpu=n_cpu,
+                        bgzip=fetch_executable('bgzip')
+                    )
+                ],
+                log_level=log_level
+            )
+        elif args['download-funcotator-data']:
             build_luigi_tasks(
                 tasks=[
                     DownloadFuncotatorDataSources(
-                        dest_dir_path=str(
-                            Path(args['<dest_dir_path>']).resolve()
-                        ),
-                        n_cpu=n_cpu, gatk=fetch_executable('gatk')
+                        dest_dir_path=dest_dir_path, n_cpu=n_cpu,
+                        gatk=fetch_executable('gatk')
                     )
                 ],
                 log_level=log_level
@@ -107,16 +143,11 @@ def main():
                             str(Path(args['--src-path']).resolve())
                             if args['--src-path'] else ''
                         ),
-                        src_url=(
-                            '' if args['--src-path'] else (
-                                args['--src-url']
-                                or load_default_url_dict()['gnomad_vcf']
-                            )
+                        dest_dir_path=dest_dir_path, n_cpu=n_cpu,
+                        **(
+                            {'src_url': args['--src-url']}
+                            if args['--src-url'] else dict()
                         ),
-                        dest_dir_path=str(
-                            Path(args['<dest_dir_path>']).resolve()
-                        ),
-                        n_cpu=n_cpu,
                         **{c: fetch_executable(c) for c in ['curl', 'bgzip']}
                     )
                 ],
@@ -128,10 +159,8 @@ def main():
                     CreateIntervalListWithBED(
                         fa_path=str(Path(args['<fa_path>']).resolve()),
                         bed_path=str(Path(args['<bed_path>']).resolve()),
-                        dest_dir_path=str(
-                            Path(args['<dest_dir_path>']).resolve()
-                        ),
-                        n_cpu=n_cpu, gatk=fetch_executable('gatk')
+                        dest_dir_path=dest_dir_path, n_cpu=n_cpu,
+                        gatk=fetch_executable('gatk')
                     )
                 ],
                 log_level=log_level
