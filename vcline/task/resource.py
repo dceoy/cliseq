@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import re
 import sys
 from pathlib import Path
 
@@ -19,8 +20,10 @@ class DownloadResourceFiles(ShellTask):
     def output(self):
         for u in self.urls:
             p = str(Path(self.dest_dir_path).resolve().joinpath(Path(u).name))
-            if p.endswith(('.gz', '.bz2', '.bgz')):
+            if p.endswith(('.gz', '.bz2')):
                 yield luigi.LocalTarget(p)
+            elif p.endswith('.bgz'):
+                yield luigi.LocalTarget(re.sub(r'\.bgz$', '.gz', p))
             elif p.endswith('.vcf'):
                 yield luigi.LocalTarget(f'{p}.gz')
             else:
@@ -39,13 +42,15 @@ class DownloadResourceFiles(ShellTask):
                 output_files_or_dirs=p
             )
             if p != o.path:
+                if p.endswith('.bgz'):
+                    cmd = f'mv {p} {o.path}'
+                elif p.endswith('.vcf'):
+                    cmd = f'{self.bgzip} -@ {self.n_cpu} {p}'
+                else:
+                    cmd = f'{self.pbzip2} -p{self.n_cpu} {p}'
                 self.run_shell(
-                    args=(
-                        f'set -e && {self.bgzip} -@ {self.n_cpu} {p}'
-                        if p.endswith('.vcf') else
-                        f'set -e && {self.pbzip2} -p{self.n_cpu} {p}'
-                    ),
-                    input_files_or_dirs=p, output_files_or_dirs=o.path
+                    args=f'set -e && {cmd}', input_files_or_dirs=p,
+                    output_files_or_dirs=o.path
                 )
 
 
@@ -64,25 +69,27 @@ class DownloadFuncotatorDataSources(ShellTask):
                 f'-XX:ParallelGCThreads={self.n_cpu}'
             ])
         )
-        self.setup_shell(
-            commands=self.gatk, cwd=self.dest_dir_path, quiet=False
-        )
-        self.run_shell(
-            args=[
-                (
-                    f'set -e && '
-                    + f'{self.gatk}{gatk_opts} FuncotatorDataSourceDownloader'
-                    + f' --{s}'
-                    + ' --validate-integrity'
-                ) for s in ['germline', 'somatic']
-            ]
-        )
-        data_file_names = [
-            o.name for o in Path(self.dest_dir_path).iterdir()
-            if o.name.startswith('funcotator_dataSources.')
-        ]
-        for s in ['s', 'g']:
-            assert {n for n in data_file_names if n.endswith(f'{s}.tar.gz')}
+        existing_data_keys = {
+            Path(o.stem).stem[-1] for o in Path(self.dest_dir_path).iterdir()
+            if (
+                o.name.startswith('funcotator_dataSources.')
+                and o.name.endswith('.tar.gz')
+            )
+        }
+        if not ({'s', 'g'} <= existing_data_keys):
+            self.setup_shell(
+                commands=self.gatk, cwd=self.dest_dir_path, quiet=False
+            )
+            for k in ['germline', 'somatic']:
+                if k[0] not in existing_data_keys:
+                    self.run_shell(
+                        args=(
+                            f'set -e && {self.gatk}{gatk_opts}'
+                            + ' FuncotatorDataSourceDownloader'
+                            + ' --validate-integrity'
+                            + f' --{k}'
+                        )
+                    )
 
 
 class WriteAfOnlyVCF(ShellTask):
@@ -128,7 +135,7 @@ class WriteAfOnlyVCF(ShellTask):
                         f'{self.curl} -LS {self.src_url}'
                         + f' | {self.bgzip} -@ {self.n_cpu} -dc'
                     )
-                ) + f' | {sys.executable} {pyscript_path}'
+                ) + f' | {sys.executable} {pyscript_path} -'
                 + f' | {self.bgzip} -@ {self.n_cpu} -c > {dest_path}'
             ),
             input_files_or_dirs=(self.src_path if self.src_path else None),

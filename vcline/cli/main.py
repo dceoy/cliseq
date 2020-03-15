@@ -116,7 +116,8 @@ def main():
                     WriteAfOnlyVCF(
                         src_path=str(
                             Path(dest_dir_path).joinpath(
-                                Path(resource_url_dict['gnomad_vcf']).name
+                                Path(resource_url_dict['gnomad_vcf']).stem
+                                + '.gz'
                             )
                         ),
                         dest_dir_path=dest_dir_path, n_cpu=n_cpu,
