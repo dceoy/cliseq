@@ -1,9 +1,14 @@
 ---
-reference_version: hg38
-references:
-  ref_fa:
-    - /path/to/Homo_sapiens_assembly38.fasta.bz2
-    # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta
+reference_version: hg38     # {hg19, hg38, b37}
+exome: false
+variant_callers:
+  haplotypecaller: true
+  mutect2: true
+  strelka: true
+  manta: true
+references:     # required
+  ref_fa: /path/to/Homo_sapiens_assembly38.fasta.bz2
+  # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta
   dbsnp_vcf: /path/to/Homo_sapiens_assembly38.dbsnp138.vcf.gz
   # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.dbsnp138.vcf
   mills_indel_vcf: /path/to/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
@@ -21,19 +26,19 @@ references:
   # downloaded with vcline download-funcotator-data
   funcotator_somatic_tar: /path/to/funcotator_dataSources.v1.6.20190124s.tar.gz
   # downloaded with vcline download-funcotator-data
-runs:
+runs:           # required
   - tumor:
       fq:
-        - /path/to/sample01.tumor_FFPE.R1.fq.gz
-        - /path/to/sample01.tumor_FFPE.R2.fq.gz
+        - /path/to/sample01.tumor_FFPE.WGS.R1.fq.gz
+        - /path/to/sample01.tumor_FFPE.WGS.R2.fq.gz
     normal:
       fq:
-        - /path/to/sample01.blood_frozen.R1.fq.gz
-        - /path/to/sample01.blood_frozen.R2.fq.gz
+        - /path/to/sample01.blood_frozen.WGS.R1.fq.gz
+        - /path/to/sample01.blood_frozen.WGS.R2.fq.gz
   - tumor:
       fq:
-        - /path/to/sample02.tumor_FFPE.R1.fq.gz
-        - /path/to/sample02.tumor_FFPE.R2.fq.gz
+        - /path/to/sample02.tumor_FFPE.WGS.R1.fq.gz
+        - /path/to/sample02.tumor_FFPE.WGS.R2.fq.gz
       read_group:
         ID: FLOWCELL-1
         PU: UNIT-1
@@ -42,16 +47,11 @@ runs:
         LB: LIBRARY-1
     normal:
       fq:
-        - /path/to/sample02.blood_frozen.R1.fq.gz
-        - /path/to/sample02.blood_frozen.R2.fq.gz
+        - /path/to/sample02.blood_frozen.WGS.R1.fq.gz
+        - /path/to/sample02.blood_frozen.WGS.R2.fq.gz
       read_group:
         ID: FLOWCELL-2
         PU: UNIT-2
         SM: sample02.blood_frozen
         PL: ILLUMINA
         LB: LIBRARY-2
-variant_callers:
-  haplotypecaller: true
-  mutect2: true
-  strelka: true
-  manta: true

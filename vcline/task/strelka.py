@@ -68,6 +68,7 @@ class CallVariantsWithStrelka(ShellTask):
                 + f' --indelCandidates={manta_indel_vcf_path}'
                 + f' --callRegions={bed_path}'
                 + f' --runDir={run_dir_path}'
+                + (' --exome' if self.cf['exome'] else '')
             ),
             input_files_or_dirs=[
                 *input_cram_paths, fa_path, manta_indel_vcf_path, bed_path

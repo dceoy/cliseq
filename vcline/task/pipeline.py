@@ -83,6 +83,7 @@ class RunAnalyticalPipeline(BaseTask):
         config = read_config_yml(config_yml_path=self.config_yml_path)
         common_config = {
             'ref_version': (config.get('reference_version') or 'hg38'),
+            'exome': bool(config.get('exome')),
             'memory_mb_per_worker': self.memory_mb_per_worker,
             'n_cpu_per_worker': self.n_cpu_per_worker,
             'gatk_java_options': ' '.join([
@@ -119,13 +120,16 @@ class RunAnalyticalPipeline(BaseTask):
             'log_dir_path': str(Path(self.log_dir_path).resolve())
         }
         matched_keys = ['tumor', 'normal']
-        reference_file_paths = self._resolve_input_file_paths(
-            path_dict=config['references']
-        )
+        reference_file_paths = dict([
+            ((f'{k}s', [v]) if k == 'ref_fa_path' else (k, v))
+            for k, v in self._resolve_input_file_paths(
+                path_dict=config['references']
+            ).items()
+        ])
         variant_callers = (
             config.get('variant_callers') or {
-                'haplotypecaller': True, 'mutect2': True,
-                'strelka': True, 'manta': True
+                'haplotypecaller': True, 'mutect2': True, 'strelka': True,
+                'manta': True
             }
         )
         task_kwargs = [

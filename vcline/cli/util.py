@@ -77,8 +77,7 @@ def read_config_yml(config_yml_path):
               'hapmap_vcf', 'gnomad_vcf', 'evaluation_interval',
               'funcotator_germline_tar', 'funcotator_somatic_tar']:
         v = config['references'].get(k)
-        if k == 'ref_fa':
-            assert isinstance(v, list)
+        if k == 'ref_fa' and isinstance(v, list):
             assert _has_unique_elements(v)
             for s in v:
                 assert isinstance(s, str)

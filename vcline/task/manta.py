@@ -65,6 +65,7 @@ class CallStructualVariantsWithManta(ShellTask):
                 + f' --referenceFasta={fa_path}'
                 + f' --callRegions={bed_path}'
                 + f' --runDir={run_dir_path}'
+                + (' --exome' if self.cf['exome'] else '')
             ),
             input_files_or_dirs=[*input_cram_paths, fa_path, bed_path],
             output_files_or_dirs=[run_script, run_dir_path]

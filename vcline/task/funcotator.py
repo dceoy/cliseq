@@ -124,7 +124,7 @@ class AnnotateVariantsWithFuncotator(ShellTask):
         self.print_log(f'Annotate variants with Funcotator:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        input_vcf_paths = self._generate_input_vcf_paths()
+        input_vcf_paths = list(self._generate_input_vcf_paths())
         fa_path = self.input()[1].path
         data_src_dir_path = self.input()[2].path
         evaluation_interval_path = self.input()[3].path
