@@ -125,7 +125,7 @@ class CallVariantsWithMutect2(ShellTask):
                     Path(self.cf['mutect2_dir_path']).joinpath(
                         create_matched_id(
                             *[i[0].path for i in self.input()[0]]
-                        ) + f'.Mutect2.{s}'
+                        ) + f'.mutect2.{s}'
                     )
                 )
             ) for s in [

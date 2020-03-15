@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import re
 from itertools import product
 from pathlib import Path
 
@@ -113,7 +112,7 @@ class AnnotateVariantsWithFuncotator(ShellTask):
                         (
                             [Path(p).parent.parent.parent.name, vc]
                             if vc in {'manta', 'strelka'} else list()
-                        ) + [Path(Path(p).stem).stem, 'Funcotator.vcf.gz']
+                        ) + [Path(Path(p).stem).stem, 'funcotator.vcf.gz']
                     )
                 )
             )
@@ -158,77 +157,6 @@ class AnnotateVariantsWithFuncotator(ShellTask):
                 1 < len(input_vcf_paths) <= self.cf['n_cpu_per_worker']
             )
         )
-
-
-@requires(RunVariantCaller, FetchReferenceFASTA)
-class NormalizeVCF(ShellTask):
-    variant_caller = luigi.Parameter()
-    cf = luigi.DictParameter()
-    priority = 10
-
-    def output(self):
-        return [
-            luigi.LocalTarget(v + i) for v, i
-            in product(self._generate_output_vcf_paths(), ['', '.tbi'])
-        ]
-
-    def _generate_input_vcf_paths(self):
-        prefix = (
-            self.variant_caller.split('_')[1]
-            if '_' in self.variant_caller else None
-        )
-        for i in self.input()[0]:
-            p = i.path
-            if (p.endswith('.vcf.gz')
-                    and (prefix is None or Path(p).name.startswith(prefix))):
-                yield p
-
-    def _generate_output_vcf_paths(self):
-        vc = self.variant_caller.split('_')[0]
-        for p in self._generate_input_vcf_paths():
-            yield str(
-                Path(self.cf['funcotator_dir_path']).joinpath(
-                    '.'.join(
-                        (
-                            [Path(p).parent.parent.parent.name, vc]
-                            if vc in {'manta', 'strelka'} else list()
-                        ) + [Path(Path(p).stem).stem, 'norm.vcf.gz']
-                    )
-                )
-            )
-
-    def run(self):
-        output_vcf_paths = list(self._generate_output_vcf_paths())
-        run_id = '.'.join(Path(output_vcf_paths[0]).name.split('.')[:-3])
-        self.print_log(f'Normalize VCF:\t{run_id}')
-        bcftools = self.cf['bcftools']
-        tabix = self.cf['tabix']
-        n_cpu = self.cf['n_cpu_per_worker']
-        fa_path = self.input()[1].path
-        self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=bcftools, cwd=self.cf['funcotator_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
-        )
-        for i, o in zip(self._generate_input_vcf_paths(), output_vcf_paths):
-            self.run_shell(
-                args=(
-                    f'set -e && {bcftools} norm'
-                    + f' --fasta-ref {fa_path}'
-                    + ' --check-ref w'
-                    + ' --rm-dup exact'
-                    + ' --multiallelics -'
-                    + ' --output-type z'
-                    + f' --threads {n_cpu}'
-                    + f' --output {o}'
-                    + f' {i}'
-                ),
-                input_files_or_dirs=[i, fa_path], output_files_or_dirs=o
-            )
-            self.run_shell(
-                args=f'set -e && {tabix} -p vcf {o}',
-                input_files_or_dirs=o, output_files_or_dirs=f'{o}.tbi'
-            )
 
 
 if __name__ == '__main__':

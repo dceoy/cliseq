@@ -90,7 +90,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                 str(
                     Path(self.cf['haplotypecaller_dir_path']).joinpath(
                         Path(self.input()[0][1][0].path).stem
-                        + f'.HaplotypeCaller.{s}'
+                        + f'.haplotypecaller.{s}'
                     )
                 )
             )
