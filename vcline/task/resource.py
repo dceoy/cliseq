@@ -59,6 +59,22 @@ class DownloadFuncotatorDataSources(ShellTask):
     n_cpu = luigi.IntParameter(default=1)
     gatk = luigi.Parameter(default='gatk')
 
+    def output(self):
+        dir_data_dict = self._fetch_existing_funcotator_data()
+        if ({'s', 'g'} <= set(dir_data_dict.keys())):
+            return [luigi.LocalTarget(dir_data_dict[k]) for k in ['s', 'g']]
+        else:
+            return super().output()
+
+    def _fetch_existing_funcotator_data(self):
+        return {
+            Path(o.stem).stem[-1]: str(o)
+            for o in Path(self.dest_dir_path).iterdir() if (
+                o.name.startswith('funcotator_dataSources.')
+                and o.name.endswith('.tar.gz')
+            )
+        }
+
     def run(self):
         run_id = Path(self.dest_dir_path).name
         self.print_log(f'Download Funcotator data sources:\t{run_id}')
@@ -69,27 +85,20 @@ class DownloadFuncotatorDataSources(ShellTask):
                 f'-XX:ParallelGCThreads={self.n_cpu}'
             ])
         )
-        existing_data_keys = {
-            Path(o.stem).stem[-1] for o in Path(self.dest_dir_path).iterdir()
-            if (
-                o.name.startswith('funcotator_dataSources.')
-                and o.name.endswith('.tar.gz')
-            )
-        }
-        if not ({'s', 'g'} <= existing_data_keys):
-            self.setup_shell(
-                commands=self.gatk, cwd=self.dest_dir_path, quiet=False
-            )
-            for k in ['germline', 'somatic']:
-                if k[0] not in existing_data_keys:
-                    self.run_shell(
-                        args=(
-                            f'set -e && {self.gatk}{gatk_opts}'
-                            + ' FuncotatorDataSourceDownloader'
-                            + ' --validate-integrity'
-                            + f' --{k}'
-                        )
+        dir_data_dict = self._fetch_existing_funcotator_data()
+        self.setup_shell(
+            commands=self.gatk, cwd=self.dest_dir_path, quiet=False
+        )
+        for k in ['germline', 'somatic']:
+            if k[0] not in dir_data_dict:
+                self.run_shell(
+                    args=(
+                        f'set -e && {self.gatk}{gatk_opts}'
+                        + ' FuncotatorDataSourceDownloader'
+                        + ' --validate-integrity'
+                        + f' --{k}'
                     )
+                )
 
 
 class WriteAfOnlyVCF(ShellTask):
