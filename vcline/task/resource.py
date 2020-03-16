@@ -76,8 +76,9 @@ class DownloadFuncotatorDataSources(ShellTask):
         }
 
     def run(self):
-        run_id = Path(self.dest_dir_path).name
-        self.print_log(f'Download Funcotator data sources:\t{run_id}')
+        self.print_log(
+            f'Download Funcotator data sources:\t{self.dest_dir_path}'
+        )
         gatk_opts = ' --java-options "{}"'.format(
             ' '.join([
                 '-Dsamjdk.compression_level=5',
@@ -101,7 +102,53 @@ class DownloadFuncotatorDataSources(ShellTask):
                 )
 
 
-class WriteAfOnlyVCF(ShellTask):
+class DownloadAndConvertVCFsIntoPassingAfOnlyVCF(ShellTask):
+    src_urls = luigi.ListParameter()
+    dest_dir_path = luigi.Parameter(default='.')
+    n_cpu = luigi.IntParameter(default=1)
+    curl = luigi.Parameter(default='curl')
+    bgzip = luigi.Parameter(default='bgzip')
+    bcftools = luigi.Parameter(default='bcftools')
+
+    def output(self):
+        return luigi.LocalTarget(
+            str(
+                Path(self.dest_dir_path).resolve().joinpath(
+                    '.'.join(self.src_urls[0].split('.')[:-3])
+                    + '.af-only.vcf.gz'
+                )
+            )
+        )
+
+    def run(self):
+        targets = yield [
+            WritePassingAfOnlyVCF(
+                src_url=u, dest_dir_path=self.dest_dir_path, n_cpu=self.n_cpu,
+                curl=self.curl, bgzip=self.bgzip
+            ) for u in self.src_urls
+        ]
+        dest_path = self.output().path
+        self.print_log(f'Merge passing AF-only VCFs:\t{dest_path}')
+        input_vcf_paths = [t.path for t in targets]
+        self.setup_shell(
+            commands=self.bcftools, cwd=self.dest_dir_path, quiet=False
+        )
+        self.run_shell(
+            args=[
+                (
+                    f'set -e && {self.bcftools} merge'
+                    + f' --threads {self.cpu}'
+                    + ' --output-type z'
+                    + f' --output {dest_path} '
+                    + ' '.join(input_vcf_paths)
+                ),
+                ('rm -f ' + ' '.join(input_vcf_paths))
+            ],
+            input_files_or_dirs=input_vcf_paths, output_files_or_dirs=dest_path
+        )
+
+
+class WritePassingAfOnlyVCF(ShellTask):
     src_path = luigi.Parameter(default='')
     src_url = luigi.Parameter(default='')
     dest_dir_path = luigi.Parameter(default='.')
@@ -112,17 +159,17 @@ class WriteAfOnlyVCF(ShellTask):
     def output(self):
         return luigi.LocalTarget(
             str(
-                Path(self.dest_dir_path).joinpath(
+                Path(self.dest_dir_path).resolve().joinpath(
                     Path(Path(self.src_path or self.src_url).stem).stem
                     + '.af-only.vcf.gz'
-                ).resolve()
+                )
             )
         )
 
     def run(self):
         assert bool(self.src_path or self.src_url)
         dest_path = self.output().path
-        self.print_log(f'Write AF-only VCF:\t{dest_path}')
+        self.print_log(f'Write passing AF-only VCF:\t{dest_path}')
         self.setup_shell(
             commands=[
                 *(list() if self.src_path else [self.curl]), self.bgzip,
@@ -131,9 +178,9 @@ class WriteAfOnlyVCF(ShellTask):
             cwd=self.dest_dir_path, quiet=False
         )
         pyscript_path = str(
-            Path(__file__).parent.parent.joinpath(
+            Path(__file__).resolve().parent.parent.joinpath(
                 'script/extract_af_only_vcf.py'
-            ).resolve()
+            )
         )
         self.run_shell(
             args=(
@@ -162,7 +209,7 @@ class CreateIntervalListWithBED(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(Path(self.dest_dir_path).joinpath(n).resolve())
+                str(Path(self.dest_dir_path).resolve().joinpath(n))
             ) for n in [
                 (Path(self.bed_path).stem + '.interval_list'),
                 (Path(self.fa_path).stem + '.dict')

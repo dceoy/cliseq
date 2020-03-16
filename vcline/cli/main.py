@@ -8,8 +8,10 @@ Usage:
         [--workers=<int>] [--split-intervals] [--skip-cleaning]
         [--ref-dir=<path>] <dest_dir_path>
     vcline download-resources [--debug|--info] [--cpus=<int>]
-        [--without-gnomad] <dest_dir_path>
+        <dest_dir_path>
     vcline download-funcotator-data [--debug|--info] [--cpus=<int>]
+        <dest_dir_path>
+    vcline download-gnomad-af-only-vcf [--debug|--info] [--cpus=<int>]
         <dest_dir_path>
     vcline write-af-only-vcf [--debug|--info] [--cpus=<int>]
         [--src-path=<path>|--src-url=<url>] <dest_dir_path>
@@ -24,6 +26,8 @@ Commands:
     download-resources      Download and process resource data
     download-funcotator-data
                             Download Funcotator data sources
+    download-gnomad-af-only-vcf
+                            Download gnomAD VCF and process it into AF-only VCF
     write-af-only-vcf       Extract and write only AF from VCF INFO
     create-interval-list    Create an interval_list from BED
 
@@ -37,7 +41,6 @@ Options:
     --split-intervals       Split evaluation intervals
     --skip-cleaning         Skip incomlete file removal when a task fails
     --ref-dir=<path>        Specify a reference directory path
-    --without-gnomad        Skip doenloading gnomAD VCF data (>200GB)
     --src-url=<url>         Specify a source URL
     --src-path=<path>       Specify a source PATH
 
@@ -60,9 +63,11 @@ from psutil import cpu_count, virtual_memory
 from .. import __version__
 from ..task.pipeline import RunAnalyticalPipeline
 from ..task.resource import (CreateIntervalListWithBED,
+                             DownloadAndConvertVCFsIntoPassingAfOnlyVCF,
                              DownloadFuncotatorDataSources,
-                             DownloadResourceFiles, WriteAfOnlyVCF)
-from .util import (build_luigi_tasks, fetch_executable, load_default_url_dict,
+                             DownloadResourceFiles, WritePassingAfOnlyVCF)
+from .util import (build_luigi_tasks, fetch_executable,
+                   generate_gnomad_chrom_vcf_urls, load_default_url_dict,
                    print_log, render_template)
 
 
@@ -94,17 +99,10 @@ def main():
         dest_dir_path = str(Path(args['<dest_dir_path>']).resolve())
         n_cpu = int(args['--cpus'] or cpu_count())
         if args['download-resources']:
-            url_dict = load_default_url_dict()
             build_luigi_tasks(
                 tasks=[
                     DownloadResourceFiles(
-                        urls=(
-                            [
-                                v for k, v in url_dict.items()
-                                if k != 'gnomad_vcf'
-                            ] if args['--without-gnomad']
-                            else list(url_dict.values())
-                        ),
+                        urls=list(load_default_url_dict().values()),
                         dest_dir_path=dest_dir_path, n_cpu=n_cpu,
                         **{
                             c: fetch_executable(c)
@@ -114,25 +112,18 @@ def main():
                     DownloadFuncotatorDataSources(
                         dest_dir_path=dest_dir_path, n_cpu=n_cpu,
                         gatk=fetch_executable('gatk')
+                    ),
+                    DownloadAndConvertVCFsIntoPassingAfOnlyVCF(
+                        src_urls=list(generate_gnomad_chrom_vcf_urls()),
+                        dest_dir_path=dest_dir_path, n_cpu=n_cpu,
+                        **{
+                            c: fetch_executable(c)
+                            for c in ['curl', 'bgzip', 'bcftools']
+                        }
                     )
                 ],
                 log_level=log_level
             )
-            if not args['--without-gnomad']:
-                build_luigi_tasks(
-                    tasks=[
-                        WriteAfOnlyVCF(
-                            src_path=str(
-                                Path(dest_dir_path).joinpath(
-                                    Path(url_dict['gnomad_vcf']).stem + '.gz'
-                                )
-                            ),
-                            dest_dir_path=dest_dir_path, n_cpu=n_cpu,
-                            bgzip=fetch_executable('bgzip')
-                        )
-                    ],
-                    log_level=log_level
-                )
         elif args['download-funcotator-data']:
             build_luigi_tasks(
                 tasks=[
@@ -143,10 +134,24 @@ def main():
                 ],
                 log_level=log_level
             )
+        elif args['download-gnomad-af-only-vcf']:
+            build_luigi_tasks(
+                tasks=[
+                    DownloadAndConvertVCFsIntoPassingAfOnlyVCF(
+                        src_urls=list(generate_gnomad_chrom_vcf_urls()),
+                        dest_dir_path=dest_dir_path, n_cpu=n_cpu,
+                        **{
+                            c: fetch_executable(c)
+                            for c in ['curl', 'bgzip', 'bcftools']
+                        }
+                    )
+                ],
+                log_level=log_level
+            )
         elif args['write-af-only-vcf']:
             build_luigi_tasks(
                 tasks=[
-                    WriteAfOnlyVCF(
+                    WritePassingAfOnlyVCF(
                         src_path=(
                             str(Path(args['--src-path']).resolve())
                             if args['--src-path'] else ''
