@@ -110,6 +110,13 @@ class DownloadAndConvertVCFsIntoPassingAfOnlyVCF(ShellTask):
     bgzip = luigi.Parameter(default='bgzip')
     bcftools = luigi.Parameter(default='bcftools')
 
+    def requires(self):
+        for u in self.src_urls:
+            yield WritePassingAfOnlyVCF(
+                src_url=u, dest_dir_path=self.dest_dir_path, n_cpu=self.n_cpu,
+                curl=self.curl, bgzip=self.bgzip
+            )
+
     def output(self):
         return luigi.LocalTarget(
             str(
@@ -121,29 +128,20 @@ class DownloadAndConvertVCFsIntoPassingAfOnlyVCF(ShellTask):
         )
 
     def run(self):
-        targets = yield [
-            WritePassingAfOnlyVCF(
-                src_url=u, dest_dir_path=self.dest_dir_path, n_cpu=self.n_cpu,
-                curl=self.curl, bgzip=self.bgzip
-            ) for u in self.src_urls
-        ]
         dest_path = self.output().path
         self.print_log(f'Merge passing AF-only VCFs:\t{dest_path}')
-        input_vcf_paths = [t.path for t in targets]
+        input_vcf_paths = [i.path for i in self.input()]
         self.setup_shell(
             commands=self.bcftools, cwd=self.dest_dir_path, quiet=False
         )
         self.run_shell(
-            args=[
-                (
-                    f'set -e && {self.bcftools} merge'
-                    + f' --threads {self.cpu}'
-                    + ' --output-type z'
-                    + f' --output {dest_path} '
-                    + ' '.join(input_vcf_paths)
-                ),
-                ('rm -f ' + ' '.join(input_vcf_paths))
-            ],
+            args=(
+                f'set -e && {self.bcftools} merge'
+                + f' --threads {self.cpu}'
+                + ' --output-type z'
+                + f' --output {dest_path} '
+                + ' '.join(input_vcf_paths)
+            ),
             input_files_or_dirs=input_vcf_paths, output_files_or_dirs=dest_path
         )
 
