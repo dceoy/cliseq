@@ -6,7 +6,7 @@ variant_callers:
   mutect2: true
   strelka: true
   manta: true
-references:     # required
+references:   # These files can be downloaded with vcline download-resources.
   ref_fa: /path/to/Homo_sapiens_assembly38.fasta.bz2
   # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta
   dbsnp_vcf: /path/to/Homo_sapiens_assembly38.dbsnp138.vcf.gz
@@ -18,15 +18,14 @@ references:     # required
   hapmap_vcf: /path/to/hapmap_3.3.hg38.vcf.gz
   # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/hapmap_3.3.hg38.vcf.gz
   gnomad_vcf: /path/to/gnomad.genomes.r3.0.sites.af-only.vcf.gz
-  # downloaded with vcline write-af-only-vcf
   # https://storage.googleapis.com/gnomad-public/release/3.0/vcf/genomes/gnomad.genomes.r3.0.sites.vcf.bgz
-  evaluation_interval: /path/to/wgs_calling_regions.hg38.interval_list
+  evaluation_interval: /path/to/wgs_calling_regions.hg38.interval_list.bz2
   # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/wgs_calling_regions.hg38.interval_list
   funcotator_germline_tar: /path/to/funcotator_dataSources.v1.6.20190124g.tar.gz
-  # downloaded with vcline download-funcotator-data
+  # gatk FuncotatorDataSourceDownloader --germline
   funcotator_somatic_tar: /path/to/funcotator_dataSources.v1.6.20190124s.tar.gz
-  # downloaded with vcline download-funcotator-data
-runs:           # required
+  # gatk FuncotatorDataSourceDownloader --somatic
+runs:
   - tumor:
       fq:
         - /path/to/sample01.tumor_FFPE.WGS.R1.fq.gz
