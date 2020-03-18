@@ -2,6 +2,7 @@
 
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import luigi
@@ -121,7 +122,7 @@ class DownloadAndConvertVCFsIntoPassingAfOnlyVCF(ShellTask):
         return luigi.LocalTarget(
             str(
                 Path(self.dest_dir_path).resolve().joinpath(
-                    '.'.join(self.src_urls[0].split('.')[:-3])
+                    '.'.join(Path(self.src_urls[0]).name.split('.')[:-3])
                     + '.af-only.vcf.gz'
                 )
             )
@@ -131,18 +132,33 @@ class DownloadAndConvertVCFsIntoPassingAfOnlyVCF(ShellTask):
         dest_path = self.output().path
         self.print_log(f'Merge passing AF-only VCFs:\t{dest_path}')
         input_vcf_paths = [i.path for i in self.input()]
+        input_tbi_paths = [f'{p}.tbi' for p in input_vcf_paths]
         self.setup_shell(
             commands=self.bcftools, cwd=self.dest_dir_path, quiet=False
         )
+        with ThreadPoolExecutor(max_workers=self.n_cpu) as x:
+            fs = [
+                x.submit(
+                    self.run_shell,
+                    args=f'set -e && {self.bcftools} index --tbi {v}',
+                    input_files_or_dirs=v, output_files_or_dirs=t
+                ) for v, t in zip(input_vcf_paths, input_tbi_paths)
+            ]
+            for f in as_completed(fs):
+                f.result()
         self.run_shell(
-            args=(
-                f'set -e && {self.bcftools} merge'
-                + f' --threads {self.cpu}'
-                + ' --output-type z'
-                + f' --output {dest_path} '
-                + ' '.join(input_vcf_paths)
-            ),
-            input_files_or_dirs=input_vcf_paths, output_files_or_dirs=dest_path
+            args=[
+                (
+                    f'set -e && {self.bcftools} concat'
+                    + f' --threads {self.n_cpu}'
+                    + ' --output-type z'
+                    + f' --output {dest_path} '
+                    + ' '.join(input_vcf_paths)
+                ),
+                ('rm -f ' + ' '.join(input_tbi_paths))
+            ],
+            input_files_or_dirs=[*input_vcf_paths, *input_tbi_paths],
+            output_files_or_dirs=dest_path
         )
 
 
