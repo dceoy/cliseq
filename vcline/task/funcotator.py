@@ -12,7 +12,8 @@ from .manta import CallStructualVariantsWithManta
 from .mutect2 import FilterMutectCalls
 from .ref import (ExtractFuncotatorTarFile, FetchEvaluationIntervalList,
                   FetchReferenceFASTA)
-from .strelka import CallVariantsWithStrelka
+from .strelka import (CallGermlineVariantsWithStrelka,
+                      CallSomaticVariantsWithStrelka)
 
 
 class RunVariantCaller(luigi.WrapperTask):
@@ -53,7 +54,7 @@ class RunVariantCaller(luigi.WrapperTask):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif self.variant_caller in {'manta_somatic', 'manta_diploid'}:
+        elif self.variant_caller in 'manta_somatic':
             return CallStructualVariantsWithManta(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
@@ -63,8 +64,18 @@ class RunVariantCaller(luigi.WrapperTask):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif self.variant_caller == 'strelka':
-            return CallVariantsWithStrelka(
+        elif self.variant_caller == 'strelka_somatic':
+            return CallSomaticVariantsWithStrelka(
+                fq_list=self.fq_list, read_groups=self.read_groups,
+                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
+            )
+        elif self.variant_caller == 'strelka_variants':
+            return CallGermlineVariantsWithStrelka(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,

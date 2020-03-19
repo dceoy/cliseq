@@ -50,9 +50,9 @@ class CallVariants(luigi.WrapperTask):
                     'haplotypecaller': self.funcotator_germline_tar_path,
                     'mutect2': self.funcotator_somatic_tar_path,
                     'manta_somatic': self.funcotator_somatic_tar_path,
-                    'manta_diploid': self.funcotator_germline_tar_path,
-                    'strelka': self.funcotator_somatic_tar_path
-                }.items() if self.variant_callers.get(k)
+                    'strelka_somatic': self.funcotator_somatic_tar_path,
+                    'strelka_variants': self.funcotator_germline_tar_path
+                }.items() if self.variant_callers.get(k.split('_')[0])
             ]
         else:
             return PrepareCRAMs(
@@ -106,7 +106,8 @@ class RunAnalyticalPipeline(BaseTask):
                 c: fetch_executable(c) for c in [
                     'bcftools', 'bgzip', 'bwa', 'cutadapt', 'fastqc', 'gatk',
                     'pbzip2', 'pigz', 'samtools', 'tabix', 'trim_galore',
-                    'configManta.py', 'configureStrelkaSomaticWorkflow.py'
+                    'configManta.py', 'configureStrelkaSomaticWorkflow.py',
+                    'configureStrelkaGermlineWorkflow.py'
                 ]
             },
             **{

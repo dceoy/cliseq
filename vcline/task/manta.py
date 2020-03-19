@@ -10,10 +10,12 @@ from luigi.util import requires
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMs
 from .base import ShellTask
-from .ref import CreateEvaluationIntervalListBED, FetchReferenceFASTA
+from .ref import (CreateEvaluationIntervalListBED, CreateFASTAIndex,
+                  FetchReferenceFASTA)
 
 
-@requires(PrepareCRAMs, FetchReferenceFASTA, CreateEvaluationIntervalListBED)
+@requires(PrepareCRAMs, FetchReferenceFASTA, CreateFASTAIndex,
+          CreateEvaluationIntervalListBED)
 class CallStructualVariantsWithManta(ShellTask):
     cf = luigi.DictParameter()
     priority = 10
@@ -48,7 +50,8 @@ class CallStructualVariantsWithManta(ShellTask):
         memory_gb = max(floor(self.cf['memory_mb_per_worker'] / 1024), 1)
         input_cram_paths = [i[0].path for i in self.input()[0]]
         fa_path = self.input()[1].path
-        bed_path = self.input()[2][0].path
+        fai_path = self.input()[2].path
+        bed_path = self.input()[3][0].path
         export_pythonpath = 'export PYTHONPATH="{}"'.format(
             Path(config_script).resolve().parent.parent.joinpath('lib/python')
         )
@@ -67,7 +70,9 @@ class CallStructualVariantsWithManta(ShellTask):
                 + f' --runDir={run_dir_path}'
                 + (' --exome' if self.cf['exome'] else '')
             ),
-            input_files_or_dirs=[*input_cram_paths, fa_path, bed_path],
+            input_files_or_dirs=[
+                *input_cram_paths, fa_path, fai_path, bed_path
+            ],
             output_files_or_dirs=[run_script, run_dir_path]
         )
         self.run_shell(
@@ -78,7 +83,7 @@ class CallStructualVariantsWithManta(ShellTask):
                 + ' --mode=local'
             ),
             input_files_or_dirs=[
-                run_script, *input_cram_paths, fa_path, bed_path
+                run_script, *input_cram_paths, fa_path, fai_path, bed_path
             ],
             output_files_or_dirs=[*output_file_paths, run_dir_path]
         )
