@@ -89,5 +89,7 @@ class ShellTask(BaseTask):
         for c in ([commands] if isinstance(commands, str) else commands):
             if Path(c).name == 'bwa':
                 yield f'{c} 2>&1 | grep -e "Program:" -e "Version:"'
+            elif Path(c).name == 'wget':
+                yield f'{c} --version | head -1'
             else:
                 yield f'{c} --version'

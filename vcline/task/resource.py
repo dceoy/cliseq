@@ -2,7 +2,6 @@
 
 import re
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import luigi
@@ -10,8 +9,8 @@ import luigi
 from .base import ShellTask
 
 
-class DownloadResourceFiles(ShellTask):
-    urls = luigi.ListParameter()
+class DownloadResourceFile(ShellTask):
+    src_url = luigi.Parameter()
     dest_dir_path = luigi.Parameter(default='.')
     n_cpu = luigi.IntParameter(default=1)
     wget = luigi.Parameter(default='wget')
@@ -19,40 +18,46 @@ class DownloadResourceFiles(ShellTask):
     bgzip = luigi.Parameter(default='bgzip')
 
     def output(self):
-        for u in self.urls:
-            p = str(Path(self.dest_dir_path).resolve().joinpath(Path(u).name))
-            if p.endswith(('.gz', '.bz2')):
-                yield luigi.LocalTarget(p)
-            elif p.endswith('.bgz'):
-                yield luigi.LocalTarget(re.sub(r'\.bgz$', '.gz', p))
-            elif p.endswith('.vcf'):
-                yield luigi.LocalTarget(f'{p}.gz')
-            else:
-                yield luigi.LocalTarget(f'{p}.bz2')
+        p = str(Path(self.dest_dir_path).joinpath(Path(self.src_url).name))
+        if p.endswith(('.gz', '.bz2')):
+            return luigi.LocalTarget(p)
+        elif p.endswith('.bgz'):
+            return luigi.LocalTarget(re.sub(r'\.bgz$', '.gz', p))
+        elif p.endswith('.vcf'):
+            return luigi.LocalTarget(f'{p}.gz')
+        else:
+            return luigi.LocalTarget(f'{p}.bz2')
 
     def run(self):
-        self.print_log(f'Download resource files:\t{self.dest_dir_path}')
-        self.setup_shell(
-            commands=[self.wget, self.pbzip2, self.bgzip],
-            cwd=self.dest_dir_path, quiet=False
+        dest_path = self.output().path
+        self.print_log(f'Download resource files:\t{dest_path}')
+        tmp_path = str(
+            Path(dest_path).parent.joinpath(Path(self.src_url).name)
         )
-        for u, o in zip(self.urls, self.output()):
-            p = str(Path(self.dest_dir_path).resolve().joinpath(Path(u).name))
+        if dest_path == tmp_path:
+            commands = self.wget
+            postproc_args = None
+        elif tmp_path.endswith('.bgz'):
+            commands = self.wget
+            postproc_args = f'mv {tmp_path} {dest_path}'
+        elif tmp_path.endswith('.vcf'):
+            commands = [self.wget, self.bgzip]
+            postproc_args = f'{self.bgzip} -@ {self.n_cpu} {tmp_path}'
+        else:
+            commands = [self.wget, self.pbzip2]
+            postproc_args = f'{self.pbzip2} -p{self.n_cpu} {tmp_path}'
+        self.setup_shell(
+            commands=commands, cwd=self.dest_dir_path, quiet=False
+        )
+        self.run_shell(
+            args=f'set -e && {self.wget} -qSL {self.src_url} -O {tmp_path}',
+            output_files_or_dirs=tmp_path
+        )
+        if postproc_args:
             self.run_shell(
-                args=f'set -e && {self.wget} -qSL {u} -O {p}',
-                output_files_or_dirs=p
+                args=f'set -e && {postproc_args}',
+                input_files_or_dirs=tmp_path, output_files_or_dirs=dest_path
             )
-            if p != o.path:
-                if p.endswith('.bgz'):
-                    cmd = f'mv {p} {o.path}'
-                elif p.endswith('.vcf'):
-                    cmd = f'{self.bgzip} -@ {self.n_cpu} {p}'
-                else:
-                    cmd = f'{self.pbzip2} -p{self.n_cpu} {p}'
-                self.run_shell(
-                    args=f'set -e && {cmd}', input_files_or_dirs=p,
-                    output_files_or_dirs=o.path
-                )
 
 
 class DownloadFuncotatorDataSources(ShellTask):
@@ -104,61 +109,32 @@ class DownloadFuncotatorDataSources(ShellTask):
 
 
 class DownloadAndConvertVCFsIntoPassingAfOnlyVCF(ShellTask):
-    src_urls = luigi.ListParameter()
+    src_url = luigi.Parameter()
     dest_dir_path = luigi.Parameter(default='.')
     n_cpu = luigi.IntParameter(default=1)
-    curl = luigi.Parameter(default='curl')
+    wget = luigi.Parameter(default='wget')
     bgzip = luigi.Parameter(default='bgzip')
-    bcftools = luigi.Parameter(default='bcftools')
 
     def requires(self):
-        for u in self.src_urls:
-            yield WritePassingAfOnlyVCF(
-                src_url=u, dest_dir_path=self.dest_dir_path, n_cpu=self.n_cpu,
-                curl=self.curl, bgzip=self.bgzip
-            )
+        return DownloadResourceFile(
+            src_url=self.src_url, dest_dir_path=self.dest_dir_path,
+            n_cpu=self.n_cpu, wget=self.wget, bgzip=self.bgzip
+        )
 
     def output(self):
         return luigi.LocalTarget(
             str(
-                Path(self.dest_dir_path).resolve().joinpath(
-                    '.'.join(Path(self.src_urls[0]).name.split('.')[:-3])
+                Path(self.dest_dir_path).joinpath(
+                    Path(Path(self.input().path).stem).stem
                     + '.af-only.vcf.gz'
                 )
             )
         )
 
     def run(self):
-        dest_path = self.output().path
-        self.print_log(f'Merge passing AF-only VCFs:\t{dest_path}')
-        input_vcf_paths = [i.path for i in self.input()]
-        input_tbi_paths = [f'{p}.tbi' for p in input_vcf_paths]
-        self.setup_shell(
-            commands=self.bcftools, cwd=self.dest_dir_path, quiet=False
-        )
-        with ThreadPoolExecutor(max_workers=self.n_cpu) as x:
-            fs = [
-                x.submit(
-                    self.run_shell,
-                    args=f'set -e && {self.bcftools} index --tbi {v}',
-                    input_files_or_dirs=v, output_files_or_dirs=t
-                ) for v, t in zip(input_vcf_paths, input_tbi_paths)
-            ]
-            for f in as_completed(fs):
-                f.result()
-        self.run_shell(
-            args=[
-                (
-                    f'set -e && {self.bcftools} concat'
-                    + f' --threads {self.n_cpu}'
-                    + ' --output-type z'
-                    + f' --output {dest_path} '
-                    + ' '.join(input_vcf_paths)
-                ),
-                ('rm -f ' + ' '.join(input_tbi_paths))
-            ],
-            input_files_or_dirs=[*input_vcf_paths, *input_tbi_paths],
-            output_files_or_dirs=dest_path
+        yield WritePassingAfOnlyVCF(
+            src_path=self.output().path, dest_dir_path=self.dest_dir_path,
+            n_cpu=self.n_cpu, bgzip=self.bgzip
         )
 
 
@@ -173,7 +149,7 @@ class WritePassingAfOnlyVCF(ShellTask):
     def output(self):
         return luigi.LocalTarget(
             str(
-                Path(self.dest_dir_path).resolve().joinpath(
+                Path(self.dest_dir_path).joinpath(
                     Path(Path(self.src_path or self.src_url).stem).stem
                     + '.af-only.vcf.gz'
                 )
@@ -223,7 +199,7 @@ class CreateIntervalListWithBED(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(Path(self.dest_dir_path).resolve().joinpath(n))
+                str(Path(self.dest_dir_path).joinpath(n))
             ) for n in [
                 (Path(self.bed_path).stem + '.interval_list'),
                 (Path(self.fa_path).stem + '.dict')

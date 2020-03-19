@@ -132,20 +132,7 @@ def render_template(template, data, output_path):
         )
 
 
-def load_default_url_dict(include_gnomad=False):
-    d = _read_yml(
+def load_default_url_dict():
+    return _read_yml(
         path=str(Path(__file__).parent.parent.joinpath('static/urls.yml'))
     )
-    return (
-        d if include_gnomad
-        else {k: v for k, v in d.items() if k != 'gnomad_vcf'}
-    )
-
-
-def generate_gnomad_chrom_vcf_urls():
-    url_suffix = re.sub(
-        r'\.vcf\.bgz$', '',
-        load_default_url_dict(include_gnomad=True)['gnomad_vcf']
-    )
-    for c in [*range(1, 23), 'X', 'Y']:
-        yield f'{url_suffix}.chr{c}.vcf.bgz'

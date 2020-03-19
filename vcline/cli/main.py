@@ -8,7 +8,7 @@ Usage:
         [--workers=<int>] [--split-intervals] [--skip-cleaning]
         [--ref-dir=<path>] <dest_dir_path>
     vcline download-resources [--debug|--info] [--cpus=<int>]
-        <dest_dir_path>
+        [--without-gnomad] <dest_dir_path>
     vcline download-funcotator-data [--debug|--info] [--cpus=<int>]
         <dest_dir_path>
     vcline download-gnomad-af-only-vcf [--debug|--info] [--cpus=<int>]
@@ -41,6 +41,7 @@ Options:
     --split-intervals       Split evaluation intervals
     --skip-cleaning         Skip incomlete file removal when a task fails
     --ref-dir=<path>        Specify a reference directory path
+    --without-gnomad        Skip downloading gnomAD VCF (>200GB)
     --src-url=<url>         Specify a source URL
     --src-path=<path>       Specify a source PATH
 
@@ -65,9 +66,8 @@ from ..task.pipeline import RunAnalyticalPipeline
 from ..task.resource import (CreateIntervalListWithBED,
                              DownloadAndConvertVCFsIntoPassingAfOnlyVCF,
                              DownloadFuncotatorDataSources,
-                             DownloadResourceFiles, WritePassingAfOnlyVCF)
-from .util import (build_luigi_tasks, fetch_executable,
-                   generate_gnomad_chrom_vcf_urls, load_default_url_dict,
+                             DownloadResourceFile, WritePassingAfOnlyVCF)
+from .util import (build_luigi_tasks, fetch_executable, load_default_url_dict,
                    print_log, render_template)
 
 
@@ -99,27 +99,34 @@ def main():
         dest_dir_path = str(Path(args['<dest_dir_path>']).resolve())
         n_cpu = int(args['--cpus'] or cpu_count())
         if args['download-resources']:
+            url_dict = load_default_url_dict()
             build_luigi_tasks(
                 tasks=[
-                    DownloadResourceFiles(
-                        urls=list(load_default_url_dict().values()),
-                        dest_dir_path=dest_dir_path, n_cpu=n_cpu,
-                        **{
-                            c: fetch_executable(c)
-                            for c in ['wget', 'pbzip2', 'bgzip']
-                        }
-                    ),
+                    *[
+                        DownloadResourceFile(
+                            src_url=v, dest_dir_path=dest_dir_path,
+                            n_cpu=n_cpu,
+                            **{
+                                c: fetch_executable(c)
+                                for c in ['wget', 'pbzip2', 'bgzip']
+                            }
+                        ) for k, v in url_dict.items() if k != 'gnomad_vcf'
+                    ],
                     DownloadFuncotatorDataSources(
                         dest_dir_path=dest_dir_path, n_cpu=n_cpu,
                         gatk=fetch_executable('gatk')
                     ),
-                    DownloadAndConvertVCFsIntoPassingAfOnlyVCF(
-                        src_urls=list(generate_gnomad_chrom_vcf_urls()),
-                        dest_dir_path=dest_dir_path, n_cpu=n_cpu,
-                        **{
-                            c: fetch_executable(c)
-                            for c in ['curl', 'bgzip', 'bcftools']
-                        }
+                    *(
+                        list() if args['--without-gnomad'] else [
+                            DownloadAndConvertVCFsIntoPassingAfOnlyVCF(
+                                src_url=url_dict['gnomad_vcf'],
+                                dest_dir_path=dest_dir_path, n_cpu=n_cpu,
+                                **{
+                                    c: fetch_executable(c)
+                                    for c in ['wget', 'bgzip']
+                                }
+                            )
+                        ]
                     )
                 ],
                 log_level=log_level
@@ -138,12 +145,9 @@ def main():
             build_luigi_tasks(
                 tasks=[
                     DownloadAndConvertVCFsIntoPassingAfOnlyVCF(
-                        src_urls=list(generate_gnomad_chrom_vcf_urls()),
+                        src_url=load_default_url_dict()['gnomad_vcf'],
                         dest_dir_path=dest_dir_path, n_cpu=n_cpu,
-                        **{
-                            c: fetch_executable(c)
-                            for c in ['curl', 'bgzip', 'bcftools']
-                        }
+                        **{c: fetch_executable(c) for c in ['wget', 'bgzip']}
                     )
                 ],
                 log_level=log_level
