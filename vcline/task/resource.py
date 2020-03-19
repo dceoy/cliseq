@@ -31,21 +31,23 @@ class DownloadResourceFile(ShellTask):
     def run(self):
         dest_path = self.output().path
         self.print_log(f'Download resource files:\t{dest_path}')
-        tmp_path = str(
-            Path(dest_path).parent.joinpath(Path(self.src_url).name)
-        )
-        if dest_path == tmp_path:
+        if self.src_url.endswith('.bgz'):
+            tmp_path = dest_path
             commands = self.wget
             postproc_args = None
-        elif tmp_path.endswith('.bgz'):
-            commands = self.wget
-            postproc_args = f'mv {tmp_path} {dest_path}'
-        elif tmp_path.endswith('.vcf'):
-            commands = [self.wget, self.bgzip]
-            postproc_args = f'{self.bgzip} -@ {self.n_cpu} {tmp_path}'
         else:
-            commands = [self.wget, self.pbzip2]
-            postproc_args = f'{self.pbzip2} -p{self.n_cpu} {tmp_path}'
+            tmp_path = str(
+                Path(dest_path).parent.joinpath(Path(self.src_url).name)
+            )
+            if dest_path == tmp_path:
+                commands = self.wget
+                postproc_args = None
+            elif tmp_path.endswith('.vcf'):
+                commands = [self.wget, self.bgzip]
+                postproc_args = f'{self.bgzip} -@ {self.n_cpu} {tmp_path}'
+            else:
+                commands = [self.wget, self.pbzip2]
+                postproc_args = f'{self.pbzip2} -p{self.n_cpu} {tmp_path}'
         self.setup_shell(
             commands=commands, cwd=self.dest_dir_path, quiet=False
         )
