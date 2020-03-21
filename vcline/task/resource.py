@@ -135,7 +135,7 @@ class DownloadAndConvertVCFsIntoPassingAfOnlyVCF(ShellTask):
 
     def run(self):
         yield WritePassingAfOnlyVCF(
-            src_path=self.output().path, dest_dir_path=self.dest_dir_path,
+            src_path=self.input().path, dest_dir_path=self.dest_dir_path,
             n_cpu=self.n_cpu, bgzip=self.bgzip
         )
 

@@ -53,9 +53,7 @@ class CallSomaticVariantsWithStrelka(ShellTask):
                 'candidateSmallIndels.vcf.gz'
             )
         )
-        export_pythonpath = 'export PYTHONPATH="{}"'.format(
-            Path(config_script).resolve().parent.parent.joinpath('lib/python')
-        )
+        pythonpath = Path(config_script).parent.parent.joinpath('lib/python')
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=config_script, cwd=self.cf['strelka_dir_path'],
@@ -63,7 +61,7 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -e && {export_pythonpath} && {config_script}'
+                f'set -e && PYTHONPATH="{pythonpath}" && {config_script}'
                 + f' --tumorBam={input_cram_paths[0]}'
                 + f' --normalBam={input_cram_paths[1]}'
                 + f' --referenceFasta={fa_path}'
@@ -80,7 +78,7 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -e && {export_pythonpath} && {run_script}'
+                f'set -e && PYTHONPATH="{pythonpath}" && {run_script}'
                 + f' --jobs={n_cpu}'
                 + f' --memGb={memory_gb}'
                 + ' --mode=local'
@@ -124,9 +122,7 @@ class CallGermlineVariantsWithStrelka(ShellTask):
         fa_path = self.input()[1].path
         fai_path = self.input()[2].path
         bed_path = self.input()[3][0].path
-        export_pythonpath = 'export PYTHONPATH="{}"'.format(
-            Path(config_script).resolve().parent.parent.joinpath('lib/python')
-        )
+        pythonpath = Path(config_script).parent.parent.joinpath('lib/python')
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=config_script, cwd=self.cf['strelka_dir_path'],
@@ -134,7 +130,7 @@ class CallGermlineVariantsWithStrelka(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -e && {export_pythonpath} && {config_script}'
+                f'set -e && PYTHONPATH="{pythonpath}" && {config_script}'
                 + f' --bam={input_cram_path}'
                 + f' --referenceFasta={fa_path}'
                 + f' --callRegions={bed_path}'
@@ -146,7 +142,7 @@ class CallGermlineVariantsWithStrelka(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -e && {export_pythonpath} && {run_script}'
+                f'set -e && PYTHONPATH="{pythonpath}" && {run_script}'
                 + f' --jobs={n_cpu}'
                 + f' --memGb={memory_gb}'
                 + ' --mode=local'
