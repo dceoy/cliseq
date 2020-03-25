@@ -42,7 +42,7 @@ class NormalizeVCF(ShellTask):
                 + ' --multiallelics -'
                 + ' --output-type z'
                 + f' --threads {n_cpu}'
-                + f' --output {output_vcf_path}'
+                + f' --output-file {output_vcf_path}'
                 + f' {self.src_vcf_path}'
             ),
             input_files_or_dirs=[self.src_vcf_path, self.fa_path],

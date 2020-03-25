@@ -6,6 +6,7 @@ variant_callers:
   mutect2: true
   strelka: true
   manta: true
+  delly: true
 references:   # These files can be downloaded with vcline download-resources.
   ref_fa: /path/to/Homo_sapiens_assembly38.fasta.bz2
   # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta
