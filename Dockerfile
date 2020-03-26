@@ -15,17 +15,9 @@ COPY --from=dceoy/cnvnator:latest /opt/root /opt/root
 COPY --from=dceoy/cnvnator:latest /usr/local/src/cnvnator /usr/local/src/cnvnator
 COPY --from=dceoy/delly:latest /usr/local/bin/delly /usr/local/bin/delly
 COPY --from=dceoy/msisensor:latest /usr/local/bin/msisensor /usr/local/bin/msisensor
-COPY --from=dceoy/smoove:latest /usr/local/src/lumpy-sv /usr/local/src/lumpy-sv
-COPY --from=dceoy/smoove:latest /usr/local/lib/libdeflate.a /usr/local/lib/libdeflate.a
-COPY --from=dceoy/smoove:latest /usr/local/include/libdeflate.h /usr/local/include/libdeflate.h
-COPY --from=dceoy/smoove:latest /usr/local/bin/batchit /usr/local/bin/batchit
-COPY --from=dceoy/smoove:latest /usr/local/bin/mosdepth /usr/local/bin/mosdepth
-COPY --from=dceoy/smoove:latest /usr/local/bin/duphold /usr/local/bin/duphold
-COPY --from=dceoy/smoove:latest /usr/local/bin/gsort /usr/local/bin/gsort
-COPY --from=dceoy/smoove:latest /usr/local/bin/bpbio /usr/local/bin/bpbio
-COPY --from=dceoy/smoove:latest /usr/local/bin/gargs /usr/local/bin/gargs
-COPY --from=dceoy/smoove:latest /usr/local/bin/goleft /usr/local/bin/goleft
-COPY --from=dceoy/smoove:latest /usr/local/bin/smoove /usr/local/bin/smoove
+COPY --from=dceoy/lumpy:latest /usr/local/src/lumpy-sv /usr/local/src/lumpy-sv
+COPY --from=dceoy/lumpy:latest /usr/local/src/samblaster /usr/local/src/samblaster
+COPY --from=dceoy/lumpy:latest /usr/local/bin/sambamba /usr/local/bin/sambamba
 ADD https://bootstrap.pypa.io/get-pip.py /tmp/get-pip.py
 ADD . /tmp/vcline
 
@@ -55,6 +47,7 @@ RUN set -e \
       && find \
         /usr/local/src/bwa /usr/local/src/FastQC /usr/local/src/TrimGalore \
         /usr/local/src/cnvnator/src /usr/local/src/lumpy-sv/bin \
+        /usr/local/src/samblaster \
         -maxdepth 1 -type f -executable -exec ln -s {} /usr/local/bin \; \
       && cd /usr/local/src/samtools/htslib-* \
       && make install \
@@ -99,7 +92,7 @@ RUN set -e \
 
 ENV ROOTSYS /opt/root
 ENV PYTHONPATH ${ROOTSYS}/lib:/opt/manta/lib/python:/opt/strelka/lib/python:${PYTHONPATH}
-ENV PATH /opt/conda/envs/gatk/bin:/opt/conda/bin:/opt/conda/envs/smoove-env/bin:/opt/manta/bin:/opt/strelka/bin:${PATH}
+ENV PATH /opt/conda/envs/gatk/bin:/opt/conda/bin:/opt/manta/bin:/opt/strelka/bin:${PATH}
 ENV LD_LIBRARY_PATH ${ROOTSYS}/lib:/usr/local/src/cnvnator/yeppp-1.0.0/binaries/linux/x86_64:${LD_LIBRARY_PATH}
 
 ENTRYPOINT ["/opt/conda/bin/vcline"]
