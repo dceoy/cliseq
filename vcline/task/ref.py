@@ -425,6 +425,7 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
 class ExtractTarFile(ShellTask):
     tar_path = luigi.Parameter()
     cf = luigi.DictParameter()
+    recursive = luigi.BoolParameter(default=True)
 
     def output(self):
         return luigi.LocalTarget(
@@ -449,6 +450,15 @@ class ExtractTarFile(ShellTask):
             args=f'tar -xvf {self.tar_path}',
             input_files_or_dirs=self.tar_path, output_files_or_dirs=dest_path
         )
+        if self.recursive and Path(dest_path).is_dir():
+            for o in Path(dest_path).iterdir():
+                if o.name.endswith(('.tar.gz', '.tar.bz2')):
+                    p = str(o)
+                    self.run_shell(
+                        args=f'tar -xvf {p}',
+                        cwd=dest_path, input_files_or_dirs=p,
+                        output_files_or_dirs=re.sub(r'\.tar\.(gz|bz2)$', '', p)
+                    )
 
 
 class ExtractFuncotatorTarFile(luigi.WrapperTask):
