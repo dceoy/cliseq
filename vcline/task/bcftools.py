@@ -26,7 +26,6 @@ class NormalizeVCF(ShellTask):
         run_id = '.'.join(Path(output_vcf_path).name.split('.')[:-3])
         self.print_log(f'Normalize VCF:\t{run_id}')
         bcftools = self.cf['bcftools']
-        tabix = self.cf['tabix']
         n_cpu = self.cf['n_cpu_per_worker']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
@@ -49,7 +48,12 @@ class NormalizeVCF(ShellTask):
             output_files_or_dirs=output_vcf_path
         )
         self.run_shell(
-            args=f'set -e && {tabix} -p vcf {output_vcf_path}',
+            args=(
+                f'set -e && {bcftools} index'
+                + ' --tbi'
+                + f' --threads {n_cpu}'
+                + f' {output_vcf_path}'
+            ),
             input_files_or_dirs=output_vcf_path,
             output_files_or_dirs=f'{output_vcf_path}.tbi'
         )

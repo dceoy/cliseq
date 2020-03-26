@@ -33,15 +33,8 @@ RUN set -e \
 
 RUN set -e \
       && /opt/conda/bin/conda update -n base -c defaults conda \
-      && /opt/conda/bin/conda config --add channels defaults \
-      && /opt/conda/bin/conda config --add channels bioconda \
-      && /opt/conda/bin/conda config --add channels conda-forge \
-      && /opt/conda/bin/conda install bicseq2-norm bicseq2-seg \
-      && /opt/conda/bin/conda create -n smoove-env \
-        python=2.7 awscli numpy scipy cython pysam toolshed pyvcf pyfaidx \
-        cyvcf2 svtyper svtools \
-      && /opt/conda/bin/conda clean -ya \
-      && rm -rf /root/.cache/pip
+      && /opt/conda/bin/conda install bicseq2-norm bicseq2-seg
+      && /opt/conda/bin/conda clean -ya
 
 RUN set -e \
       && find \
