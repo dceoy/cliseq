@@ -9,6 +9,7 @@ from luigi.util import requires
 from .base import ShellTask
 from .delly import CallStructualVariantsWithDelly
 from .haplotypecaller import FilterVariantTranches
+from .lumpy import CallStructualVariantsWithLumpy
 from .manta import CallStructualVariantsWithManta
 from .mutect2 import FilterMutectCalls
 from .ref import (ExtractFuncotatorTarFile, FetchEvaluationIntervalList,
@@ -87,6 +88,15 @@ class RunVariantCaller(luigi.WrapperTask):
             )
         elif self.variant_caller == 'delly':
             return CallStructualVariantsWithDelly(
+                fq_list=self.fq_list, read_groups=self.read_groups,
+                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path,
+                cf=self.cf
+            )
+        elif self.variant_caller == 'lumpy':
+            return CallStructualVariantsWithLumpy(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,

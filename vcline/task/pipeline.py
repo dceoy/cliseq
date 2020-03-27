@@ -52,7 +52,8 @@ class CallVariants(luigi.WrapperTask):
                     'manta_somatic': self.funcotator_somatic_tar_path,
                     'strelka_somatic': self.funcotator_somatic_tar_path,
                     'strelka_variants': self.funcotator_germline_tar_path,
-                    'delly': self.funcotator_somatic_tar_path
+                    'delly': self.funcotator_somatic_tar_path,
+                    'lumpy': self.funcotator_somatic_tar_path
                 }.items() if self.variant_callers.get(k.split('_')[0])
             ]
         else:
@@ -106,8 +107,9 @@ class RunAnalyticalPipeline(BaseTask):
             **{
                 c: fetch_executable(c) for c in [
                     'bcftools', 'bgzip', 'bwa', 'cutadapt', 'delly', 'fastqc',
-                    'gatk', 'pbzip2', 'pigz', 'samtools', 'tabix',
-                    'trim_galore', 'configManta.py',
+                    'gawk', 'gatk', 'lumpy', 'lumpyexpress', 'pbzip2', 'pigz',
+                    'python', 'python2', 'sambamba', 'samblaster', 'samtools',
+                    'tabix', 'trim_galore', 'configManta.py',
                     'configureStrelkaSomaticWorkflow.py',
                     'configureStrelkaGermlineWorkflow.py'
                 ]
@@ -115,8 +117,8 @@ class RunAnalyticalPipeline(BaseTask):
             **{
                 f'{k}_dir_path': str(Path(self.dest_dir_path).joinpath(k))
                 for k in [
-                    'trim', 'align', 'haplotypecaller', 'mutect2', 'strelka',
-                    'manta', 'delly', 'funcotator'
+                    'trim', 'align', 'haplotypecaller', 'mutect2',
+                    'funcotator', 'strelka', 'manta', 'delly', 'lumpy'
                 ]
             },
             'ref_dir_path': str(Path(self.ref_dir_path).resolve()),
@@ -131,8 +133,10 @@ class RunAnalyticalPipeline(BaseTask):
         ])
         variant_callers = (
             config.get('variant_callers') or {
-                'haplotypecaller': True, 'mutect2': True, 'strelka': True,
-                'manta': True, 'delly': True
+                k: True for k in [
+                    'haplotypecaller', 'mutect2', 'strelka', 'manta', 'delly',
+                    'lumpy'
+                ]
             }
         )
         task_kwargs = [

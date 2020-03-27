@@ -15,7 +15,7 @@ COPY --from=dceoy/cnvnator:latest /opt/root /opt/root
 COPY --from=dceoy/cnvnator:latest /usr/local/src/cnvnator /usr/local/src/cnvnator
 COPY --from=dceoy/delly:latest /usr/local/bin/delly /usr/local/bin/delly
 COPY --from=dceoy/msisensor:latest /usr/local/bin/msisensor /usr/local/bin/msisensor
-COPY --from=dceoy/lumpy:latest /usr/local/src/lumpy-sv /usr/local/src/lumpy-sv
+COPY --from=dceoy/lumpy:latest /opt/lumpy-sv /opt/lumpy-sv
 COPY --from=dceoy/lumpy:latest /usr/local/src/samblaster /usr/local/src/samblaster
 COPY --from=dceoy/lumpy:latest /usr/local/bin/sambamba /usr/local/bin/sambamba
 COPY --from=dceoy/snpeff:latest /opt/snpEff /opt/snpEff
@@ -27,7 +27,7 @@ RUN set -e \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
         gcc libbz2-dev libc-dev libcurl4-gnutls-dev libgsl-dev libperl-dev \
-        liblzma-dev libssl-dev libz-dev make \
+        liblzma-dev libssl-dev libz-dev make python \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
@@ -44,8 +44,7 @@ RUN set -e \
 RUN set -e \
       && find \
         /usr/local/src/bwa /usr/local/src/FastQC /usr/local/src/TrimGalore \
-        /usr/local/src/cnvnator/src /usr/local/src/lumpy-sv/bin \
-        /usr/local/src/samblaster \
+        /usr/local/src/cnvnator/src /usr/local/src/samblaster \
         -maxdepth 1 -type f -executable -exec ln -s {} /usr/local/bin \; \
       && cd /usr/local/src/samtools/htslib-* \
       && make install \
@@ -55,8 +54,11 @@ RUN set -e \
       && make install
 
 RUN set -e \
-      && /opt/conda/bin/python3 /tmp/get-pip.py \
-      && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
+      && /usr/bin/python /tmp/get-pip.py \
+      && /usr/bin/python -m pip install -U --no-cache-dir \
+        numpy pip pysam \
+      && /opt/conda/bin/python /tmp/get-pip.py \
+      && /opt/conda/bin/python -m pip install -U --no-cache-dir \
         cutadapt pip /tmp/vcline \
       && rm -f /tmp/get-pip.py
 
@@ -74,9 +76,9 @@ RUN set -e \
       && apt-get -y update \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
-        apt-transport-https apt-utils ca-certificates curl openjdk-8-jre \
-        libcurl3-gnutls libgsl23 libncurses5 pbzip2 perl pigz python r-base \
-        wget \
+        apt-transport-https apt-utils bsdmainutils ca-certificates curl gawk \
+        openjdk-8-jre libcurl3-gnutls libgsl23 libncurses5 pbzip2 perl pigz \
+        python r-base wget \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
@@ -90,7 +92,7 @@ RUN set -e \
 
 ENV ROOTSYS /opt/root
 ENV PYTHONPATH ${ROOTSYS}/lib:/opt/manta/lib/python:/opt/strelka/lib/python:${PYTHONPATH}
-ENV PATH /opt/conda/envs/gatk/bin:/opt/conda/bin:/opt/manta/bin:/opt/strelka/bin:${PATH}
+ENV PATH /opt/conda/envs/gatk/bin:/opt/conda/bin:/opt/manta/bin:/opt/strelka/bin:/opt/lumpy-sv/bin:${PATH}
 ENV LD_LIBRARY_PATH ${ROOTSYS}/lib:/usr/local/src/cnvnator/yeppp-1.0.0/binaries/linux/x86_64:${LD_LIBRARY_PATH}
 
 ENTRYPOINT ["/opt/conda/bin/vcline"]

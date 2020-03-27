@@ -46,6 +46,7 @@ class CallStructualVariantsWithManta(ShellTask):
         self.print_log(f'Call somatic SVs with Manta:\t{run_id}')
         config_script = self.cf['configManta.py']
         run_script = str(Path(run_dir_path).joinpath('runWorkflow.py'))
+        python2 = self.cf['python2']
         n_cpu = self.cf['n_cpu_per_worker']
         memory_gb = max(floor(self.cf['memory_mb_per_worker'] / 1024), 1)
         input_cram_paths = [i[0].path for i in self.input()[0]]
@@ -55,7 +56,7 @@ class CallStructualVariantsWithManta(ShellTask):
         pythonpath = Path(config_script).parent.parent.joinpath('lib/python')
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=config_script, cwd=self.cf['manta_dir_path'],
+            commands=[python2, config_script], cwd=self.cf['manta_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
