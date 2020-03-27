@@ -18,6 +18,7 @@ COPY --from=dceoy/msisensor:latest /usr/local/bin/msisensor /usr/local/bin/msise
 COPY --from=dceoy/lumpy:latest /usr/local/src/lumpy-sv /usr/local/src/lumpy-sv
 COPY --from=dceoy/lumpy:latest /usr/local/src/samblaster /usr/local/src/samblaster
 COPY --from=dceoy/lumpy:latest /usr/local/bin/sambamba /usr/local/bin/sambamba
+COPY --from=dceoy/snpeff:latest /opt/snpEff /opt/snpEff
 ADD https://bootstrap.pypa.io/get-pip.py /tmp/get-pip.py
 ADD . /tmp/vcline
 
@@ -33,8 +34,12 @@ RUN set -e \
 
 RUN set -e \
       && /opt/conda/bin/conda update -n base -c defaults conda \
-      && /opt/conda/bin/conda install bicseq2-norm bicseq2-seg
-      && /opt/conda/bin/conda clean -ya
+      && /opt/conda/bin/conda config --add channels defaults \
+      && /opt/conda/bin/conda config --add channels bioconda \
+      && /opt/conda/bin/conda config --add channels conda-forge \
+      && /opt/conda/bin/conda install bicseq2-norm bicseq2-seg \
+      && /opt/conda/bin/conda clean -ya \
+      && rm -rf /root/.cache/pip
 
 RUN set -e \
       && find \
