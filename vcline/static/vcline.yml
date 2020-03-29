@@ -1,13 +1,15 @@
 ---
 reference_version: hg38     # {hg19, hg38, b37}
 exome: false
-variant_callers:
+callers:
   haplotypecaller: true
   mutect2: true
   strelka: true
   manta: true
   delly: true
   lumpy: true
+annotators:
+  funcotator: true
 references:   # These files can be downloaded with vcline download-resources.
   ref_fa: /path/to/Homo_sapiens_assembly38.fasta.bz2
   # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta
