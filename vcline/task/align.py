@@ -73,9 +73,8 @@ class AlignReads(ShellTask):
                 'set -eo pipefail && '
                 + f'{bwa} mem -t {n_cpu} -R \'{rg}\' -T 0 -P {fa_path}'
                 + ''.join([f' {a}' for a in fq_paths])
-                + f' | {samtools} view -bS -'
                 + f' | {samtools} sort -@ {n_cpu} -m {memory_per_thread}'
-                + f' -T {cram_path}.sort -'
+                + f' -O bam -l 0 -T {cram_path}.sort -'
                 + f' | {samtools} view -@ {n_cpu} -T {fa_path} -CS'
                 + f' -o {cram_path} -'
             ),
@@ -282,7 +281,7 @@ class ApplyBQSR(ShellTask):
 
 
 @requires(ApplyBQSR, FetchReferenceFASTA)
-class RemoveDuplicatesAndUnmapped(ShellTask):
+class RemoveDuplicates(ShellTask):
     cf = luigi.DictParameter()
     priority = 90
 
@@ -291,7 +290,7 @@ class RemoveDuplicatesAndUnmapped(ShellTask):
             luigi.LocalTarget(
                 str(
                     Path(self.cf['align_dir_path']).joinpath(
-                        Path(self.input()[0][0].path).stem + f'.prep.{s}'
+                        Path(self.input()[0][0].path).stem + f'.dedup.{s}'
                     )
                 )
             ) for s in ['cram', 'cram.crai']
@@ -300,7 +299,7 @@ class RemoveDuplicatesAndUnmapped(ShellTask):
     def run(self):
         input_cram_path = self.input()[0][0].path
         run_id = Path(input_cram_path).stem
-        self.print_log(f'Remove duplicates and unmapped reads:\t{run_id}')
+        self.print_log(f'Remove duplicates:\t{run_id}')
         samtools = self.cf['samtools']
         n_cpu = self.cf['n_cpu_per_worker']
         output_cram_path = self.output()[0].path
@@ -314,7 +313,7 @@ class RemoveDuplicatesAndUnmapped(ShellTask):
         self.run_shell(
             args=(
                 f'set -e && {samtools} view -@ {n_cpu} -T {fa_path}'
-                + f' -F 1028 -CS -o {output_cram_path} {input_cram_path}'
+                + f' -F 1024 -CS -o {output_cram_path} {input_cram_path}'
             ),
             input_files_or_dirs=[input_cram_path, fa_path],
             output_files_or_dirs=output_cram_path
@@ -342,7 +341,7 @@ class PrepareCRAMs(luigi.WrapperTask):
 
     def requires(self):
         return [
-            RemoveDuplicatesAndUnmapped(
+            RemoveDuplicates(
                 fq_paths=f, read_group=r, sample_name=n,
                 ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,

@@ -36,6 +36,11 @@ class CallStructualVariantsWithLumpy(ShellTask):
         self.print_log(f'Call somatic SVs with Lumpy:\t{run_id}')
         lumpy = self.cf['lumpy']
         lumpyexpress = self.cf['lumpyexpress']
+        extractsplitreads_bwamem = str(
+            Path(self.cf['lumpyexpress']).parent.parent.joinpath(
+                'scripts/extractSplitReads_BwaMem'
+            )
+        )
         python = self.cf['python']
         samblaster = self.cf['samblaster']
         sambamba = self.cf['sambamba']
@@ -44,9 +49,24 @@ class CallStructualVariantsWithLumpy(ShellTask):
         bgzip = self.cf['bgzip']
         bcftools = self.cf['bcftools']
         n_cpu = self.cf['n_cpu_per_worker']
+        memory_per_thread = self.cf['samtools_memory_per_thread']
         input_cram_paths = [i[0].path for i in self.input()[0]]
         fa_path = self.input()[1].path
         fai_path = self.input()[2].path
+        discordants_cram_paths = [
+            str(
+                Path(self.cf['lumpy_dir_path']).joinpath(
+                    Path(c).stem + '.discordants.cram'
+                )
+            ) for c in input_cram_paths
+        ]
+        splitters_cram_paths = [
+            str(
+                Path(self.cf['lumpy_dir_path']).joinpath(
+                    Path(c).stem + '.splitters.cram'
+                )
+            ) for c in input_cram_paths
+        ]
         uncompressed_vcf_path = re.sub(r'\.gz', '', output_vcf_path)
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
@@ -59,9 +79,37 @@ class CallStructualVariantsWithLumpy(ShellTask):
             env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
+            args=[
+                (
+                    f'set -eo pipefail && '
+                    + f'{samtools} view -@ {n_cpu} -T {fa_path} -CS'
+                    + f' -F 1294 -o {o} {i}'
+                ) for i, o in zip(input_cram_paths, discordants_cram_paths)
+            ],
+            input_files_or_dirs=[*input_cram_paths, fa_path, fai_path],
+            output_files_or_dirs=discordants_cram_paths
+        )
+        self.run_shell(
+            args=[
+                (
+                    f'set -eo pipefail && '
+                    + f'{samtools} view -@ {n_cpu} -T {fa_path} -S -h {i}'
+                    + f' | {extractsplitreads_bwamem} -i stdin'
+                    + f' | {samtools} sort -@ {n_cpu} -m {memory_per_thread}'
+                    + f' -O bam -l 0 -T {o}.sort -'
+                    + f' | {samtools} view -@ {n_cpu} -T {fa_path} -CS'
+                    + f' -o {o} -'
+                ) for i, o in zip(input_cram_paths, splitters_cram_paths)
+            ],
+            input_files_or_dirs=[*input_cram_paths, fa_path, fai_path],
+            output_files_or_dirs=splitters_cram_paths
+        )
+        self.run_shell(
             args=(
                 f'set -e && {lumpyexpress}'
                 + ' -B {0},{1}'.format(*input_cram_paths)
+                + ' -S {0},{1}'.format(*splitters_cram_paths)
+                + ' -D {0},{1}'.format(*discordants_cram_paths)
                 + f' -R {fa_path}'
                 + ' -T {}'.format(self.cf['lumpy_dir_path'])
                 + f' -t {n_cpu}'

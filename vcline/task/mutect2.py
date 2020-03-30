@@ -223,7 +223,7 @@ class CallVariantsWithMutect2(ShellTask):
                         + f'{samtools} merge -@ {n_cpu} -rh - '
                         + ' '.join(tmp_bam_paths)
                         + f' | {samtools} sort -@ {n_cpu}'
-                        + f' -m {memory_per_thread}'
+                        + f' -m {memory_per_thread} -l 0'
                         + f' -T {output_cram_path}.sort -'
                         + f' | {samtools} view -@ {n_cpu} -T {fa_path} -CS'
                         + f' -o {output_cram_path} -'
