@@ -21,7 +21,7 @@ from .strelka import (CallGermlineVariantsWithStrelka,
                       CallSomaticVariantsWithStrelka)
 
 
-class CallVariants(luigi.Task):
+class CallVariants(BaseTask):
     ref_fa_paths = luigi.ListParameter()
     fq_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
@@ -38,7 +38,7 @@ class CallVariants(luigi.Task):
     variant_callers = luigi.ListParameter()
     variant_annotators = luigi.ListParameter()
     normalize_vcf = luigi.BoolParameter(default=True)
-    priority = 100
+    priority = luigi.IntParameter(default=100)
 
     def requires(self):
         tasks = dict()
@@ -253,10 +253,14 @@ class RunAnalyticalPipeline(BaseTask):
                         or parse_fq_id(fq_path=r[k]['fq'][0])
                     ) for k in matched_keys
                 ],
-                'cf': common_config, 'variant_callers': variant_callers,
+                'priority': p, 'cf': common_config,
+                'variant_callers': variant_callers,
                 'variant_annotators': variant_annotators,
                 **reference_file_paths
-             } for r in config['runs']
+            } for p, r in zip(
+                [i * 1000 for i in range(1, (len(config['runs']) + 1))[::-1]],
+                config['runs']
+            )
         ]
         logger.debug('task_kwargs:' + os.linesep + pformat(task_kwargs))
         return [CallVariants(**d) for d in task_kwargs]
