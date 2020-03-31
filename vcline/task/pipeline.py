@@ -147,7 +147,7 @@ class CallVariants(BaseTask):
 
     def _generate_funcotator_io_paths(self):
         for k, a in self.input().items():
-            if k not in {'align', 'delly'}:
+            if k != 'align':
                 for t in a:
                     if (t.path.endswith('.vcf.gz')
                             and (k in Path(t.path).name

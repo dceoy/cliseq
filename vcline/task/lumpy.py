@@ -53,17 +53,17 @@ class CallStructualVariantsWithLumpy(ShellTask):
         input_cram_paths = [i[0].path for i in self.input()[0]]
         fa_path = self.input()[1].path
         fai_path = self.input()[2].path
-        discordants_cram_paths = [
+        discordants_bam_paths = [
             str(
                 Path(self.cf['lumpy_dir_path']).joinpath(
-                    Path(c).stem + '.discordants.cram'
+                    Path(c).stem + '.discordants.bam'
                 )
             ) for c in input_cram_paths
         ]
-        splitters_cram_paths = [
+        splitters_bam_paths = [
             str(
                 Path(self.cf['lumpy_dir_path']).joinpath(
-                    Path(c).stem + '.splitters.cram'
+                    Path(c).stem + '.splitters.bam'
                 )
             ) for c in input_cram_paths
         ]
@@ -82,12 +82,12 @@ class CallStructualVariantsWithLumpy(ShellTask):
             args=[
                 (
                     f'set -eo pipefail && '
-                    + f'{samtools} view -@ {n_cpu} -T {fa_path} -CS'
+                    + f'{samtools} view -@ {n_cpu} -T {fa_path} -bS'
                     + f' -F 1294 -o {o} {i}'
-                ) for i, o in zip(input_cram_paths, discordants_cram_paths)
+                ) for i, o in zip(input_cram_paths, discordants_bam_paths)
             ],
             input_files_or_dirs=[*input_cram_paths, fa_path, fai_path],
-            output_files_or_dirs=discordants_cram_paths
+            output_files_or_dirs=discordants_bam_paths
         )
         self.run_shell(
             args=[
@@ -95,23 +95,22 @@ class CallStructualVariantsWithLumpy(ShellTask):
                     f'set -eo pipefail && '
                     + f'{samtools} view -@ {n_cpu} -T {fa_path} -S -h {i}'
                     + f' | {extractsplitreads_bwamem} -i stdin'
+                    + f' | {samtools} view -@ {n_cpu} -bS -'
                     + f' | {samtools} sort -@ {n_cpu} -m {memory_per_thread}'
-                    + f' -O bam -l 0 -T {o}.sort -'
-                    + f' | {samtools} view -@ {n_cpu} -T {fa_path} -CS'
-                    + f' -o {o} -'
-                ) for i, o in zip(input_cram_paths, splitters_cram_paths)
+                    + f' -T {o}.sort -o {o} -'
+                ) for i, o in zip(input_cram_paths, splitters_bam_paths)
             ],
             input_files_or_dirs=[*input_cram_paths, fa_path, fai_path],
-            output_files_or_dirs=splitters_cram_paths
+            output_files_or_dirs=splitters_bam_paths
         )
         self.run_shell(
             args=(
                 f'set -e && {lumpyexpress}'
                 + ' -B {0},{1}'.format(*input_cram_paths)
-                + ' -S {0},{1}'.format(*splitters_cram_paths)
-                + ' -D {0},{1}'.format(*discordants_cram_paths)
+                + ' -S {0},{1}'.format(*splitters_bam_paths)
+                + ' -D {0},{1}'.format(*discordants_bam_paths)
                 + f' -R {fa_path}'
-                + ' -T {}'.format(self.cf['lumpy_dir_path'])
+                + f' -T {uncompressed_vcf_path}.temp'
                 + f' -t {n_cpu}'
                 + f' -o {uncompressed_vcf_path}'
             ),

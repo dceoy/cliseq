@@ -18,7 +18,6 @@ COPY --from=dceoy/msisensor:latest /usr/local/bin/msisensor /usr/local/bin/msise
 COPY --from=dceoy/lumpy:latest /opt/lumpy-sv /opt/lumpy-sv
 COPY --from=dceoy/lumpy:latest /usr/local/src/samblaster /usr/local/src/samblaster
 COPY --from=dceoy/lumpy:latest /usr/local/bin/sambamba /usr/local/bin/sambamba
-COPY --from=dceoy/snpeff:latest /opt/snpEff /opt/snpEff
 ADD https://bootstrap.pypa.io/get-pip.py /tmp/get-pip.py
 ADD . /tmp/vcline
 
