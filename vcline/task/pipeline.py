@@ -214,7 +214,7 @@ class RunAnalyticalPipeline(BaseTask):
             **{
                 f'{k}_dir_path': str(Path(self.dest_dir_path).joinpath(k))
                 for k in [
-                    'trim', 'align', 'haplotypecaller', 'mutect2',
+                    'trim', 'align', 'haplotypecaller', 'mutect2', 'bcftools',
                     'funcotator', 'strelka', 'manta', 'delly', 'lumpy'
                 ]
             },

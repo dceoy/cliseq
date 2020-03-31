@@ -12,13 +12,14 @@ from .ref import FetchReferenceFASTA
 @requires(FetchReferenceFASTA)
 class NormalizeVCF(ShellTask):
     input_vcf_path = luigi.Parameter()
-    output_vcf_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 10
 
     def output(self):
         return [
-            luigi.LocalTarget(self.output_vcf_path + s) for s in ['', '.tbi']
+            luigi.LocalTarget(
+                Path(Path(self.input_vcf_path).stem).stem + f'.norm.vcf.gz{s}'
+            ) for s in ['', '.tbi']
         ]
 
     def run(self):
@@ -30,7 +31,7 @@ class NormalizeVCF(ShellTask):
         fa_path = self.input().path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=bcftools, cwd=str(Path(self.output_vcf_path).parent),
+            commands=bcftools, cwd=self.cf['bcftools_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(

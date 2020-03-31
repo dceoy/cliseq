@@ -33,13 +33,6 @@ class AnnotateVariantsWithFuncotator(ShellTask):
                 [
                     NormalizeVCF(
                         input_vcf_path=self.input_vcf_path,
-                        output_vcf_path=str(
-                            Path(self.cf['funcotator_dir_path']).joinpath(
-                                Path(Path(self.input_vcf_path).stem).stem
-                                + ('.norm' if self.normalize_vcf else '')
-                                + '.vcf.gz'
-                            )
-                        ),
                         ref_fa_paths=self.ref_fa_paths, cf=self.cf
                     )
                 ] if self.normalize_vcf else list()
