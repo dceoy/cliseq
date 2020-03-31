@@ -124,14 +124,24 @@ class CallStructualVariantsWithLumpy(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -e && {bcftools} index'
-                + ' --tbi'
-                + f' --threads {n_cpu}'
+                f'set -e && {bcftools} index --tbi --threads {n_cpu}'
                 + f' {output_vcf_path}'
             ),
             input_files_or_dirs=output_vcf_path,
             output_files_or_dirs=f'{output_vcf_path}.tbi'
         )
+        for i in [*discordants_bam_paths, *splitters_bam_paths]:
+            o = re.sub(r'\.bam$', '.cram', i)
+            self.run_shell(
+                args=[
+                    (
+                        'set -e && {samtools} view -@ {n_cpu} -T {fa_path} -CS'
+                        + f' -o {o} {i}'
+                    ),
+                    f'rm -f {i}'
+                ],
+                input_files_or_dirs=i, output_files_or_dirs=o
+            )
 
 
 if __name__ == '__main__':

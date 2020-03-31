@@ -11,8 +11,6 @@ COPY --from=dceoy/trim_galore:latest /usr/local/src/TrimGalore /usr/local/src/Tr
 COPY --from=dceoy/bcftools:latest /usr/local/src/bcftools /usr/local/src/bcftools
 COPY --from=dceoy/manta:latest /opt/manta /opt/manta
 COPY --from=dceoy/strelka:latest /opt/strelka /opt/strelka
-COPY --from=dceoy/cnvnator:latest /opt/root /opt/root
-COPY --from=dceoy/cnvnator:latest /usr/local/src/cnvnator /usr/local/src/cnvnator
 COPY --from=dceoy/delly:latest /usr/local/bin/delly /usr/local/bin/delly
 COPY --from=dceoy/msisensor:latest /usr/local/bin/msisensor /usr/local/bin/msisensor
 COPY --from=dceoy/lumpy:latest /opt/lumpy-sv /opt/lumpy-sv
@@ -43,7 +41,7 @@ RUN set -e \
 RUN set -e \
       && find \
         /usr/local/src/bwa /usr/local/src/FastQC /usr/local/src/TrimGalore \
-        /usr/local/src/cnvnator/src /usr/local/src/samblaster \
+        /usr/local/src/samblaster \
         -maxdepth 1 -type f -executable -exec ln -s {} /usr/local/bin \; \
       && cd /usr/local/src/samtools/htslib-* \
       && make install \
@@ -89,9 +87,8 @@ RUN set -e \
       && echo 'source /usr/local/src/gatk/gatk-completion.sh' \
         >> /usr/local/src/gatk/gatkenv.rc
 
-ENV ROOTSYS /opt/root
-ENV PYTHONPATH ${ROOTSYS}/lib:/opt/manta/lib/python:/opt/strelka/lib/python:${PYTHONPATH}
+ENV PYTHONPATH /opt/manta/lib/python:/opt/strelka/lib/python:${PYTHONPATH}
 ENV PATH /opt/conda/envs/gatk/bin:/opt/conda/bin:/opt/manta/bin:/opt/strelka/bin:/opt/lumpy-sv/bin:${PATH}
-ENV LD_LIBRARY_PATH ${ROOTSYS}/lib:/usr/local/src/cnvnator/yeppp-1.0.0/binaries/linux/x86_64:${LD_LIBRARY_PATH}
+ENV BCFTOOLS_PLUGINS /usr/local/src/bcftools/plugins
 
 ENTRYPOINT ["/opt/conda/bin/vcline"]

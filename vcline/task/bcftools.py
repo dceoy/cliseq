@@ -51,9 +51,7 @@ class NormalizeVCF(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -e && {bcftools} index'
-                + ' --tbi'
-                + f' --threads {n_cpu}'
+                f'set -e && {bcftools} index --tbi --threads {n_cpu}'
                 + f' {output_vcf_path}'
             ),
             input_files_or_dirs=output_vcf_path,
