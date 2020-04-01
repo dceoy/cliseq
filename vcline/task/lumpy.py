@@ -9,10 +9,12 @@ from luigi.util import requires
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMs
 from .base import ShellTask
-from .ref import CreateFASTAIndex, FetchReferenceFASTA
+from .ref import (CreateExclusionIntervalListBED, CreateFASTAIndex,
+                  FetchReferenceFASTA)
 
 
-@requires(PrepareCRAMs, FetchReferenceFASTA, CreateFASTAIndex)
+@requires(PrepareCRAMs, FetchReferenceFASTA, CreateFASTAIndex,
+          CreateExclusionIntervalListBED)
 class CallStructualVariantsWithLumpy(ShellTask):
     cf = luigi.DictParameter()
     priority = 10
@@ -53,6 +55,7 @@ class CallStructualVariantsWithLumpy(ShellTask):
         input_cram_paths = [i[0].path for i in self.input()[0]]
         fa_path = self.input()[1].path
         fai_path = self.input()[2].path
+        exclusion_bed_path = self.input()[3][0].path
         discordants_bam_paths = [
             str(
                 Path(self.cf['lumpy_dir_path']).joinpath(
@@ -110,11 +113,14 @@ class CallStructualVariantsWithLumpy(ShellTask):
                 + ' -S {0},{1}'.format(*splitters_bam_paths)
                 + ' -D {0},{1}'.format(*discordants_bam_paths)
                 + f' -R {fa_path}'
+                + f' -x {exclusion_bed_path}'
                 + f' -T {uncompressed_vcf_path}.temp'
                 + f' -t {n_cpu}'
                 + f' -o {uncompressed_vcf_path}'
             ),
-            input_files_or_dirs=[*input_cram_paths, fa_path, fai_path],
+            input_files_or_dirs=[
+                *input_cram_paths, fa_path, fai_path, exclusion_bed_path
+            ],
             output_files_or_dirs=uncompressed_vcf_path
         )
         self.run_shell(

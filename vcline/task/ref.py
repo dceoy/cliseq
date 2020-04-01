@@ -303,6 +303,76 @@ class CreateEvaluationIntervalListBED(ShellTask):
         )
 
 
+@requires(CreateEvaluationIntervalListBED, CreateFASTAIndex)
+class CreateExclusionIntervalListBED(ShellTask):
+    cf = luigi.DictParameter()
+    priority = 70
+
+    def output(self):
+        return (
+            [
+                luigi.LocalTarget(
+                    re.sub(
+                        r'\.bed\.gz$', f'.exclusion.bed.gz{s}',
+                        self.input()[0][0].path
+                    )
+                ) for s in ['', '.tbi']
+            ] + [
+                luigi.LocalTarget(
+                    re.sub(r'\.fai$', f'.bed.gz{s}', self.input()[1].path)
+                ) for s in ['', '.tbi']
+            ]
+        )
+
+    def run(self):
+        evaluation_bed_path = self.input()[0][0].path
+        run_id = Path(Path(evaluation_bed_path).stem).stem
+        self.print_log(f'Create an exclusion interval_list BED:\t{run_id}')
+        bedtools = self.cf['bedtools']
+        bgzip = self.cf['bgzip']
+        tabix = self.cf['tabix']
+        fai_path = self.input()[1].path
+        n_cpu = self.cf['n_cpu_per_worker']
+        exclusion_bed_path = self.output()[0].path
+        genome_bed_path = self.output()[2].path
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=[bgzip, tabix], cwd=self.cf['ref_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
+        )
+        self.run_shell(
+            args=(
+                f'set -eo pipefail && {sys.executable}'
+                + ' -c \'{}\''.format(
+                    'from fileinput import input;'
+                    '[print("{0}\\t0\\t{1}".format(*s.split()[:2]))'
+                    ' for s in input()];'
+                ) + f' {fai_path}'
+                + f' | {bgzip} -@ {n_cpu} -c > {genome_bed_path}'
+            ),
+            input_files_or_dirs=fai_path, output_files_or_dirs=genome_bed_path
+        )
+        self.run_shell(
+            args=f'set -e && {tabix} -p bed {genome_bed_path}',
+            input_files_or_dirs=genome_bed_path,
+            output_files_or_dirs=f'{genome_bed_path}.tbi'
+        )
+        self.run_shell(
+            args=(
+                f'set -eo pipefail && {bedtools} subtract'
+                + f' -a {genome_bed_path} -b {evaluation_bed_path}'
+                + f' | {bgzip} -@ {n_cpu} -c > {genome_bed_path}'
+            ),
+            input_files_or_dirs=[genome_bed_path, evaluation_bed_path],
+            output_files_or_dirs=exclusion_bed_path
+        )
+        self.run_shell(
+            args=f'set -e && {tabix} -p bed {exclusion_bed_path}',
+            input_files_or_dirs=exclusion_bed_path,
+            output_files_or_dirs=f'{exclusion_bed_path}.tbi'
+        )
+
+
 @requires(FetchReferenceFASTA)
 class CreateSequenceDictionary(ShellTask):
     cf = luigi.DictParameter()

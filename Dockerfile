@@ -9,6 +9,7 @@ COPY --from=dceoy/bwa:latest /usr/local/src/bwa /usr/local/src/bwa
 COPY --from=dceoy/trim_galore:latest /usr/local/src/FastQC /usr/local/src/FastQC
 COPY --from=dceoy/trim_galore:latest /usr/local/src/TrimGalore /usr/local/src/TrimGalore
 COPY --from=dceoy/bcftools:latest /usr/local/src/bcftools /usr/local/src/bcftools
+COPY --from=dceoy/bedtools:latest /usr/local/src/bedtools2 /usr/local/src/bedtools2
 COPY --from=dceoy/manta:latest /opt/manta /opt/manta
 COPY --from=dceoy/strelka:latest /opt/strelka /opt/strelka
 COPY --from=dceoy/delly:latest /usr/local/bin/delly /usr/local/bin/delly
@@ -48,6 +49,8 @@ RUN set -e \
       && cd /usr/local/src/samtools \
       && make install \
       && cd /usr/local/src/bcftools \
+      && make install \
+      && cd /usr/local/src/bedtools2 \
       && make install
 
 RUN set -e \
