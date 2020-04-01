@@ -21,11 +21,126 @@ from .strelka import (CallGermlineVariantsWithStrelka,
                       CallSomaticVariantsWithStrelka)
 
 
-class CallVariants(BaseTask):
+class RunVariantCaller(luigi.WrapperTask):
     ref_fa_paths = luigi.ListParameter()
     fq_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
     sample_names = luigi.ListParameter()
+    dbsnp_vcf_path = luigi.Parameter()
+    mills_indel_vcf_path = luigi.Parameter()
+    known_indel_vcf_path = luigi.Parameter()
+    hapmap_vcf_path = luigi.Parameter()
+    gnomad_vcf_path = luigi.Parameter()
+    evaluation_interval_path = luigi.Parameter()
+    funcotator_data_source_tar_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    variant_caller_mode = luigi.ListParameter()
+    variant_annotators = luigi.ListParameter()
+    normalize_vcf = luigi.BoolParameter(default=True)
+    priority = 10
+
+    def requires(self):
+        if 'haplotypecaller' == self.variant_caller_mode:
+            return FilterVariantTranches(
+                fq_list=self.fq_list, read_groups=self.read_groups,
+                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path,
+                hapmap_vcf_path=self.hapmap_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
+            )
+        elif 'mutect2' == self.variant_caller_mode:
+            return FilterMutectCalls(
+                fq_list=self.fq_list, read_groups=self.read_groups,
+                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path,
+                gnomad_vcf_path=self.gnomad_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
+            )
+        elif 'manta.somatic' == self.variant_caller_mode:
+            return CallStructualVariantsWithManta(
+                fq_list=self.fq_list, read_groups=self.read_groups,
+                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
+            )
+        elif 'strelka.somatic' == self.variant_caller_mode:
+            return CallSomaticVariantsWithStrelka(
+                fq_list=self.fq_list, read_groups=self.read_groups,
+                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
+            )
+        elif 'strelka.germline' == self.variant_caller_mode:
+            return CallGermlineVariantsWithStrelka(
+                fq_list=self.fq_list, read_groups=self.read_groups,
+                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
+            )
+        elif 'delly' == self.variant_caller_mode:
+            return CallStructualVariantsWithDelly(
+                fq_list=self.fq_list, read_groups=self.read_groups,
+                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
+            )
+        elif 'lumpy' == self.variant_caller_mode:
+            return CallStructualVariantsWithLumpy(
+                fq_list=self.fq_list, read_groups=self.read_groups,
+                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
+            )
+        else:
+            raise ValueError(f'invalid mode: {self.variant_caller_mode}')
+
+    def output(self):
+        vcf_paths = [
+            i.path for i in self.input() if (
+                i.path.endswith('.vcf.gz')
+                and self.variant_caller_mode in Path(i.path).name
+            )
+        ]
+        if vcf_paths and 'funcotator' in self.variant_annotators:
+            return [
+                AnnotateVariantsWithFuncotator(
+                    input_vcf_path=p,
+                    data_source_tar_path=self.funcotator_data_source_tar_path,
+                    ref_fa_paths=self.ref_fa_paths,
+                    evaluation_interval_path=self.evaluation_interval_path,
+                    cf=self.cf, normalize_vcf=self.normalize_vcf
+                ).output() for p in vcf_paths
+            ]
+        else:
+            return self.input()
+
+
+class CallVariants(luigi.WrapperTask):
+    fq_list = luigi.ListParameter()
+    read_groups = luigi.ListParameter()
+    sample_names = luigi.ListParameter()
+    ref_fa_paths = luigi.ListParameter()
     dbsnp_vcf_path = luigi.Parameter()
     mills_indel_vcf_path = luigi.Parameter()
     known_indel_vcf_path = luigi.Parameter()
@@ -41,129 +156,47 @@ class CallVariants(BaseTask):
     priority = luigi.IntParameter(default=100)
 
     def requires(self):
-        tasks = dict()
         if not self.variant_callers:
-            tasks['align'] = PrepareCRAMs(
+            return PrepareCRAMs(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
             )
-        if 'haplotypecaller' in self.variant_callers:
-            tasks['haplotypecaller'] = FilterVariantTranches(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path,
-                hapmap_vcf_path=self.hapmap_vcf_path,
-                evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
-            )
-        if 'mutect2' in self.variant_callers:
-            tasks['mutect2'] = FilterMutectCalls(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path,
-                gnomad_vcf_path=self.gnomad_vcf_path,
-                evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
-            )
-        if 'manta' in self.variant_callers:
-            tasks['manta_somatic'] = CallStructualVariantsWithManta(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path,
-                evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
-            )
-        if 'strelka' in self.variant_callers:
-            tasks['strelka.somatic'] = CallSomaticVariantsWithStrelka(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path,
-                evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
-            )
-            tasks['strelka.variants'] = CallGermlineVariantsWithStrelka(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path,
-                evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
-            )
-        if 'delly' in self.variant_callers:
-            tasks['delly'] = CallStructualVariantsWithDelly(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path,
-                cf=self.cf
-            )
-        if 'lumpy' in self.variant_callers:
-            tasks['lumpy'] = CallStructualVariantsWithLumpy(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path,
-                cf=self.cf
-            )
-        return tasks
-
-    def output(self):
-        targets = dict()
-        if 'funcotator' in self.variant_annotators:
-            targets['funcotator'] = [
-                luigi.LocalTarget(t[2])
-                for t in self._generate_funcotator_io_paths()
-            ]
-        return targets or self.input()
-
-    def run(self):
-        if 'funcotator' in self.variant_annotators:
-            for k, i, _ in self._generate_funcotator_io_paths():
-                yield AnnotateVariantsWithFuncotator(
-                    input_vcf_path=i,
-                    data_source_tar_path=(
+        else:
+            vc_modes = list()
+            for c in self.variant_callers:
+                if c == 'manta':
+                    vc_modes.append(f'{c}.somatic')
+                elif c == 'strelka':
+                    vc_modes.extend([f'{c}.germline', f'{c}.somatic'])
+                else:
+                    vc_modes.append(c)
+            return [
+                RunVariantCaller(
+                    fq_list=self.fq_list, read_groups=self.read_groups,
+                    sample_names=self.sample_names,
+                    ref_fa_paths=self.ref_fa_paths,
+                    dbsnp_vcf_path=self.dbsnp_vcf_path,
+                    mills_indel_vcf_path=self.mills_indel_vcf_path,
+                    known_indel_vcf_path=self.known_indel_vcf_path,
+                    hapmap_vcf_path=self.hapmap_vcf_path,
+                    gnomad_vcf_path=self.gnomad_vcf_path,
+                    evaluation_interval_path=self.evaluation_interval_path,
+                    funcotator_data_source_tar_path=(
                         self.funcotator_germline_tar_path
-                        if k in {'haplotypecaller', 'strelka_variants'}
+                        if m in {'haplotypecaller', 'strelka.germline'}
                         else self.funcotator_somatic_tar_path
                     ),
-                    ref_fa_paths=self.ref_fa_paths,
-                    evaluation_interval_path=self.evaluation_interval_path,
-                    cf=self.cf, normalize_vcf=self.normalize_vcf
-                )
+                    cf=self.cf, variant_caller_mode=m,
+                    variant_annotators=self.variant_annotators,
+                    normalize_vcf=self.normalize_vcf
+                ) for m in vc_modes
+            ]
 
-    def _generate_funcotator_io_paths(self):
-        for k, a in self.input().items():
-            if k != 'align':
-                for t in a:
-                    if (t.path.endswith('.vcf.gz')
-                            and (k in Path(t.path).name
-                                 or not k.startswith(('manta', 'strelka')))):
-                        yield (
-                            k, t.path,
-                            str(
-                                Path(self.cf['funcotator_dir_path']).joinpath(
-                                    Path(Path(t.path).stem).stem + (
-                                        '.norm.funcotator.vcf.gz'
-                                        if self.normalize_vcf else
-                                        '.funcotator.vcf.gz'
-                                    )
-                                )
-                            )
-                        )
+    def output(self):
+        return self.input()
 
 
 class RunAnalyticalPipeline(BaseTask):
@@ -203,11 +236,11 @@ class RunAnalyticalPipeline(BaseTask):
             'remove_if_failed': (not self.skip_cleaning),
             **{
                 c: fetch_executable(c) for c in [
-                    'bcftools', 'bgzip', 'bwa', 'cutadapt', 'delly', 'fastqc',
-                    'gawk', 'gatk', 'lumpy', 'lumpyexpress', 'pbzip2', 'pigz',
-                    'python', 'python2', 'sambamba', 'samblaster', 'samtools',
-                    'tabix', 'trim_galore', 'configManta.py',
-                    'configureStrelkaSomaticWorkflow.py',
+                    'bcftools', 'bedtools', 'bgzip', 'bwa', 'cutadapt',
+                    'delly', 'fastqc', 'gawk', 'gatk', 'lumpy', 'lumpyexpress',
+                    'pbzip2', 'pigz', 'python', 'python2', 'sambamba',
+                    'samblaster', 'samtools', 'tabix', 'trim_galore',
+                    'configManta.py', 'configureStrelkaSomaticWorkflow.py',
                     'configureStrelkaGermlineWorkflow.py'
                 ]
             },

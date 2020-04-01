@@ -24,8 +24,8 @@ RUN set -e \
       && apt-get -y update \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
-        gcc libbz2-dev libc-dev libcurl4-gnutls-dev libgsl-dev libperl-dev \
-        liblzma-dev libssl-dev libz-dev make python \
+        g++ gcc libbz2-dev libc-dev libcurl4-gnutls-dev libgsl-dev \
+        libperl-dev liblzma-dev libssl-dev libz-dev make python \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*

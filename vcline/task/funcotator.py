@@ -6,7 +6,7 @@ import luigi
 
 from .base import ShellTask
 from .bcftools import NormalizeVCF
-from .ref import (ExtractFuncotatorTarFile, FetchEvaluationIntervalList,
+from .ref import (ExtractTarFile, FetchEvaluationIntervalList,
                   FetchReferenceFASTA)
 
 
@@ -22,7 +22,7 @@ class AnnotateVariantsWithFuncotator(ShellTask):
     def requires(self):
         return [
             FetchReferenceFASTA(ref_fa_paths=self.ref_fa_paths, cf=self.cf),
-            ExtractFuncotatorTarFile(
+            ExtractTarFile(
                 tar_path=self.data_source_tar_path, cf=self.cf
             ),
             FetchEvaluationIntervalList(

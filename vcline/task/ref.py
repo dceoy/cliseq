@@ -63,6 +63,7 @@ class FetchReferenceFASTA(ShellTask):
 class FetchResourceVCF(ShellTask):
     resource_vcf_path = luigi.ListParameter()
     cf = luigi.DictParameter()
+    priority = 70
 
     def output(self):
         return [
@@ -155,6 +156,7 @@ class FetchKnownIndelVCF(luigi.WrapperTask):
 class FetchResourceFile(ShellTask):
     resource_file_path = luigi.Parameter()
     cf = luigi.DictParameter()
+    priority = 70
 
     def output(self):
         return luigi.LocalTarget(
@@ -361,7 +363,7 @@ class CreateExclusionIntervalListBED(ShellTask):
             args=(
                 f'set -eo pipefail && {bedtools} subtract'
                 + f' -a {genome_bed_path} -b {evaluation_bed_path}'
-                + f' | {bgzip} -@ {n_cpu} -c > {genome_bed_path}'
+                + f' | {bgzip} -@ {n_cpu} -c > {exclusion_bed_path}'
             ),
             input_files_or_dirs=[genome_bed_path, evaluation_bed_path],
             output_files_or_dirs=exclusion_bed_path
@@ -496,6 +498,7 @@ class ExtractTarFile(ShellTask):
     tar_path = luigi.Parameter()
     cf = luigi.DictParameter()
     recursive = luigi.BoolParameter(default=True)
+    priority = 70
 
     def output(self):
         return luigi.LocalTarget(
@@ -529,20 +532,6 @@ class ExtractTarFile(ShellTask):
                         cwd=dest_path, input_files_or_dirs=p,
                         output_files_or_dirs=re.sub(r'\.tar\.(gz|bz2)$', '', p)
                     )
-
-
-class ExtractFuncotatorTarFile(luigi.WrapperTask):
-    funcotator_data_source_tar_path = luigi.Parameter()
-    cf = luigi.DictParameter()
-    priority = 80
-
-    def requires(self):
-        return ExtractTarFile(
-            tar_path=self.funcotator_data_source_tar_path, cf=self.cf
-        )
-
-    def output(self):
-        return self.input()
 
 
 if __name__ == '__main__':
