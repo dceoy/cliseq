@@ -32,10 +32,6 @@ RUN set -e \
 
 RUN set -e \
       && /opt/conda/bin/conda update -n base -c defaults conda \
-      && /opt/conda/bin/conda config --add channels defaults \
-      && /opt/conda/bin/conda config --add channels bioconda \
-      && /opt/conda/bin/conda config --add channels conda-forge \
-      && /opt/conda/bin/conda install bicseq2-norm bicseq2-seg \
       && /opt/conda/bin/conda clean -ya \
       && rm -rf /root/.cache/pip
 

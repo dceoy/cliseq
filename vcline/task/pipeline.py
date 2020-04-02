@@ -32,7 +32,7 @@ class RunVariantCaller(luigi.WrapperTask):
     hapmap_vcf_path = luigi.Parameter()
     gnomad_vcf_path = luigi.Parameter()
     evaluation_interval_path = luigi.Parameter()
-    funcotator_data_source_tar_path = luigi.Parameter()
+    funcotator_data_src_tar_path = luigi.Parameter()
     cf = luigi.DictParameter()
     variant_caller_mode = luigi.ListParameter()
     variant_annotators = luigi.ListParameter()
@@ -126,9 +126,8 @@ class RunVariantCaller(luigi.WrapperTask):
             return [
                 AnnotateVariantsWithFuncotator(
                     input_vcf_path=p,
-                    data_source_tar_path=self.funcotator_data_source_tar_path,
+                    data_src_tar_path=self.funcotator_data_src_tar_path,
                     ref_fa_paths=self.ref_fa_paths,
-                    evaluation_interval_path=self.evaluation_interval_path,
                     cf=self.cf, normalize_vcf=self.normalize_vcf
                 ).output() for p in vcf_paths
             ]
@@ -184,7 +183,7 @@ class CallVariants(luigi.WrapperTask):
                     hapmap_vcf_path=self.hapmap_vcf_path,
                     gnomad_vcf_path=self.gnomad_vcf_path,
                     evaluation_interval_path=self.evaluation_interval_path,
-                    funcotator_data_source_tar_path=(
+                    funcotator_data_src_tar_path=(
                         self.funcotator_germline_tar_path
                         if m in {'haplotypecaller', 'strelka.germline'}
                         else self.funcotator_somatic_tar_path

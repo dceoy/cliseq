@@ -6,17 +6,20 @@ Usage:
     vcline init [--debug|--info] [--yml=<path>]
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
         [--workers=<int>] [--split-intervals] [--skip-cleaning]
-        [--ref-dir=<path>] <dest_dir_path>
+        [--ref-dir=<path>] [--dest-dir=<path>]
     vcline download-resources [--debug|--info] [--cpus=<int>]
-        [--without-gnomad] <dest_dir_path>
+        [--without-gnomad] [--dest-dir=<path>]
     vcline download-funcotator-data [--debug|--info] [--cpus=<int>]
-        <dest_dir_path>
+        [--dest-dir=<path>]
     vcline download-gnomad-af-only-vcf [--debug|--info] [--cpus=<int>]
-        <dest_dir_path>
+        [--dest-dir=<path>]
     vcline write-af-only-vcf [--debug|--info] [--cpus=<int>]
-        [--src-path=<path>|--src-url=<url>] <dest_dir_path>
+        [--src-path=<path>|--src-url=<url>] [--dest-dir=<path>]
     vcline create-interval-list [--debug|--info] [--cpus=<int>]
-        <fa_path> <bed_path> <dest_dir_path>
+        [--dest-dir=<path>] <fa_path> <bed_path>
+    vcline funcotator [--debug|--info] [--cpus=<int>] [--ref-ver=<str>]
+        [--normalize-vcf] [--dest-dir=<path>] <data_dir_path> <fa_path>
+        <vcf_path>...
     vcline -h|--help
     vcline --version
 
@@ -41,14 +44,19 @@ Options:
     --split-intervals       Split evaluation intervals
     --skip-cleaning         Skip incomlete file removal when a task fails
     --ref-dir=<path>        Specify a reference directory path
+    --dest-dir=<path>       Specify a destination directory path [default: .]
     --without-gnomad        Skip downloading gnomAD VCF (>200GB)
     --src-url=<url>         Specify a source URL
-    --src-path=<path>       Specify a source PATH
+    --src-path=<path>       Specify a source path
+    --ref-ver=<str>         Specify a reference version [default: hg38]
+    --normalize-vcf         Normalize VCF files
 
 Args:
-    <dest_dir_path>         Destination directory path
-    <fa_path>               Path to a reference genome file
+    <fa_path>               Path to an reference FASTA file
+                            (The index and sequence dictionary are required.)
     <bed_path>              Path to a BED file
+    <data_dir_path>         Path to a Funcotator data source directory
+    <vcf_path>              Path to a VCF file
 """
 
 import logging
@@ -62,6 +70,7 @@ from docopt import docopt
 from psutil import cpu_count, virtual_memory
 
 from .. import __version__
+from ..task.funcotator import RunFuncotator
 from ..task.pipeline import RunAnalyticalPipeline
 from ..task.resource import (CreateIntervalListWithBED,
                              DownloadAndConvertVCFsIntoPassingAfOnlyVCF,
@@ -90,13 +99,13 @@ def main():
     elif args['run']:
         _run_analytical_pipeline(
             config_yml_path=args['--yml'], ref_dir_path=args['--ref-dir'],
-            dest_dir_path=args['<dest_dir_path>'], max_n_cpu=args['--cpus'],
+            dest_dir_path=args['--dest-dir'], max_n_cpu=args['--cpus'],
             max_n_worker=args['--workers'],
             split_intervals=args['--split-intervals'],
             skip_cleaning=args['--skip-cleaning'], log_level=log_level
         )
     else:
-        dest_dir_path = str(Path(args['<dest_dir_path>']).resolve())
+        dest_dir_path = str(Path(args['--dest-dir']).resolve())
         n_cpu = int(args['--cpus'] or cpu_count())
         if args['download-resources']:
             url_dict = load_default_url_dict()
@@ -180,6 +189,25 @@ def main():
                         gatk=fetch_executable('gatk')
                     )
                 ],
+                log_level=log_level
+            )
+        elif args['funcotator']:
+            kwargs = {
+                'data_src_dir_path':
+                str(Path(args['<data_dir_path>']).resolve()),
+                'fa_path': str(Path(args['<fa_path>']).resolve()),
+                'ref_version': args['--ref-ver'],
+                'dest_dir_path': dest_dir_path,
+                'normalize_vcf': args['--normalize-vcf'], 'n_cpu': n_cpu,
+                **{c: fetch_executable(c) for c in ['gatk', 'bcftools']}
+            }
+            build_luigi_tasks(
+                tasks=[
+                    RunFuncotator(
+                        input_vcf_path=str(Path(p).resolve()), **kwargs
+                    ) for p in args['<vcf_path>']
+                ],
+                workers=min(n_cpu, len(args['<vcf_path>'])),
                 log_level=log_level
             )
 
