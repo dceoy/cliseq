@@ -192,13 +192,18 @@ def main():
                 log_level=log_level
             )
         elif args['funcotator']:
+            n_vcf = len(args['<vcf_path>'])
+            n_worker = min(n_cpu, n_vcf)
             kwargs = {
                 'data_src_dir_path':
                 str(Path(args['<data_dir_path>']).resolve()),
                 'fa_path': str(Path(args['<fa_path>']).resolve()),
                 'ref_version': args['--ref-ver'],
                 'dest_dir_path': dest_dir_path,
-                'normalize_vcf': args['--normalize-vcf'], 'n_cpu': n_cpu,
+                'normalize_vcf': args['--normalize-vcf'],
+                'n_cpu': (floor(n_cpu / n_vcf) if n_cpu > n_vcf else 1),
+                'memory_mb':
+                int(virtual_memory().total / 1024 / 1024 / n_worker),
                 **{c: fetch_executable(c) for c in ['gatk', 'bcftools']}
             }
             build_luigi_tasks(
@@ -207,8 +212,7 @@ def main():
                         input_vcf_path=str(Path(p).resolve()), **kwargs
                     ) for p in args['<vcf_path>']
                 ],
-                workers=min(n_cpu, len(args['<vcf_path>'])),
-                log_level=log_level
+                workers=n_worker, log_level=log_level
             )
 
 

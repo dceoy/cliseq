@@ -39,7 +39,8 @@ class AnnotateVariantsWithFuncotator(luigi.WrapperTask):
             dest_dir_path=self.cf['funcotator_dir_path'],
             normalize_vcf=self.normalize_vcf,
             norm_dir_path=self.cf['bcftools_dir_path'],
-            n_cpu=self.cf['n_cpu_per_worker'], gatk=self.cf['gatk'],
+            n_cpu=self.cf['n_cpu_per_worker'],
+            memory_mb=self.cf['memory_mb_per_worker'], gatk=self.cf['gatk'],
             gatk_java_options=self.cf['gatk_java_options'],
             bcftools=self.cf['bcftools'], log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
@@ -56,12 +57,13 @@ class RunFuncotator(ShellTask):
     normalize_vcf = luigi.BoolParameter(default=False)
     norm_dir_path = luigi.Parameter(default='')
     n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.IntParameter(default=(4 * 1024))
     gatk = luigi.Parameter()
     gatk_java_options = luigi.Parameter(default='')
     bcftools = luigi.Parameter()
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
-    disable_vcf_validation = luigi.BoolParameter(default=True)
+    disable_vcf_validation = luigi.BoolParameter(default=False)
     priority = 10
 
     def requires(self):
@@ -69,7 +71,8 @@ class RunFuncotator(ShellTask):
             return NormalizeVCF(
                 input_vcf_path=self.input_vcf_path, fa_path=self.fa_path,
                 dest_dir_path=(self.norm_dir_path or self.dest_dir_path),
-                n_cpu=self.n_cpu, bcftools=self.bcftools,
+                n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                bcftools=self.bcftools,
                 log_dir_path=(self.log_dir_path or None),
                 remove_if_failed=self.remove_if_failed
             )
@@ -112,7 +115,7 @@ class RunFuncotator(ShellTask):
                 + (
                     f'{self.gatk} --java-options "{self.gatk_java_options}"'
                     if self.gatk_java_options else self.gatk
-                ) + '  Funcotator'
+                ) + ' Funcotator'
                 + f' --variant {input_vcf_path}'
                 + f' --reference {self.fa_path}'
                 + f' --ref-version {self.ref_version}'
