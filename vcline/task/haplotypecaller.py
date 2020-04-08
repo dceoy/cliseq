@@ -6,7 +6,7 @@ from pathlib import Path
 import luigi
 from luigi.util import requires
 
-from .align import PrepareCRAMs
+from .align import PrepareNormalCRAM
 from .base import ShellTask
 from .ref import (CreateFASTAIndex, FetchDbsnpVCF, FetchEvaluationIntervalList,
                   FetchHapmapVCF, FetchMillsIndelVCF, FetchReferenceFASTA)
@@ -78,7 +78,7 @@ class PrepareEvaluationIntervals(luigi.WrapperTask):
         )
 
 
-@requires(PrepareCRAMs, FetchReferenceFASTA, CreateFASTAIndex,
+@requires(PrepareNormalCRAM, FetchReferenceFASTA, CreateFASTAIndex,
           FetchDbsnpVCF, PrepareEvaluationIntervals)
 class CallVariantsWithHaplotypeCaller(ShellTask):
     cf = luigi.DictParameter()
@@ -89,7 +89,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
             luigi.LocalTarget(
                 str(
                     Path(self.cf['haplotypecaller_dir_path']).joinpath(
-                        Path(self.input()[0][1][0].path).stem
+                        Path(self.input()[0][0].path).stem
                         + f'.haplotypecaller.{s}'
                     )
                 )
@@ -109,7 +109,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         save_memory = str(self.cf['save_memory']).lower()
         n_cpu = self.cf['n_cpu_per_worker']
         memory_per_thread = self.cf['samtools_memory_per_thread']
-        input_cram_path = self.input()[0][1][0].path
+        input_cram_path = self.input()[0][0].path
         fa_path = self.input()[1].path
         fai_path = self.input()[2].path
         dbsnp_vcf_path = self.input()[3][0].path

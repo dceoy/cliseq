@@ -7,14 +7,14 @@ import luigi
 from luigi.util import requires
 
 from ..cli.util import create_matched_id
-from .align import PrepareCRAMs
+from .align import PrepareNormalCRAM, PrepareTumorCRAM
 from .base import ShellTask
 from .ref import (CreateExclusionIntervalListBED, CreateFASTAIndex,
                   FetchReferenceFASTA)
 
 
-@requires(PrepareCRAMs, FetchReferenceFASTA, CreateFASTAIndex,
-          CreateExclusionIntervalListBED)
+@requires(PrepareTumorCRAM, PrepareNormalCRAM, FetchReferenceFASTA,
+          CreateFASTAIndex, CreateExclusionIntervalListBED)
 class CallStructualVariantsWithLumpy(ShellTask):
     cf = luigi.DictParameter()
     priority = 10
@@ -25,11 +25,11 @@ class CallStructualVariantsWithLumpy(ShellTask):
                 str(
                     Path(self.cf['lumpy_dir_path']).joinpath(
                         create_matched_id(
-                            *[i[0].path for i in self.input()[0]]
-                        ) + f'.lumpy.{s}'
+                            *[i[0].path for i in self.input()[0:2]]
+                        ) + f'.lumpy.vcf.gz'
                     )
                 )
-            ) for s in ['vcf.gz', 'vcf.gz.tbi']
+            )
         ]
 
     def run(self):
@@ -52,10 +52,10 @@ class CallStructualVariantsWithLumpy(ShellTask):
         bcftools = self.cf['bcftools']
         n_cpu = self.cf['n_cpu_per_worker']
         memory_per_thread = self.cf['samtools_memory_per_thread']
-        input_cram_paths = [i[0].path for i in self.input()[0]]
-        fa_path = self.input()[1].path
-        fai_path = self.input()[2].path
-        exclusion_bed_path = self.input()[3][0].path
+        input_cram_paths = [i[0].path for i in self.input()[0:2]]
+        fa_path = self.input()[2].path
+        fai_path = self.input()[3].path
+        exclusion_bed_path = self.input()[4][0].path
         discordants_bam_paths = [
             str(
                 Path(self.cf['lumpy_dir_path']).joinpath(
@@ -128,21 +128,13 @@ class CallStructualVariantsWithLumpy(ShellTask):
             input_files_or_dirs=uncompressed_vcf_path,
             output_files_or_dirs=output_vcf_path
         )
-        self.run_shell(
-            args=(
-                f'set -e && {bcftools} index --tbi --threads {n_cpu}'
-                + f' {output_vcf_path}'
-            ),
-            input_files_or_dirs=output_vcf_path,
-            output_files_or_dirs=f'{output_vcf_path}.tbi'
-        )
         for i in [*discordants_bam_paths, *splitters_bam_paths]:
             o = re.sub(r'\.bam$', '.cram', i)
             self.run_shell(
                 args=[
                     (
-                        'set -e && {samtools} view -@ {n_cpu} -T {fa_path} -CS'
-                        + f' -o {o} {i}'
+                        f'set -e && {samtools}'
+                        + f' view -@ {n_cpu} -T {fa_path} -CS -o {o} {i}'
                     ),
                     f'rm -f {i}'
                 ],

@@ -328,7 +328,7 @@ class RemoveDuplicates(ShellTask):
         )
 
 
-class PrepareCRAMs(luigi.WrapperTask):
+class PrepareTumorCRAM(luigi.WrapperTask):
     ref_fa_paths = luigi.ListParameter()
     fq_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
@@ -340,16 +340,45 @@ class PrepareCRAMs(luigi.WrapperTask):
     priority = 100
 
     def requires(self):
-        return [
-            RemoveDuplicates(
-                fq_paths=f, read_group=r, sample_name=n,
-                ref_fa_paths=self.ref_fa_paths,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
-            ) for f, r, n
-            in zip(self.fq_list, self.read_groups, self.sample_names)
-        ]
+        return RemoveDuplicates(
+            fq_paths=self.fq_list[0], read_group=self.read_groups[0],
+            sample_name=self.sample_names[0], ref_fa_paths=self.ref_fa_paths,
+            dbsnp_vcf_path=self.dbsnp_vcf_path,
+            mills_indel_vcf_path=self.mills_indel_vcf_path,
+            known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
+        )
+
+    def output(self):
+        return self.input()
+
+
+class PrepareNormalCRAM(luigi.WrapperTask):
+    ref_fa_paths = luigi.ListParameter()
+    fq_list = luigi.ListParameter()
+    read_groups = luigi.ListParameter()
+    sample_names = luigi.ListParameter()
+    dbsnp_vcf_path = luigi.Parameter()
+    mills_indel_vcf_path = luigi.Parameter()
+    known_indel_vcf_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 100
+
+    def requires(self):
+        return RemoveDuplicates(
+            fq_paths=self.fq_list[1], read_group=self.read_groups[1],
+            sample_name=self.sample_names[1], ref_fa_paths=self.ref_fa_paths,
+            dbsnp_vcf_path=self.dbsnp_vcf_path,
+            mills_indel_vcf_path=self.mills_indel_vcf_path,
+            known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
+        )
+
+    def output(self):
+        return self.input()
+
+
+@requires(PrepareTumorCRAM, PrepareNormalCRAM)
+class PrepareCRAMs(luigi.WrapperTask):
+    priority = 100
 
     def output(self):
         return self.input()

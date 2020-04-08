@@ -7,7 +7,7 @@ import luigi
 from luigi.util import requires
 
 from ..cli.util import create_matched_id
-from .align import PrepareCRAMs
+from .align import PrepareNormalCRAM, PrepareTumorCRAM
 from .base import ShellTask
 from .haplotypecaller import PrepareEvaluationIntervals
 from .ref import (CreateFASTAIndex, CreateGnomadBiallelicSnpVCF,
@@ -15,61 +15,76 @@ from .ref import (CreateFASTAIndex, CreateGnomadBiallelicSnpVCF,
                   FetchReferenceFASTA)
 
 
-@requires(PrepareCRAMs, FetchReferenceFASTA, FetchEvaluationIntervalList,
+@requires(FetchReferenceFASTA, FetchEvaluationIntervalList,
           CreateGnomadBiallelicSnpVCF)
-class GetMatchedPileupSummaries(ShellTask):
+class GetPileupSummaries(ShellTask):
+    cram_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 50
 
     def output(self):
-        return [
-            luigi.LocalTarget(
-                str(
-                    Path(self.cf['mutect2_dir_path']).joinpath(
-                        Path(i[0].path).stem + '.pileup.table'
-                    )
+        return luigi.LocalTarget(
+            str(
+                Path(self.cf['mutect2_dir_path']).joinpath(
+                    Path(self.cram_path).stem + '.pileup.table'
                 )
-            ) for i in self.input()[0]
-        ]
+            )
+        )
 
     def run(self):
-        input_cram_paths = [i[0].path for i in self.input()[0]]
-        run_id = create_matched_id(*input_cram_paths)
-        self.print_log(f'Get pileup summaries:\t{run_id}')
+        run_id = Path(self.cram_path).stem
+        self.print_log(f'Get pileup summary:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        asynchronous = (self.cf['n_cpu_per_worker'] > 1)
         save_memory = str(self.cf['save_memory']).lower()
-        pileup_table_paths = [o.path for o in self.output()]
-        fa_path = self.input()[1].path
-        evaluation_interval_path = self.input()[2].path
-        gnomad_common_biallelic_vcf_path = self.input()[3][0].path
+        pileup_table_path = self.output().path
+        fa_path = self.input()[0].path
+        evaluation_interval_path = self.input()[1].path
+        gnomad_common_biallelic_vcf_path = self.input()[2][0].path
+        pileup_table_path = self.output().path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['mutect2_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
-            args=[
-                (
-                    f'set -e && {gatk}{gatk_opts} GetPileupSummaries'
-                    + f' --reference {fa_path}'
-                    + f' --input {c}'
-                    + f' --variant {gnomad_common_biallelic_vcf_path}'
-                    + f' --intervals {evaluation_interval_path}'
-                    + f' --output {t}'
-                    + f' --disable-bam-index-caching {save_memory}'
-                ) for c, t in zip(input_cram_paths, pileup_table_paths)
-            ],
+            args=(
+                f'set -e && {gatk}{gatk_opts} GetPileupSummaries'
+                + f' --reference {fa_path}'
+                + f' --input {self.cram_path}'
+                + f' --variant {gnomad_common_biallelic_vcf_path}'
+                + f' --intervals {evaluation_interval_path}'
+                + f' --output {pileup_table_path}'
+                + f' --disable-bam-index-caching {save_memory}'
+            ),
             input_files_or_dirs=[
-                *input_cram_paths, fa_path, evaluation_interval_path,
+                self.cram_path, fa_path, evaluation_interval_path,
                 gnomad_common_biallelic_vcf_path
             ],
-            output_files_or_dirs=pileup_table_paths, asynchronous=asynchronous
+            output_files_or_dirs=pileup_table_path
         )
 
 
-@requires(GetMatchedPileupSummaries)
+@requires(PrepareTumorCRAM, PrepareNormalCRAM)
+class GetPileupSummariesMatched(luigi.WrapperTask):
+    ref_fa_paths = luigi.ListParameter()
+    gnomad_vcf_path = luigi.Parameter()
+    evaluation_interval_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 50
+
+    def output(self):
+        return [
+            GetPileupSummaries(
+                cram_path=i[0].path, ref_fa_paths=self.ref_fa_paths,
+                gnomad_vcf_path=self.gnomad_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
+            ).output() for i in self.input()
+        ]
+
+
+@requires(GetPileupSummariesMatched)
 class CalculateContamination(ShellTask):
     cf = luigi.DictParameter()
     priority = 50
@@ -111,8 +126,8 @@ class CalculateContamination(ShellTask):
         )
 
 
-@requires(PrepareCRAMs, FetchReferenceFASTA, CreateFASTAIndex,
-          PrepareEvaluationIntervals, FetchGnomadVCF)
+@requires(PrepareTumorCRAM, PrepareNormalCRAM, FetchReferenceFASTA,
+          CreateFASTAIndex, PrepareEvaluationIntervals, FetchGnomadVCF)
 class CallVariantsWithMutect2(ShellTask):
     sample_names = luigi.ListParameter()
     cf = luigi.DictParameter()
@@ -124,7 +139,7 @@ class CallVariantsWithMutect2(ShellTask):
                 str(
                     Path(self.cf['mutect2_dir_path']).joinpath(
                         create_matched_id(
-                            *[i[0].path for i in self.input()[0]]
+                            *[i[0].path for i in self.input()[0:2]]
                         ) + f'.mutect2.{s}'
                     )
                 )
@@ -144,11 +159,11 @@ class CallVariantsWithMutect2(ShellTask):
         save_memory = str(self.cf['save_memory']).lower()
         n_cpu = self.cf['n_cpu_per_worker']
         memory_per_thread = self.cf['samtools_memory_per_thread']
-        input_cram_paths = [i[0].path for i in self.input()[0]]
-        fa_path = self.input()[1].path
-        fai_path = self.input()[2].path
-        evaluation_interval_paths = [i.path for i in self.input()[3]]
-        gnomad_vcf_path = self.input()[4][0].path
+        input_cram_paths = [i[0].path for i in self.input()[0:2]]
+        fa_path = self.input()[2].path
+        fai_path = self.input()[3].path
+        evaluation_interval_paths = [i.path for i in self.input()[4]]
+        gnomad_vcf_path = self.input()[5][0].path
         raw_stats_path = self.output()[2].path
         output_cram_path = self.output()[3].path
         ob_priors_path = self.output()[5].path

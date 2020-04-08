@@ -8,14 +8,14 @@ import luigi
 from luigi.util import requires
 
 from ..cli.util import create_matched_id
-from .align import PrepareCRAMs
+from .align import PrepareNormalCRAM, PrepareTumorCRAM
 from .base import ShellTask
 from .ref import (CreateEvaluationIntervalListBED, CreateFASTAIndex,
                   FetchReferenceFASTA)
 
 
-@requires(PrepareCRAMs, FetchReferenceFASTA, CreateFASTAIndex,
-          CreateEvaluationIntervalListBED)
+@requires(PrepareTumorCRAM, PrepareNormalCRAM, FetchReferenceFASTA,
+          CreateFASTAIndex, CreateEvaluationIntervalListBED)
 class CallStructualVariantsWithManta(ShellTask):
     cf = luigi.DictParameter()
     result_file_names = [
@@ -35,7 +35,7 @@ class CallStructualVariantsWithManta(ShellTask):
                 str(
                     Path(self.cf['manta_dir_path']).joinpath(
                         create_matched_id(
-                            *[i[0].path for i in self.input()[0]]
+                            *[i[0].path for i in self.input()[0:2]]
                         ) + f'.manta.{n}'
                     )
                 )
@@ -52,10 +52,10 @@ class CallStructualVariantsWithManta(ShellTask):
         python2 = self.cf['python2']
         n_cpu = self.cf['n_cpu_per_worker']
         memory_gb = max(floor(self.cf['memory_mb_per_worker'] / 1024), 1)
-        input_cram_paths = [i[0].path for i in self.input()[0]]
-        fa_path = self.input()[1].path
-        fai_path = self.input()[2].path
-        bed_path = self.input()[3][0].path
+        input_cram_paths = [i[0].path for i in self.input()[0:2]]
+        fa_path = self.input()[2].path
+        fai_path = self.input()[3].path
+        bed_path = self.input()[4][0].path
         pythonpath = Path(config_script).parent.parent.joinpath('lib/python')
         result_file_paths = [
             str(Path(run_dir_path).joinpath(f'results/variants/{n}'))
