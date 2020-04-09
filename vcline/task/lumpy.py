@@ -22,14 +22,21 @@ class CallStructualVariantsWithLumpy(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['lumpy_dir_path']).joinpath(
-                        create_matched_id(
-                            *[i[0].path for i in self.input()[0:2]]
-                        ) + f'.lumpy.vcf.gz'
-                    )
-                )
-            )
+                str(Path(self.cf['lumpy_dir_path']).joinpath(n))
+            ) for n in [
+                (
+                    create_matched_id(*[i[0].path for i in self.input()[0:2]])
+                    + f'.lumpy.vcf.gz'
+                ),
+                *[
+                    '{}.discordants.cram'.format(Path(i[0].path).stem)
+                    for i in self.input()[0:2]
+                ],
+                *[
+                    '{}.splitters.cram'.format(Path(i[0].path).stem)
+                    for i in self.input()[0:2]
+                ]
+            ]
         ]
 
     def run(self):
@@ -57,18 +64,10 @@ class CallStructualVariantsWithLumpy(ShellTask):
         fai_path = self.input()[3].path
         exclusion_bed_path = self.input()[4][0].path
         discordants_bam_paths = [
-            str(
-                Path(self.cf['lumpy_dir_path']).joinpath(
-                    Path(c).stem + '.discordants.bam'
-                )
-            ) for c in input_cram_paths
+            re.sub(r'\.cram$', '.bam', o.path) for o in self.output()[1:3]
         ]
         splitters_bam_paths = [
-            str(
-                Path(self.cf['lumpy_dir_path']).joinpath(
-                    Path(c).stem + '.splitters.bam'
-                )
-            ) for c in input_cram_paths
+            re.sub(r'\.cram$', '.bam', o.path) for o in self.output()[3:5]
         ]
         uncompressed_vcf_path = re.sub(r'\.gz', '', output_vcf_path)
         self.setup_shell(

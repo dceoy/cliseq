@@ -534,5 +534,19 @@ class ExtractTarFile(ShellTask):
                     )
 
 
+class FetchCnvBlackList(luigi.WrapperTask):
+    cnv_black_list_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 80
+
+    def requires(self):
+        return FetchResourceFile(
+            resource_file_path=self.cnv_black_list_path, cf=self.cf
+        )
+
+    def output(self):
+        return self.input()
+
+
 if __name__ == '__main__':
     luigi.run()

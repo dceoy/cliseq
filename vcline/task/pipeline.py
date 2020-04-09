@@ -11,6 +11,7 @@ from luigi.tools import deps_tree
 from ..cli.util import fetch_executable, parse_fq_id, read_config_yml
 from .align import PrepareCRAMs
 from .base import BaseTask
+from .callcopyratiosegments import CallCopyRatioSegmentsTumor
 from .delly import CallStructualVariantsWithDelly
 from .funcotator import AnnotateVariantsWithFuncotator
 from .haplotypecaller import FilterVariantTranches
@@ -32,6 +33,7 @@ class RunVariantCaller(luigi.WrapperTask):
     hapmap_vcf_path = luigi.Parameter()
     gnomad_vcf_path = luigi.Parameter()
     evaluation_interval_path = luigi.Parameter()
+    cnv_black_list_path = luigi.Parameter()
     funcotator_data_src_tar_path = luigi.Parameter()
     cf = luigi.DictParameter()
     variant_caller_mode = luigi.ListParameter()
@@ -112,6 +114,16 @@ class RunVariantCaller(luigi.WrapperTask):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
+        elif 'callcopyratiosegments' == self.variant_caller_mode:
+            return CallCopyRatioSegmentsTumor(
+                fq_list=self.fq_list, read_groups=self.read_groups,
+                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cnv_black_list_path=self.cnv_black_list_path, cf=self.cf
+            )
         else:
             raise ValueError(f'invalid mode: {self.variant_caller_mode}')
 
@@ -146,6 +158,7 @@ class CallVariants(luigi.WrapperTask):
     hapmap_vcf_path = luigi.Parameter()
     gnomad_vcf_path = luigi.Parameter()
     evaluation_interval_path = luigi.Parameter()
+    cnv_black_list_path = luigi.Parameter()
     funcotator_somatic_tar_path = luigi.Parameter()
     funcotator_germline_tar_path = luigi.Parameter()
     cf = luigi.DictParameter()
@@ -183,6 +196,7 @@ class CallVariants(luigi.WrapperTask):
                     hapmap_vcf_path=self.hapmap_vcf_path,
                     gnomad_vcf_path=self.gnomad_vcf_path,
                     evaluation_interval_path=self.evaluation_interval_path,
+                    cnv_black_list_path=self.cnv_black_list_path,
                     funcotator_data_src_tar_path=(
                         self.funcotator_germline_tar_path
                         if m in {'haplotypecaller', 'strelka.germline'}
@@ -247,7 +261,8 @@ class RunAnalyticalPipeline(BaseTask):
                 f'{k}_dir_path': str(Path(self.dest_dir_path).joinpath(k))
                 for k in [
                     'trim', 'align', 'haplotypecaller', 'mutect2', 'bcftools',
-                    'funcotator', 'strelka', 'manta', 'delly', 'lumpy'
+                    'funcotator', 'strelka', 'manta', 'delly', 'lumpy',
+                    'callcopyratiosegments'
                 ]
             },
             'ref_dir_path': str(Path(self.ref_dir_path).resolve()),
@@ -264,7 +279,7 @@ class RunAnalyticalPipeline(BaseTask):
             {k for k, v in config['callers'].items() if v}
             if 'callers' in config else {
                 'haplotypecaller', 'mutect2', 'strelka', 'manta', 'delly',
-                'lumpy'
+                'lumpy', 'callcopyratiosegments'
             }
         )
         variant_annotators = (

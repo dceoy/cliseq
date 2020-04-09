@@ -74,6 +74,12 @@ class DownloadFuncotatorDataSources(ShellTask):
         else:
             return super().output()
 
+    def complete(self):
+        return (
+            ({'s', 'g'} <= set(self._fetch_existing_funcotator_data().keys()))
+            or super().complete()
+        )
+
     def _fetch_existing_funcotator_data(self):
         return {
             Path(o.stem).stem[-1]: str(o)
