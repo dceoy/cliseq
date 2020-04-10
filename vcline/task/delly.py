@@ -22,7 +22,7 @@ class CallStructualVariantsWithDelly(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['delly_dir_path']).joinpath(
+                    Path(self.cf['somatic_sv_delly_dir_path']).joinpath(
                         create_matched_id(
                             *[i[0].path for i in self.input()[0:2]]
                         ) + f'.delly.{s}'
@@ -45,7 +45,8 @@ class CallStructualVariantsWithDelly(ShellTask):
         output_vcf_path = self.output()[1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[delly, bcftools], cwd=self.cf['delly_dir_path'],
+            commands=[delly, bcftools],
+            cwd=self.cf['somatic_sv_delly_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
             env={'OMP_NUM_THREADS': str(n_cpu)}
         )

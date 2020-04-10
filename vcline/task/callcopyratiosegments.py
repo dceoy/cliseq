@@ -21,7 +21,7 @@ class CreateGermlineSnpIntervalList(ShellTask):
     def output(self):
         return luigi.LocalTarget(
             str(
-                Path(self.cf['callcopyratiosegments_dir_path']).joinpath(
+                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
                     Path(self.input()[0].path).stem + '.interval_list'
                 )
             )
@@ -36,7 +36,7 @@ class CreateGermlineSnpIntervalList(ShellTask):
         output_interval_path = self.output().path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['callcopyratiosegments_dir_path'],
+            cwd=self.cf['somatic_cnv_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -60,7 +60,7 @@ class CollectAllelicCounts(ShellTask):
     def output(self):
         return luigi.LocalTarget(
             str(
-                Path(self.cf['callcopyratiosegments_dir_path']).joinpath(
+                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
                     Path(self.cram_path).stem + '.allelic_counts.tsv'
                 )
             )
@@ -77,7 +77,7 @@ class CollectAllelicCounts(ShellTask):
         allelic_counts_tsv_path = self.output().path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['callcopyratiosegments_dir_path'],
+            cwd=self.cf['somatic_cnv_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -134,7 +134,7 @@ class PreprocessIntervals(ShellTask):
     def output(self):
         return luigi.LocalTarget(
             str(
-                Path(self.cf['callcopyratiosegments_dir_path']).joinpath(
+                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
                     Path(self.input()[0].path).stem
                     + '.preprocessed.interval_list'
                 )
@@ -153,7 +153,7 @@ class PreprocessIntervals(ShellTask):
         preprocessed_interval_path = self.output().path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['callcopyratiosegments_dir_path'],
+            cwd=self.cf['somatic_cnv_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -186,7 +186,7 @@ class CollectReadCountsTumor(ShellTask):
     def output(self):
         return luigi.LocalTarget(
             str(
-                Path(self.cf['callcopyratiosegments_dir_path']).joinpath(
+                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
                     Path(self.input()[0][0].path).stem + '.counts.hdf5'
                 )
             )
@@ -204,7 +204,7 @@ class CollectReadCountsTumor(ShellTask):
         counts_hdf5_path = self.output().path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['callcopyratiosegments_dir_path'],
+            cwd=self.cf['somatic_cnv_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -234,7 +234,7 @@ class DenoiseReadCountsTumor(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['callcopyratiosegments_dir_path']).joinpath(
+                    Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
                         Path(Path(self.input().path).stem).stem + f'.{s}.tsv'
                     )
                 )
@@ -251,7 +251,7 @@ class DenoiseReadCountsTumor(ShellTask):
         standardized_cr_tsv_path = self.output()[1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['callcopyratiosegments_dir_path'],
+            cwd=self.cf['somatic_cnv_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -277,7 +277,7 @@ class ModelSegmentsTumor(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['callcopyratiosegments_dir_path']).joinpath(
+                    Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
                         create_matched_id(*[i.path for i in self.input()[1]])
                         + f'.{s}'
                     )
@@ -301,7 +301,7 @@ class ModelSegmentsTumor(ShellTask):
         normal_allelic_counts_tsv_path = self.input()[1][1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['callcopyratiosegments_dir_path'],
+            cwd=self.cf['somatic_cnv_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -334,7 +334,7 @@ class ModelSegmentsTumor(ShellTask):
                 + ' --maximum-number-of-smoothing-iterations 10'
                 + ' --number-of-smoothing-iterations-per-fit 0'
                 + ' --output {}'.format(
-                    self.cf['callcopyratiosegments_dir_path']
+                    self.cf['somatic_cnv_gatk_dir_path']
                 )
                 + ' --output-prefix {run_id}'
             ),
@@ -355,7 +355,7 @@ class CallCopyRatioSegmentsTumor(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['callcopyratiosegments_dir_path']).joinpath(
+                    Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
                         Path(self.input()[0].path).stem + '.called.seg'
                     )
                 )
@@ -371,7 +371,7 @@ class CallCopyRatioSegmentsTumor(ShellTask):
         output_seg_path = self.output().path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['callcopyratiosegments_dir_path'],
+            cwd=self.cf['somatic_cnv_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(

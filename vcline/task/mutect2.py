@@ -25,7 +25,7 @@ class GetPileupSummaries(ShellTask):
     def output(self):
         return luigi.LocalTarget(
             str(
-                Path(self.cf['mutect2_dir_path']).joinpath(
+                Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
                     Path(self.cram_path).stem + '.pileup.table'
                 )
             )
@@ -44,7 +44,7 @@ class GetPileupSummaries(ShellTask):
         pileup_table_path = self.output().path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['mutect2_dir_path'],
+            cwd=self.cf['somatic_snv_indel_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -93,7 +93,7 @@ class CalculateContamination(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['mutect2_dir_path']).joinpath(
+                    Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
                         create_matched_id(*[i.path for i in self.input()]) + s
                     )
                 )
@@ -110,7 +110,7 @@ class CalculateContamination(ShellTask):
         segment_table_path = self.output()[1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['mutect2_dir_path'],
+            cwd=self.cf['somatic_snv_indel_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -137,7 +137,7 @@ class CallVariantsWithMutect2(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['mutect2_dir_path']).joinpath(
+                    Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
                         create_matched_id(
                             *[i[0].path for i in self.input()[0:2]]
                         ) + f'.mutect2.{s}'
@@ -194,7 +194,8 @@ class CallVariantsWithMutect2(ShellTask):
         normal_name = self.sample_names[1]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[gatk, samtools], cwd=self.cf['mutect2_dir_path'],
+            commands=[gatk, samtools],
+            cwd=self.cf['somatic_snv_indel_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
             env={'REF_CACHE': '.ref_cache'}
         )
@@ -328,7 +329,7 @@ class FilterMutectCalls(ShellTask):
         segment_table_path = self.input()[3][1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['mutect2_dir_path'],
+            cwd=self.cf['somatic_snv_indel_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(

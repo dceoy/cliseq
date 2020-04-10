@@ -2,13 +2,18 @@
 reference_version: hg38     # {hg19, hg38, b37}
 exome: false
 callers:
-  haplotypecaller: true
-  mutect2: true
-  strelka: true
-  manta: true
-  delly: true
-  lumpy: true
-  callcopyratiosegments: true
+  somatic_short_variant:
+    gatk: true
+    strelka: true
+  somatic_structual_variant:
+    manta: true
+    delly: true
+    lumpy: false
+  somatic_copy_number_variation:
+    gatk: true
+  germline_short_variant:
+    gatk: true
+    strelka: true
 annotators:
   funcotator: true
 references:   # These files can be downloaded with vcline download-resources.

@@ -22,7 +22,7 @@ class CallStructualVariantsWithLumpy(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(Path(self.cf['lumpy_dir_path']).joinpath(n))
+                str(Path(self.cf['somatic_sv_delly']).joinpath(n))
             ) for n in [
                 (
                     create_matched_id(*[i[0].path for i in self.input()[0:2]])
@@ -76,7 +76,7 @@ class CallStructualVariantsWithLumpy(ShellTask):
                 lumpy, python, samblaster, sambamba, samtools, gawk, bgzip,
                 bcftools
             ],
-            cwd=self.cf['lumpy_dir_path'],
+            cwd=self.cf['somatic_sv_delly'],
             remove_if_failed=self.cf['remove_if_failed'],
             env={'REF_CACHE': '.ref_cache'}
         )

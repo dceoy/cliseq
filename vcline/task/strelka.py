@@ -30,7 +30,7 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['strelka_dir_path']).joinpath(
+                    Path(self.cf['somatic_sv_strelka_dir_path']).joinpath(
                         create_matched_id(
                             *[i[0].path for i in self.input()[0:2]]
                         ) + f'.strelka.{n}'
@@ -44,7 +44,8 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         run_id = '.'.join(Path(output_link_paths[0]).name.split('.')[:-5])
         self.print_log(f'Call somatic variants with Strelka:\t{run_id}')
         config_script = self.cf['configureStrelkaSomaticWorkflow.py']
-        run_dir_path = str(Path(self.cf['strelka_dir_path']).joinpath(run_id))
+        root_dir_path = self.cf['somatic_sv_strelka_dir_path']
+        run_dir_path = str(Path(root_dir_path).joinpath(run_id))
         run_script = str(Path(run_dir_path).joinpath('runWorkflow.py'))
         python2 = self.cf['python2']
         n_cpu = self.cf['n_cpu_per_worker']
@@ -64,7 +65,7 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         ]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[python2, config_script], cwd=self.cf['strelka_dir_path'],
+            commands=[python2, config_script], cwd=root_dir_path,
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -99,9 +100,8 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         )
         self.run_shell(
             args=[
-                'ln -s {0} {1}'.format(
-                    Path(i).relative_to(self.cf['strelka_dir_path']), o
-                ) for i, o in zip(result_file_paths, output_link_paths)
+                'ln -s {0} {1}'.format(Path(i).relative_to(root_dir_path), o)
+                for i, o in zip(result_file_paths, output_link_paths)
             ],
             input_files_or_dirs=result_file_paths,
             output_files_or_dirs=output_link_paths
@@ -122,7 +122,7 @@ class CallGermlineVariantsWithStrelka(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['strelka_dir_path']).joinpath(
+                    Path(self.cf['germline_sv_strelka_dir_path']).joinpath(
                         Path(self.input()[0][0].path).stem
                         + f'.strelka.germline.{n}'
                     )
@@ -135,7 +135,8 @@ class CallGermlineVariantsWithStrelka(ShellTask):
         run_id = '.'.join(Path(output_link_paths[0]).name.split('.')[:-5])
         self.print_log(f'Call germline variants with Strelka:\t{run_id}')
         config_script = self.cf['configureStrelkaGermlineWorkflow.py']
-        run_dir_path = str(Path(self.cf['strelka_dir_path']).joinpath(run_id))
+        root_dir_path = self.cf['germline_sv_strelka_dir_path']
+        run_dir_path = str(Path(root_dir_path).joinpath(run_id))
         run_script = str(Path(run_dir_path).joinpath('runWorkflow.py'))
         n_cpu = self.cf['n_cpu_per_worker']
         memory_gb = max(floor(self.cf['memory_mb_per_worker'] / 1024), 1)
@@ -150,7 +151,7 @@ class CallGermlineVariantsWithStrelka(ShellTask):
         ]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=config_script, cwd=self.cf['strelka_dir_path'],
+            commands=config_script, cwd=root_dir_path,
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -179,9 +180,8 @@ class CallGermlineVariantsWithStrelka(ShellTask):
         )
         self.run_shell(
             args=[
-                'ln -s {0} {1}'.format(
-                    Path(i).relative_to(self.cf['strelka_dir_path']), o
-                ) for i, o in zip(result_file_paths, output_link_paths)
+                'ln -s {0} {1}'.format(Path(i).relative_to(root_dir_path), o)
+                for i, o in zip(result_file_paths, output_link_paths)
             ],
             input_files_or_dirs=result_file_paths,
             output_files_or_dirs=output_link_paths

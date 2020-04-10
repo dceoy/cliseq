@@ -33,7 +33,7 @@ class CallStructualVariantsWithManta(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['manta_dir_path']).joinpath(
+                    Path(self.cf['somatic_sv_manta_dir_path']).joinpath(
                         create_matched_id(
                             *[i[0].path for i in self.input()[0:2]]
                         ) + f'.manta.{n}'
@@ -47,7 +47,8 @@ class CallStructualVariantsWithManta(ShellTask):
         run_id = '.'.join(Path(output_link_paths[0]).name.split('.')[:-4])
         self.print_log(f'Call somatic SVs with Manta:\t{run_id}')
         config_script = self.cf['configManta.py']
-        run_dir_path = str(Path(self.cf['manta_dir_path']).joinpath(run_id))
+        root_dir_path = self.cf['somatic_sv_manta_dir_path']
+        run_dir_path = str(Path(root_dir_path).joinpath(run_id))
         run_script = str(Path(run_dir_path).joinpath('runWorkflow.py'))
         python2 = self.cf['python2']
         n_cpu = self.cf['n_cpu_per_worker']
@@ -63,7 +64,7 @@ class CallStructualVariantsWithManta(ShellTask):
         ]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[python2, config_script], cwd=self.cf['manta_dir_path'],
+            commands=[python2, config_script], cwd=root_dir_path,
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -95,9 +96,8 @@ class CallStructualVariantsWithManta(ShellTask):
         )
         self.run_shell(
             args=[
-                'ln -s {0} {1}'.format(
-                    Path(i).relative_to(self.cf['manta_dir_path']), o
-                ) for i, o in zip(result_file_paths, output_link_paths)
+                'ln -s {0} {1}'.format(Path(i).relative_to(root_dir_path), o)
+                for i, o in zip(result_file_paths, output_link_paths)
             ],
             input_files_or_dirs=result_file_paths,
             output_files_or_dirs=output_link_paths
