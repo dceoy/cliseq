@@ -12,9 +12,9 @@ class NormalizeVCF(ShellTask):
     input_vcf_path = luigi.Parameter()
     fa_path = luigi.Parameter()
     dest_dir_path = luigi.Parameter()
+    bcftools = luigi.Parameter()
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.IntParameter(default=(4 * 1024))
-    bcftools = luigi.Parameter()
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     priority = 10
@@ -50,7 +50,6 @@ class NormalizeVCF(ShellTask):
                 + f' | {self.bcftools} sort'
                 + f' --max-mem {self.memory_mb}M'
                 + f' --temp-dir {output_vcf_path}.sort'
-                + ' --output-type z'
                 + ' -'
                 + f' | {self.bcftools} norm'
                 + f' --fasta-ref {self.fa_path}'
@@ -66,13 +65,49 @@ class NormalizeVCF(ShellTask):
             ],
             output_files_or_dirs=output_vcf_path
         )
+        yield BcftoolsIndex(
+            vcf_path=output_vcf_path, n_cpu=self.n_cpu,
+            log_dir_path=self.log_dir_path,
+            remove_if_failed=self.remove_if_failed
+        )
+
+
+class BcftoolsIndex(ShellTask):
+    vcf_path = luigi.Parameter()
+    bcftools = luigi.Parameter()
+    n_cpu = luigi.IntParameter(default=1)
+    tbi = luigi.BoolParameter(default=True)
+    print_stats = luigi.BoolParameter(default=True)
+    log_dir_path = luigi.Parameter(default='')
+    remove_if_failed = luigi.BoolParameter(default=True)
+    priority = 10
+
+    def output(self):
+        return luigi.LocalTarget(
+            re.sub(
+                r'\.(bcf|vcf.gz)$',
+                '.\1.{}'.format('tbi' if self.tbi else 'csi'), self.vcf_path
+            )
+        )
+
+    def run(self):
+        run_id = re.sub(r'.(bcf|vcf.gz)$', '', Path(self.vcf_path).name)
+        self.print_log(f'Index VCF/BCF:\t{run_id}')
+        self.setup_shell(
+            run_id=run_id, log_dir_path=(self.log_dir_path or None),
+            commands=self.bcftools, cwd=str(Path(self.sam_path).parent),
+            remove_if_failed=self.remove_if_failed,
+            quiet=bool(self.log_dir_path)
+        )
         self.run_shell(
             args=(
-                f'set -e && {self.bcftools} index'
-                + f' --tbi --threads {self.n_cpu} {output_vcf_path}'
+                f'set -e && {self.bcftools} index --threads {self.n_cpu}'
+                + (' --tbi' if self.tbi else ' --csi')
+                + (' --nrecords --stats' if self.print_stats else '')
+                + f' {self.vcf_path}'
             ),
-            input_files_or_dirs=output_vcf_path,
-            output_files_or_dirs=f'{output_vcf_path}.tbi'
+            input_files_or_dirs=self.vcf_path,
+            output_files_or_dirs=self.output().path
         )
 
 

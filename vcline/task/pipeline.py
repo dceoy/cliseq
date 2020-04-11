@@ -42,7 +42,7 @@ class RunVariantCaller(luigi.WrapperTask):
     priority = 10
 
     def requires(self):
-        if 'haplotypecaller' == self.caller_mode:
+        if 'germline_short_variant.gatk' == self.caller_mode:
             return FilterVariantTranches(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
@@ -53,7 +53,7 @@ class RunVariantCaller(luigi.WrapperTask):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'mutect2' == self.caller_mode:
+        elif 'somatic_short_variant.gatk' == self.caller_mode:
             return FilterMutectCalls(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
@@ -64,7 +64,7 @@ class RunVariantCaller(luigi.WrapperTask):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'manta.somatic' == self.caller_mode:
+        elif 'somatic_structual_variant.manta' == self.caller_mode:
             return CallStructualVariantsWithManta(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
@@ -74,7 +74,7 @@ class RunVariantCaller(luigi.WrapperTask):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'strelka.somatic' == self.caller_mode:
+        elif 'somatic_short_variant.strelka' == self.caller_mode:
             return CallSomaticVariantsWithStrelka(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
@@ -84,7 +84,7 @@ class RunVariantCaller(luigi.WrapperTask):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'strelka.germline' == self.caller_mode:
+        elif 'germline_short_variant.strelka' == self.caller_mode:
             return CallGermlineVariantsWithStrelka(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
@@ -94,7 +94,7 @@ class RunVariantCaller(luigi.WrapperTask):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'delly' == self.caller_mode:
+        elif 'somatic_structual_variant.delly' == self.caller_mode:
             return CallStructualVariantsWithDelly(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
@@ -104,7 +104,7 @@ class RunVariantCaller(luigi.WrapperTask):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'lumpy' == self.caller_mode:
+        elif 'somatic_structual_variant.lumpy' == self.caller_mode:
             return CallStructualVariantsWithLumpy(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
@@ -114,7 +114,7 @@ class RunVariantCaller(luigi.WrapperTask):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'callcopyratiosegments' == self.caller_mode:
+        elif 'somatic_copy_number_variation.gatk' == self.caller_mode:
             return CallCopyRatioSegmentsTumor(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
@@ -130,7 +130,7 @@ class RunVariantCaller(luigi.WrapperTask):
     def output(self):
         vcf_paths = [
             i.path for i in self.input() if (
-                i.path.endswith('.vcf.gz')
+                i.path.endswith(('.vcf.gz', '.bcf'))
                 and self.caller_mode in Path(i.path).name
             )
         ]
@@ -162,29 +162,13 @@ class CallVariants(luigi.WrapperTask):
     funcotator_somatic_tar_path = luigi.Parameter()
     funcotator_germline_tar_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    callers = luigi.ListParameter()
+    caller_modes = luigi.ListParameter()
     annotators = luigi.ListParameter()
     normalize_vcf = luigi.BoolParameter(default=True)
     priority = luigi.IntParameter(default=100)
 
     def requires(self):
-        if not self.callers:
-            return PrepareCRAMs(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
-            )
-        else:
-            vc_modes = list()
-            for c in self.callers:
-                if c == 'manta':
-                    vc_modes.append(f'{c}.somatic')
-                elif c == 'strelka':
-                    vc_modes.extend([f'{c}.germline', f'{c}.somatic'])
-                else:
-                    vc_modes.append(c)
+        if self.caller_modes:
             return [
                 RunVariantCaller(
                     fq_list=self.fq_list, read_groups=self.read_groups,
@@ -199,14 +183,22 @@ class CallVariants(luigi.WrapperTask):
                     cnv_black_list_path=self.cnv_black_list_path,
                     funcotator_data_src_tar_path=(
                         self.funcotator_germline_tar_path
-                        if m in {'haplotypecaller', 'strelka.germline'}
-                        else self.funcotator_somatic_tar_path
+                        if m.endswith('.germline') else
+                        self.funcotator_somatic_tar_path
                     ),
                     cf=self.cf, caller_mode=m,
                     annotators=self.annotators,
                     normalize_vcf=self.normalize_vcf
-                ) for m in vc_modes
+                ) for m in self.caller_modes
             ]
+        else:
+            return PrepareCRAMs(
+                fq_list=self.fq_list, read_groups=self.read_groups,
+                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
+            )
 
     def output(self):
         return self.input()
@@ -226,17 +218,11 @@ class RunAnalyticalPipeline(BaseTask):
     def requires(self):
         logger = logging.getLogger(__name__)
         config = read_config_yml(config_yml_path=self.config_yml_path)
-        caller_dict = (
-            {
-                t: {c for c, b in d.items() if b}
-                for t, d in config['callers'].items()
-            } if 'callers' in config else {
-                'somatic_short_variant': {'gatk', 'strelka'},
-                'somatic_structual_variant': {'manta', 'delly', 'lumpy'},
-                'somatic_copy_number_variation': {'gatk'},
-                'germline_short_variant': {'gatk', 'strelka'}
-            }
-        )
+        caller_modes = list()
+        if 'callers' in config:
+            for k, v in config['callers'].items():
+                for c in v:
+                    caller_modes.append(f'{k}.{c}')
         annotators = (
             {k for k, v in config['annotators'].items() if v}
             if 'annotators' in config else {'funcotator'}
@@ -269,34 +255,34 @@ class RunAnalyticalPipeline(BaseTask):
                     'tabix', 'trim_galore',
                     *(
                         {'python2', 'configureStrelkaSomaticWorkflow.py'}
-                        if caller_dict['somatic_short_variant']['strelka']
+                        if 'somatic_short_variant.strelka' in caller_modes
                         else set()
                     ),
                     *(
                         {'python3'}
-                        if caller_dict['germline_short_variant']['gatk']
+                        if 'germline_short_variant.gatk' in caller_modes
                         else set()
                     ),
                     *(
                         {'python2', 'configureStrelkaGermlineWorkflow.py'}
-                        if caller_dict['germline_short_variant']['strelka']
+                        if 'germline_short_variant.strelka' in caller_modes
                         else set()
                     ),
                     *(
                         {'python2', 'configManta.py'}
-                        if caller_dict['somatic_structual_variant']['manta']
+                        if 'somatic_structual_variant.manta' in caller_modes
                         else set()
                     ),
                     *(
                         {'delly'}
-                        if caller_dict['somatic_structual_variant']['delly']
+                        if 'somatic_structual_variant.delly' in caller_modes
                         else set()
                     ),
                     *(
                         {
                             'python', 'lumpy', 'lumpyexpress', 'sambamba',
                             'samblaster'
-                        } if caller_dict['somatic_structual_variant']['delly']
+                        } if 'somatic_structual_variant.lumpy' in caller_modes
                         else set()
                     )
                 }
@@ -336,8 +322,9 @@ class RunAnalyticalPipeline(BaseTask):
                         or parse_fq_id(fq_path=r[k]['fq'][0])
                     ) for k in matched_keys
                 ],
-                'priority': p, 'cf': common_config, 'caller_dict': caller_dict,
-                'annotators': annotators, **reference_file_paths
+                'priority': p, 'cf': common_config,
+                'caller_modes': caller_modes, 'annotators': annotators,
+                **reference_file_paths
             } for p, r in zip(
                 [i * 1000 for i in range(1, (len(config['runs']) + 1))[::-1]],
                 config['runs']

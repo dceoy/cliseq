@@ -63,7 +63,7 @@ class ShellTask(BaseTask):
                 d = Path(p).resolve()
                 if not d.is_dir():
                     cls.print_log(f'Make a directory:\t{d}', new_line=False)
-                    d.mkdir(exist_ok=True)
+                    d.mkdir(parents=True, exist_ok=True)
         if commands:
             cls.run_shell(args=list(cls._generate_version_commands(commands)))
 

@@ -10,6 +10,7 @@ from .align import PrepareNormalCRAM
 from .base import ShellTask
 from .ref import (CreateFASTAIndex, FetchDbsnpVCF, FetchEvaluationIntervalList,
                   FetchHapmapVCF, FetchMillsIndelVCF, FetchReferenceFASTA)
+from .samtools import BAM2CRAM, MergeBAMsIntoCRAM, SamtoolsIndex
 
 
 @requires(FetchEvaluationIntervalList, FetchReferenceFASTA)
@@ -21,7 +22,7 @@ class SplitEvaluationIntervals(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['germline_snv_indel_gatk']).joinpath(
+                    Path(self.cf['germline_snv_indel_gatk_dir_path']).joinpath(
                         f'{i:04d}-scattered.interval_list'
                     )
                 )
@@ -38,7 +39,7 @@ class SplitEvaluationIntervals(ShellTask):
         scatter_count = self.cf['n_cpu_per_worker']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['germline_snv_indel_gatk'],
+            cwd=self.cf['germline_snv_indel_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -48,7 +49,9 @@ class SplitEvaluationIntervals(ShellTask):
                 + f' --reference {fa_path}'
                 + f' --intervals {interval_path}'
                 + f' --scatter-count {scatter_count}'
-                + ' --output {}'.format(self.cf['germline_snv_indel_gatk'])
+                + ' --output {}'.format(
+                    self.cf['germline_snv_indel_gatk_dir_path']
+                )
             ),
             input_files_or_dirs=[interval_path, fa_path],
             output_files_or_dirs=[o.path for o in self.output()]
@@ -88,7 +91,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['germline_snv_indel_gatk']).joinpath(
+                    Path(self.cf['germline_snv_indel_gatk_dir_path']).joinpath(
                         Path(self.input()[0][0].path).stem
                         + f'.haplotypecaller.{s}'
                     )
@@ -111,7 +114,6 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         memory_per_thread = self.cf['samtools_memory_per_thread']
         input_cram_path = self.input()[0][0].path
         fa_path = self.input()[1].path
-        fai_path = self.input()[2].path
         dbsnp_vcf_path = self.input()[3][0].path
         evaluation_interval_paths = [i.path for i in self.input()[4]]
         output_cram_path = self.output()[2].path
@@ -134,7 +136,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         tmp_tbi_paths = [f'{p}.tbi' for p in tmp_gvcf_paths]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[gatk, samtools], cwd=self.cf['germline_snv_indel_gatk'],
+            commands=gatk, cwd=self.cf['germline_snv_indel_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
             env={'REF_CACHE': '.ref_cache'}
         )
@@ -176,36 +178,24 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
             ],
             asynchronous=(len(evaluation_interval_paths) > 1)
         )
-        self.run_shell(
-            args=[
-                (
-                    (
-                        'set -eo pipefail && '
-                        + f'{samtools} merge -@ {n_cpu} -rh - '
-                        + ' '.join(tmp_bam_paths)
-                        + f' | {samtools} sort -@ {n_cpu}'
-                        + f' -m {memory_per_thread} -l 0'
-                        + f' -T {output_cram_path}.sort -'
-                        + f' | {samtools} view -@ {n_cpu} -T {fa_path} -CS'
-                        + f' -o {output_cram_path} -'
-                    ) if len(tmp_bam_paths) > 1 else (
-                        'set -e && '
-                        + f'{samtools} view -@ {n_cpu} -T {fa_path} -CS'
-                        + f' -o {output_cram_path} {tmp_bam_paths[0]}'
-                    )
-                ),
-                ('rm -f ' + ' '.join(tmp_bam_paths))
-            ],
-            input_files_or_dirs=[*tmp_bam_paths, fa_path, fai_path],
-            output_files_or_dirs=output_cram_path
-        )
-        self.run_shell(
-            args=[
-                f'set -e && {samtools} quickcheck -v {output_cram_path}',
-                f'set -e && {samtools} index -@ {n_cpu} {output_cram_path}'
-            ],
-            input_files_or_dirs=output_cram_path,
-            output_files_or_dirs=f'{output_cram_path}.crai'
+        if len(tmp_bam_paths) > 1:
+            yield MergeBAMsIntoCRAM(
+                bam_paths=tmp_bam_paths, output_cram_path=output_cram_path,
+                fa_path=fa_path, samtools=samtools, n_cpu=n_cpu,
+                memory_per_thread=memory_per_thread,
+                log_dir_path=self.cf['log_dir_path'],
+                remove_if_failed=self.cf['remove_if_failed']
+            )
+        else:
+            yield BAM2CRAM(
+                sam_path=tmp_bam_paths[0], fa_path=fa_path, samtools=samtools,
+                n_cpu=n_cpu, log_dir_path=self.cf['log_dir_path'],
+                remove_if_failed=self.cf['remove_if_failed']
+            )
+        yield SamtoolsIndex(
+            sam_path=output_cram_path, samtools=samtools, n_cpu=n_cpu,
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         if len(tmp_gvcf_paths) > 1:
             self.run_shell(
@@ -249,7 +239,7 @@ class GenotypeGVCF(ShellTask):
         evaluation_interval_path = self.input()[3].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['germline_snv_indel_gatk'],
+            cwd=self.cf['germline_snv_indel_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -296,7 +286,8 @@ class CNNScoreVariants(ShellTask):
         evaluation_interval_path = self.input()[3].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[gatk, python3], cwd=self.cf['germline_snv_indel_gatk'],
+            commands=[gatk, python3],
+            cwd=self.cf['germline_snv_indel_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -344,7 +335,7 @@ class FilterVariantTranches(ShellTask):
         evaluation_interval_path = self.input()[3].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['germline_snv_indel_gatk'],
+            cwd=self.cf['germline_snv_indel_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(

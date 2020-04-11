@@ -30,7 +30,9 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['somatic_sv_strelka_dir_path']).joinpath(
+                    Path(
+                        self.cf['somatic_snv_indel_strelka_dir_path']
+                    ).joinpath(
                         create_matched_id(
                             *[i[0].path for i in self.input()[0:2]]
                         ) + f'.strelka.{n}'
@@ -44,7 +46,7 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         run_id = '.'.join(Path(output_link_paths[0]).name.split('.')[:-5])
         self.print_log(f'Call somatic variants with Strelka:\t{run_id}')
         config_script = self.cf['configureStrelkaSomaticWorkflow.py']
-        root_dir_path = self.cf['somatic_sv_strelka_dir_path']
+        root_dir_path = self.cf['somatic_snv_indel_strelka_dir_path']
         run_dir_path = str(Path(root_dir_path).joinpath(run_id))
         run_script = str(Path(run_dir_path).joinpath('runWorkflow.py'))
         python2 = self.cf['python2']
@@ -122,7 +124,9 @@ class CallGermlineVariantsWithStrelka(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['germline_sv_strelka_dir_path']).joinpath(
+                    Path(
+                        self.cf['germline_snv_indel_strelka_dir_path']
+                    ).joinpath(
                         Path(self.input()[0][0].path).stem
                         + f'.strelka.germline.{n}'
                     )
@@ -135,7 +139,7 @@ class CallGermlineVariantsWithStrelka(ShellTask):
         run_id = '.'.join(Path(output_link_paths[0]).name.split('.')[:-5])
         self.print_log(f'Call germline variants with Strelka:\t{run_id}')
         config_script = self.cf['configureStrelkaGermlineWorkflow.py']
-        root_dir_path = self.cf['germline_sv_strelka_dir_path']
+        root_dir_path = self.cf['germline_snv_indel_strelka_dir_path']
         run_dir_path = str(Path(root_dir_path).joinpath(run_id))
         run_script = str(Path(run_dir_path).joinpath('runWorkflow.py'))
         n_cpu = self.cf['n_cpu_per_worker']

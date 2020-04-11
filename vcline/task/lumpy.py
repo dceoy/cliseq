@@ -11,6 +11,7 @@ from .align import PrepareNormalCRAM, PrepareTumorCRAM
 from .base import ShellTask
 from .ref import (CreateExclusionIntervalListBED, CreateFASTAIndex,
                   FetchReferenceFASTA)
+from .samtools import BAM2CRAM
 
 
 @requires(PrepareTumorCRAM, PrepareNormalCRAM, FetchReferenceFASTA,
@@ -22,7 +23,7 @@ class CallStructualVariantsWithLumpy(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(Path(self.cf['somatic_sv_delly']).joinpath(n))
+                str(Path(self.cf['somatic_sv_lumpy_dir_path']).joinpath(n))
             ) for n in [
                 (
                     create_matched_id(*[i[0].path for i in self.input()[0:2]])
@@ -76,7 +77,7 @@ class CallStructualVariantsWithLumpy(ShellTask):
                 lumpy, python, samblaster, sambamba, samtools, gawk, bgzip,
                 bcftools
             ],
-            cwd=self.cf['somatic_sv_delly'],
+            cwd=self.cf['somatic_sv_lumpy_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
             env={'REF_CACHE': '.ref_cache'}
         )
@@ -127,17 +128,11 @@ class CallStructualVariantsWithLumpy(ShellTask):
             input_files_or_dirs=uncompressed_vcf_path,
             output_files_or_dirs=output_vcf_path
         )
-        for i in [*discordants_bam_paths, *splitters_bam_paths]:
-            o = re.sub(r'\.bam$', '.cram', i)
-            self.run_shell(
-                args=[
-                    (
-                        f'set -e && {samtools}'
-                        + f' view -@ {n_cpu} -T {fa_path} -CS -o {o} {i}'
-                    ),
-                    f'rm -f {i}'
-                ],
-                input_files_or_dirs=i, output_files_or_dirs=o
+        for p in [*discordants_bam_paths, *splitters_bam_paths]:
+            yield BAM2CRAM(
+                bam_path=p, fa_path=fa_path, samtools=samtools, n_cpu=n_cpu,
+                log_dir_path=self.cf['log_dir_path'],
+                remove_if_failed=self.cf['remove_if_failed']
             )
 
 

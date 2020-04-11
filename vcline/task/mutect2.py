@@ -13,6 +13,7 @@ from .haplotypecaller import PrepareEvaluationIntervals
 from .ref import (CreateFASTAIndex, CreateGnomadBiallelicSnpVCF,
                   FetchEvaluationIntervalList, FetchGnomadVCF,
                   FetchReferenceFASTA)
+from .samtools import BAM2CRAM, MergeBAMsIntoCRAM, SamtoolsIndex
 
 
 @requires(FetchReferenceFASTA, FetchEvaluationIntervalList,
@@ -161,7 +162,6 @@ class CallVariantsWithMutect2(ShellTask):
         memory_per_thread = self.cf['samtools_memory_per_thread']
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
         fa_path = self.input()[2].path
-        fai_path = self.input()[3].path
         evaluation_interval_paths = [i.path for i in self.input()[4]]
         gnomad_vcf_path = self.input()[5][0].path
         raw_stats_path = self.output()[2].path
@@ -231,36 +231,24 @@ class CallVariantsWithMutect2(ShellTask):
             ],
             asynchronous=(len(evaluation_interval_paths) > 1)
         )
-        self.run_shell(
-            args=[
-                (
-                    (
-                        'set -eo pipefail && '
-                        + f'{samtools} merge -@ {n_cpu} -rh - '
-                        + ' '.join(tmp_bam_paths)
-                        + f' | {samtools} sort -@ {n_cpu}'
-                        + f' -m {memory_per_thread} -l 0'
-                        + f' -T {output_cram_path}.sort -'
-                        + f' | {samtools} view -@ {n_cpu} -T {fa_path} -CS'
-                        + f' -o {output_cram_path} -'
-                    ) if len(tmp_bam_paths) > 1 else (
-                        'set -e && '
-                        + f'{samtools} view -@ {n_cpu} -T {fa_path} -CS'
-                        + f' -o {output_cram_path} {tmp_bam_paths[0]}'
-                    )
-                ),
-                ('rm -f ' + ' '.join(tmp_bam_paths))
-            ],
-            input_files_or_dirs=[*tmp_bam_paths, fa_path, fai_path],
-            output_files_or_dirs=output_cram_path
-        )
-        self.run_shell(
-            args=[
-                f'set -e && {samtools} quickcheck -v {output_cram_path}',
-                f'set -e && {samtools} index -@ {n_cpu} {output_cram_path}'
-            ],
-            input_files_or_dirs=output_cram_path,
-            output_files_or_dirs=f'{output_cram_path}.crai'
+        if len(tmp_bam_paths) > 1:
+            yield MergeBAMsIntoCRAM(
+                bam_paths=tmp_bam_paths, output_cram_path=output_cram_path,
+                fa_path=fa_path, samtools=samtools, n_cpu=n_cpu,
+                memory_per_thread=memory_per_thread,
+                log_dir_path=self.cf['log_dir_path'],
+                remove_if_failed=self.cf['remove_if_failed']
+            )
+        else:
+            yield BAM2CRAM(
+                sam_path=tmp_bam_paths[0], fa_path=fa_path, samtools=samtools,
+                n_cpu=n_cpu, log_dir_path=self.cf['log_dir_path'],
+                remove_if_failed=self.cf['remove_if_failed']
+            )
+        yield SamtoolsIndex(
+            sam_path=output_cram_path, samtools=samtools, n_cpu=n_cpu,
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
