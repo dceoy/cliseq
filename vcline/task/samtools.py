@@ -8,6 +8,32 @@ import luigi
 from .base import ShellTask
 
 
+class SamtoolsFaidx(ShellTask):
+    fa_path = luigi.Parameter()
+    samtools = luigi.Parameter()
+    log_dir_path = luigi.Parameter(default='')
+    remove_if_failed = luigi.BoolParameter(default=True)
+    priority = 10
+
+    def output(self):
+        return luigi.LocalTarget(self.fa_path + '.fai')
+
+    def run(self):
+        run_id = Path(self.fa_path).stem
+        self.print_log(f'Index FASTA:\t{run_id}')
+        self.setup_shell(
+            run_id=run_id, log_dir_path=(self.log_dir_path or None),
+            commands=self.samtools, cwd=str(Path(self.fa_path).parent),
+            remove_if_failed=self.remove_if_failed,
+            quiet=bool(self.log_dir_path)
+        )
+        self.run_shell(
+            args=f'set -e && {self.samtools} faidx {self.fa_path}',
+            input_files_or_dirs=self.fa_path,
+            output_files_or_dirs=self.output().path
+        )
+
+
 class SamtoolsIndex(ShellTask):
     sam_path = luigi.Parameter()
     samtools = luigi.Parameter()

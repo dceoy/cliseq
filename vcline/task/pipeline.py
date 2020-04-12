@@ -12,6 +12,7 @@ from ..cli.util import fetch_executable, parse_fq_id, read_config_yml
 from .align import PrepareCRAMs
 from .base import BaseTask
 from .callcopyratiosegments import CallCopyRatioSegmentsTumor
+from .canvas import CallSomaticCopyNumberVariantsWithCanvas
 from .delly import CallStructualVariantsWithDelly
 from .funcotator import AnnotateVariantsWithFuncotator
 from .haplotypecaller import FilterVariantTranches
@@ -123,6 +124,16 @@ class RunVariantCaller(luigi.WrapperTask):
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
                 cnv_black_list_path=self.cnv_black_list_path, cf=self.cf
+            )
+        elif 'somatic_copy_number_variation.canvas' == self.caller_mode:
+            return CallSomaticCopyNumberVariantsWithCanvas(
+                fq_list=self.fq_list, read_groups=self.read_groups,
+                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
             )
         else:
             raise ValueError(f'invalid caller mode: {self.caller_mode}')
@@ -284,6 +295,12 @@ class RunAnalyticalPipeline(BaseTask):
                             'samblaster'
                         } if 'somatic_structual_variant.lumpy' in caller_modes
                         else set()
+                    ),
+                    *(
+                        {'Canvas'} if (
+                            'somatic_copy_number_variation.canvas'
+                            in caller_modes
+                        ) else set()
                     )
                 }
             },

@@ -9,7 +9,7 @@ from luigi.util import requires
 
 from .base import ShellTask
 from .bcftools import BcftoolsIndex
-from .samtools import Tabix
+from .samtools import SamtoolsFaidx, Tabix
 
 
 class FetchReferenceFASTA(ShellTask):
@@ -204,18 +204,10 @@ class CreateFASTAIndex(ShellTask):
         return luigi.LocalTarget(self.input().path + '.fai')
 
     def run(self):
-        fa_path = self.input().path
-        run_id = Path(fa_path).stem
-        self.print_log(f'Create a FASTA index:\t{run_id}')
-        samtools = self.cf['samtools']
-        self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=samtools, cwd=self.cf['ref_dir_path']
-        )
-        self.run_shell(
-            args=f'set -e && {samtools} faidx {fa_path}',
-            input_files_or_dirs=fa_path,
-            output_files_or_dirs=self.output().path
+        yield SamtoolsFaidx(
+            fa_path=self.input().path, samtools=self.cf['samtools'],
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
 
 
@@ -273,11 +265,32 @@ class CreateEvaluationIntervalListBED(ShellTask):
         ]
 
     def run(self):
-        interval_list_path = self.input().path
-        run_id = Path(interval_list_path).stem
-        self.print_log(f'Create an evaluation interval_list BED:\t{run_id}')
-        bgzip = self.cf['bgzip']
-        n_cpu = self.cf['n_cpu_per_worker']
+        yield IntervalList2BED(
+            interval_list_path=self.input().path, bgzip=self.cf['bgzip'],
+            tabix=self.cf['tabix'], n_cpu=self.cf['n_cpu_per_worker'],
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
+        )
+
+
+class IntervalList2BED(ShellTask):
+    interval_list_path = luigi.Parameter()
+    bgzip = luigi.Parameter()
+    tabix = luigi.Parameter()
+    n_cpu = luigi.IntParameter(default=1)
+    log_dir_path = luigi.Parameter(default='')
+    remove_if_failed = luigi.BoolParameter(default=True)
+    priority = 70
+
+    def output(self):
+        return [
+            luigi.LocalTarget(self.interval_list_path + f'.bed.gz{s}')
+            for s in ['', '.tbi']
+        ]
+
+    def run(self):
+        run_id = Path(self.interval_list_path).stem
+        self.print_log(f'Create an interval_list BED:\t{run_id}')
         interval_bed_path = self.output()[0].path
         pyscript_path = str(
             Path(__file__).parent.parent.joinpath(
@@ -285,23 +298,23 @@ class CreateEvaluationIntervalListBED(ShellTask):
             ).resolve()
         )
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=bgzip, cwd=self.cf['ref_dir_path'],
+            run_id=run_id, log_dir_path=self.log_dir_path, commands=self.bgzip,
+            cwd=str(Path(interval_bed_path).parent),
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
                 f'set -eo pipefail && '
-                + f'{sys.executable} {pyscript_path} {interval_list_path}'
-                + f' | {bgzip} -@ {n_cpu} -c > {interval_bed_path}'
+                + f'{sys.executable} {pyscript_path} {self.interval_list_path}'
+                + f' | {self.bgzip} -@ {self.n_cpu} -c > {interval_bed_path}'
             ),
-            input_files_or_dirs=interval_list_path,
+            input_files_or_dirs=self.interval_list_path,
             output_files_or_dirs=interval_bed_path
         )
         yield Tabix(
-            tsv_path=interval_bed_path, tabix=self.cf['tabix'], preset='bed',
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            tsv_path=interval_bed_path, tabix=self.tabix, preset='bed',
+            log_dir_path=self.log_dir_path,
+            remove_if_failed=self.remove_if_failed
         )
 
 
@@ -545,6 +558,111 @@ class FetchCnvBlackList(luigi.WrapperTask):
 
     def output(self):
         return self.input()
+
+
+@requires(FetchCnvBlackList)
+class CreateCnvBlackListBED(ShellTask):
+    cf = luigi.DictParameter()
+    priority = 70
+
+    def output(self):
+        return [
+            luigi.LocalTarget(self.input().path + f'.bed.gz{s}')
+            for s in ['', '.tbi']
+        ]
+
+    def run(self):
+        yield IntervalList2BED(
+            interval_list_path=self.input().path, bgzip=self.cf['bgzip'],
+            tabix=self.cf['tabix'], n_cpu=self.cf['n_cpu_per_worker'],
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
+        )
+
+
+@requires(FetchReferenceFASTA)
+class FlagUniqueKmers(ShellTask):
+    cf = luigi.DictParameter()
+    priority = 60
+
+    def output(self):
+        return [
+            luigi.LocalTarget(self.input().path + f'.kmer.fa{s}')
+            for s in ['', '.fai']
+        ]
+
+    def run(self):
+        input_fa_path = self.input().path
+        run_id = Path(input_fa_path).stem
+        self.print_log(f'Flag unique k-mers:\t{run_id}')
+        flaguniquekmers = self.cf['FlagUniqueKmers']
+        output_fa_path = self.output().path
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=flaguniquekmers, cwd=self.cf['ref_dir_path']
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {flaguniquekmers} {input_fa_path} {output_fa_path}'
+            ),
+            input_files_or_dirs=input_fa_path,
+            output_files_or_dirs=output_fa_path
+        )
+        yield SamtoolsFaidx(
+            fa_path=output_fa_path, samtools=self.cf['samtools'],
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
+        )
+
+
+class PrepareCanvasGenomeFolder(ShellTask):
+    ref_fa_paths = luigi.ListParameter()
+    genomesize_xml_path = luigi.ListParameter()
+    cf = luigi.DictParameter()
+    priority = 10
+
+    def requires(self):
+        return [
+            FetchReferenceFASTA(ref_fa_paths=self.ref_fa_paths, cf=self.cf),
+            CreateFASTAIndex(ref_fa_paths=self.ref_fa_paths, cf=self.cf),
+            FetchResourceFile(
+                resource_file_path=self.genomesize_xml_path, cf=self.cf
+            )
+        ]
+
+    def output(self):
+        return luigi.LocalTarget(
+            str(
+                Path(self.cf['ref_dir_path']).joinpath(
+                    Path(self.input().path).stem
+                )
+            )
+        )
+
+    def run(self):
+        output_dir_path = self.output().path
+        run_id = Path(output_dir_path).name
+        self.print_log(f'Prepare Canvas genome folder:\t{run_id}')
+        symlinks = {
+            o.path: f'{output_dir_path}/{n}'
+            for n, o in zip(
+                ['genome.fa', 'genome.fa.fai', 'GenomeSize.xml'], self.output()
+            )
+        }
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            cwd=self.cf['ref_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
+        )
+        self.run_shell(
+            args=f'mkdir {output_dir_path}',
+            output_files_or_dirs=output_dir_path
+        )
+        for k, v in symlinks.items():
+            self.run_shell(
+                args=f'ln -s {k} {v}',
+                input_files_or_dirs=k, output_files_or_dirs=v
+            )
 
 
 if __name__ == '__main__':

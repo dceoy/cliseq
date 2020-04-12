@@ -32,7 +32,7 @@ class CallStructualVariantsWithDelly(ShellTask):
         ]
 
     def run(self):
-        output_bcf_path = self.output().path
+        output_bcf_path = self.output()[0].path
         run_id = Path(Path(output_bcf_path).stem).stem
         self.print_log(f'Call somatic SVs with Delly:\t{run_id}')
         delly = self.cf['delly']
