@@ -10,7 +10,7 @@ from .align import PrepareNormalCRAM
 from .base import ShellTask
 from .ref import (CreateFASTAIndex, FetchDbsnpVCF, FetchEvaluationIntervalList,
                   FetchHapmapVCF, FetchMillsIndelVCF, FetchReferenceFASTA)
-from .samtools import BAM2CRAM, MergeBAMsIntoCRAM, SamtoolsIndex
+from .samtools import MergeSAMsIntoSortedSAM
 
 
 @requires(FetchEvaluationIntervalList, FetchReferenceFASTA)
@@ -178,22 +178,10 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
             ],
             asynchronous=(len(evaluation_interval_paths) > 1)
         )
-        if len(tmp_bam_paths) > 1:
-            yield MergeBAMsIntoCRAM(
-                bam_paths=tmp_bam_paths, output_cram_path=output_cram_path,
-                fa_path=fa_path, samtools=samtools, n_cpu=n_cpu,
-                memory_per_thread=memory_per_thread,
-                log_dir_path=self.cf['log_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed']
-            )
-        else:
-            yield BAM2CRAM(
-                sam_path=tmp_bam_paths[0], fa_path=fa_path, samtools=samtools,
-                n_cpu=n_cpu, log_dir_path=self.cf['log_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed']
-            )
-        yield SamtoolsIndex(
-            sam_path=output_cram_path, samtools=samtools, n_cpu=n_cpu,
+        yield MergeSAMsIntoSortedSAM(
+            input_sam_paths=tmp_bam_paths, output_sam_path=output_cram_path,
+            fa_path=fa_path, samtools=samtools, n_cpu=n_cpu,
+            memory_per_thread=memory_per_thread,
             log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )

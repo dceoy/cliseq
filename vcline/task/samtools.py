@@ -66,93 +66,182 @@ class SamtoolsIndex(ShellTask):
         )
 
 
-class BAM2CRAM(ShellTask):
-    bam_path = luigi.Parameter()
+class SamtoolsView(ShellTask):
+    input_sam_path = luigi.Parameter()
+    output_sam_path = luigi.Parameter()
     fa_path = luigi.Parameter()
     samtools = luigi.Parameter()
     n_cpu = luigi.IntParameter(default=1)
+    add_args = luigi.Parameter(default='')
+    message = luigi.Parameter(default='')
+    remove_input = luigi.BoolParameter(default=True)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     priority = 10
 
     def output(self):
-        return luigi.LocalTarget(re.sub(r'\.bam$', '.cram', self.bam_path))
+        return luigi.LocalTarget(self.output_sam_path)
 
     def run(self):
-        run_id = Path(self.bam_path).stem
-        self.print_log(f'Convert BAM to CRAM:\t{run_id}')
-        cram_path = self.output().path
+        run_id = Path(self.input_sam_path).stem
+        if self.message:
+            self.print_log(f'{self.message}:\t{run_id}')
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=self.samtools, cwd=str(Path(cram_path).parent),
+            commands=self.samtools, cwd=str(Path(self.output_sam_path).parent),
             remove_if_failed=self.remove_if_failed,
             quiet=bool(self.log_dir_path), env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
             args=(
-                f'set -e && {self.samtools} view -@ {self.n_cpu}'
-                + f' -T {self.fa_path} -CS -o {cram_path} {self.bam_path}'
+                f'set -e && '
+                + f'{self.samtools} view -@ {self.n_cpu} -T {self.fa_path}'
+                + ' -{0}S{1}'.format(
+                    ('C' if self.output_sam_path.endswith('.cram') else 'b'),
+                    (f' {self.add_args}' if self.add_args else '')
+                )
+                + f' -o {self.output_sam_path} {self.input_sam_path}'
             ),
             input_files_or_dirs=[
-                self.bam_path, self.fa_path, f'{self.fa_path}.fai'
+                self.input_sam_path, self.fa_path, f'{self.fa_path}.fai'
             ],
-            output_files_or_dirs=cram_path
+            output_files_or_dirs=self.output_sam_path
         )
-        self.run_shell(
-            args=(
-                f'set -e && {self.samtools} quickcheck -v {cram_path} && '
-                + f'rm -f {self.bam_path}'
-            ),
-            input_files_or_dirs=[cram_path, self.bam_path]
-        )
+        if self.remove_input:
+            self.run_shell(
+                args=f'rm -f {self.input_sam_path}',
+                input_files_or_dirs=[self.input_sam_path, self.output_sam_path]
+            )
 
 
-class MergeBAMsIntoCRAM(ShellTask):
-    bam_paths = luigi.ListParameter()
-    output_cram_path = luigi.Parameter()
+class ConvertSAMIntoSortedSAM(ShellTask):
+    input_sam_path = luigi.Parameter()
+    output_sam_path = luigi.Parameter()
     fa_path = luigi.Parameter()
     samtools = luigi.Parameter()
     n_cpu = luigi.IntParameter(default=1)
     memory_per_thread = luigi.Parameter(default='768M')
+    index_sam = luigi.BoolParameter(default=True)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     priority = 10
 
     def output(self):
-        return luigi.LocalTarget(self.output_cram_path)
+        return [
+            luigi.LocalTarget(self.output_sam_path + s) for s in ['', '.crai']
+        ]
 
     def run(self):
-        run_id = Path(self.output_cram_path).stem
-        self.print_log(f'Merge BAMs:\t{run_id}')
-        cram_path = self.output().path
+        run_id = Path(self.output_sam_path).stem
+        self.print_log(f'Convert SAM into sorted CRAM:\t{run_id}')
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=self.samtools, cwd=str(Path(cram_path).parent),
+            commands=self.samtools, cwd=str(Path(self.output_sam_path).parent),
             remove_if_failed=self.remove_if_failed,
             quiet=bool(self.log_dir_path), env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
             args=(
                 'set -eo pipefail && '
-                + f'{self.samtools} merge -@ {self.n_cpu} -rh - '
-                + ' '.join(self.bam_paths)
-                + f' | {self.samtools} sort -@ {self.n_cpu}'
-                + f' -m {self.memory_per_thread} -l 0 -T {cram_path}.sort -'
+                + f'{self.samtools} sort -@ {self.n_cpu}'
+                + f' -m {self.memory_per_thread} -O bam -l 0'
+                + f' -T {self.output_sam_path}.sort {self.input_sam_path}'
                 + f' | {self.samtools} view -@ {self.n_cpu} -T {self.fa_path}'
-                + f' -CS -o {cram_path} -'
+                + ' -{}S'.format(
+                    'C' if self.output_sam_path.endswith('.cram') else 'b'
+                )
+                + f' -o {self.output_sam_path} -'
             ),
             input_files_or_dirs=[
-                self.bam_paths, self.fa_path, f'{self.fa_path}.fai'
+                self.input_sam_path, self.fa_path, f'{self.fa_path}.fai'
             ],
-            output_files_or_dirs=cram_path
+            output_files_or_dirs=self.output_sam_path
         )
-        self.run_shell(
-            args=(
-                f'set -e && {self.samtools} quickcheck -v {cram_path} && '
-                + f'rm -f ' ' '.join(self.bam_paths)
-            ),
-            input_files_or_dirs=[cram_path, *self.bam_paths]
-        )
+        if self.index_sam:
+            yield SamtoolsIndex(
+                sam_path=self.output_sam_path, samtools=self.samtools,
+                n_cpu=self.n_cpu, log_dir_path=self.log_dir_path,
+                remove_if_failed=self.remove_if_failed
+            )
+        if self.remove_input:
+            self.run_shell(
+                args=f'rm -f {self.input_sam_path}',
+                input_files_or_dirs=[self.output_sam_path, self.input_sam_path]
+            )
+
+
+class MergeSAMsIntoSortedSAM(ShellTask):
+    input_sam_paths = luigi.ListParameter()
+    output_sam_path = luigi.Parameter()
+    fa_path = luigi.Parameter()
+    samtools = luigi.Parameter()
+    n_cpu = luigi.IntParameter(default=1)
+    memory_per_thread = luigi.Parameter(default='768M')
+    index_sam = luigi.BoolParameter(default=True)
+    remove_input = luigi.BoolParameter(default=True)
+    log_dir_path = luigi.Parameter(default='')
+    remove_if_failed = luigi.BoolParameter(default=True)
+    priority = 10
+
+    def output(self):
+        return [
+            luigi.LocalTarget(self.output_sam_path + s) for s in ['', '.crai']
+        ]
+
+    def run(self):
+        output_sam_path = self.output()[0].path
+        if len(self.input_sam_paths) == 1:
+            yield ConvertSAMIntoSortedSAM(
+                sam_path=self.input_sam_paths[0],
+                output_sam_path=output_sam_path, fa_path=self.fa_path,
+                samtools=self.samtools, n_cpu=self.n_cpu,
+                memory_per_thread=self.memory_per_thread,
+                index_sam=self.index_sam, remove_input=self.remove_input,
+                log_dir_path=self.log_dir_path,
+                remove_if_failed=self.remove_if_failed
+            )
+        else:
+            run_id = Path(output_sam_path).stem
+            self.print_log(f'Merge SAMs:\t{run_id}')
+            self.setup_shell(
+                run_id=run_id, log_dir_path=(self.log_dir_path or None),
+                commands=self.samtools, cwd=str(Path(output_sam_path).parent),
+                remove_if_failed=self.remove_if_failed,
+                quiet=bool(self.log_dir_path), env={'REF_CACHE': '.ref_cache'}
+            )
+            self.run_shell(
+                args=(
+                    'set -eo pipefail && '
+                    + f'{self.samtools} merge -@ {self.n_cpu} -rh - '
+                    + ' '.join(self.input_sam_paths)
+                    + f' | {self.samtools} sort -@ {self.n_cpu}'
+                    + f' -m {self.memory_per_thread} -O bam -l 0'
+                    + f' -T {output_sam_path}.sort -'
+                    + f' | {self.samtools} view -@ {self.n_cpu}'
+                    + f' -T {self.fa_path}'
+                    + ' -{}S'.format(
+                        'C' if output_sam_path.endswith('.cram') else 'b'
+                    )
+                    + f' -o {output_sam_path} -'
+                ),
+                input_files_or_dirs=[
+                    *self.input_sam_paths, self.fa_path, f'{self.fa_path}.fai'
+                ],
+                output_files_or_dirs=output_sam_path
+            )
+            if self.index_sam:
+                yield SamtoolsIndex(
+                    sam_path=output_sam_path, samtools=self.samtools,
+                    n_cpu=self.n_cpu, log_dir_path=self.log_dir_path,
+                    remove_if_failed=self.remove_if_failed
+                )
+            if self.remove_input:
+                self.run_shell(
+                    args=('rm -f ' + ' '.join(self.input_sam_paths)),
+                    input_files_or_dirs=[
+                        output_sam_path, *self.input_sam_paths
+                    ]
+                )
 
 
 class Tabix(ShellTask):
@@ -167,7 +256,7 @@ class Tabix(ShellTask):
         return luigi.LocalTarget(f'{self.tsv_path}.tbi')
 
     def run(self):
-        run_id = Path(Path(self.sam_path).stem).stem
+        run_id = Path(Path(self.tsv_path).stem).stem
         self.print_log(f'Index a TAB-delimited position file:\t{run_id}')
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
@@ -177,7 +266,7 @@ class Tabix(ShellTask):
         )
         self.run_shell(
             args=f'set -e && {self.tabix} -p {self.preset} {self.tsv_path}',
-            input_files_or_dirs=self.sam_path,
+            input_files_or_dirs=self.tsv_path,
             output_files_or_dirs=self.output().path
         )
 

@@ -11,7 +11,7 @@ from .align import PrepareNormalCRAM, PrepareTumorCRAM
 from .base import ShellTask
 from .ref import (CreateExclusionIntervalListBED, CreateFASTAIndex,
                   FetchReferenceFASTA)
-from .samtools import BAM2CRAM
+from .samtools import SamtoolsView
 
 
 @requires(PrepareTumorCRAM, PrepareNormalCRAM, FetchReferenceFASTA,
@@ -71,6 +71,13 @@ class CallStructualVariantsWithLumpy(ShellTask):
             re.sub(r'\.cram$', '.bam', o.path) for o in self.output()[3:5]
         ]
         uncompressed_vcf_path = re.sub(r'\.gz', '', output_vcf_path)
+        for i, o in zip(input_cram_paths, discordants_bam_paths):
+            yield SamtoolsView(
+                input_sam_path=i, output_sam_path=o, fa_path=fa_path,
+                samtools=samtools, n_cpu=n_cpu, add_args='-F 1294',
+                remove_input=False, log_dir_path=self.cf['log_dir_path'],
+                remove_if_failed=self.cf['remove_if_failed']
+            )
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[
@@ -80,17 +87,6 @@ class CallStructualVariantsWithLumpy(ShellTask):
             cwd=self.cf['somatic_sv_lumpy_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
             env={'REF_CACHE': '.ref_cache'}
-        )
-        self.run_shell(
-            args=[
-                (
-                    f'set -eo pipefail && '
-                    + f'{samtools} view -@ {n_cpu} -T {fa_path} -bS'
-                    + f' -F 1294 -o {o} {i}'
-                ) for i, o in zip(input_cram_paths, discordants_bam_paths)
-            ],
-            input_files_or_dirs=[*input_cram_paths, fa_path, fai_path],
-            output_files_or_dirs=discordants_bam_paths
         )
         self.run_shell(
             args=[
@@ -129,9 +125,11 @@ class CallStructualVariantsWithLumpy(ShellTask):
             output_files_or_dirs=output_vcf_path
         )
         for p in [*discordants_bam_paths, *splitters_bam_paths]:
-            yield BAM2CRAM(
-                bam_path=p, fa_path=fa_path, samtools=samtools, n_cpu=n_cpu,
-                log_dir_path=self.cf['log_dir_path'],
+            yield SamtoolsView(
+                input_sam_path=p,
+                output_sam_path=re.sub(r'\.cram$', '.bam', p),
+                fa_path=fa_path, samtools=samtools, n_cpu=n_cpu,
+                remove_input=True, log_dir_path=self.cf['log_dir_path'],
                 remove_if_failed=self.cf['remove_if_failed']
             )
 
