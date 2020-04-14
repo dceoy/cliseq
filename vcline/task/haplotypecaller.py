@@ -49,9 +49,8 @@ class SplitEvaluationIntervals(ShellTask):
                 + f' --reference {fa_path}'
                 + f' --intervals {interval_path}'
                 + f' --scatter-count {scatter_count}'
-                + ' --output {}'.format(
-                    self.cf['germline_snv_indel_gatk_dir_path']
-                )
+                + ' --output'
+                + ' {}'.format(self.cf['germline_snv_indel_gatk_dir_path'])
             ),
             input_files_or_dirs=[interval_path, fa_path],
             output_files_or_dirs=[o.path for o in self.output()]
@@ -300,6 +299,8 @@ class CNNScoreVariants(ShellTask):
           FetchEvaluationIntervalList)
 class FilterVariantTranches(ShellTask):
     cf = luigi.DictParameter()
+    snp_tranche = luigi.ListParameter(default=[99.9, 99.95])
+    indel_tranche = luigi.ListParameter(default=[99.0, 99.4])
     priority = 60
 
     def output(self):
@@ -334,10 +335,10 @@ class FilterVariantTranches(ShellTask):
                 + f' --intervals {evaluation_interval_path}'
                 + f' --output {filtered_vcf_path}'
                 + ' --info-key CNN_2D'
-                + ' --snp-tranche 99.9'
-                + ' --snp-tranche 99.95'
-                + ' --indel-tranche 99.0'
-                + ' --indel-tranche 99.4'
+                + ''.join(
+                    [f' --snp-tranche {v}' for v in self.snp_tranche]
+                    + [f' --indel-tranche {v}' for v in self.indel_tranche]
+                )
                 + ' --invalidate-previous-filters'
                 + f' --disable-bam-index-caching {save_memory}'
             ),

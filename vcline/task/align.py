@@ -201,7 +201,7 @@ class SetNmMdAndUqTags(ShellTask):
             fa_path=self.fa_path, samtools=self.samtools, n_cpu=self.n_cpu,
             remove_input=self.remove_input, log_dir_path=self.log_dir_path,
             remove_if_failed=self.remove_if_failed
-        )
+        ).output()
         yield SamtoolsIndex(
             sam_path=target.path, samtools=self.samtools,
             n_cpu=self.n_cpu, log_dir_path=self.log_dir_path,
@@ -285,7 +285,7 @@ class ApplyBQSR(ShellTask):
             n_cpu=self.cf['n_cpu_per_worker'], remove_input=True,
             log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
-        )
+        ).output()
         yield SamtoolsIndex(
             sam_path=target.path, samtools=self.cf['samtools'],
             n_cpu=self.cf['n_cpu_per_worker'],
@@ -319,7 +319,7 @@ class RemoveDuplicates(BaseTask):
             message='Remove duplicates', remove_input=False,
             log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
-        )
+        ).output()
         yield SamtoolsIndex(
             sam_path=target.path, samtools=self.cf['samtools'],
             n_cpu=self.cf['n_cpu_per_worker'],

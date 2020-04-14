@@ -11,7 +11,7 @@ from luigi.tools import deps_tree
 from ..cli.util import fetch_executable, parse_fq_id, read_config_yml
 from .align import PrepareCRAMs
 from .base import BaseTask
-from .callcopyratiosegments import CallCopyRatioSegmentsTumor
+from .callcopyratiosegments import CallCopyRatioSegmentsMatched
 from .canvas import CallSomaticCopyNumberVariantsWithCanvas
 from .delly import CallStructualVariantsWithDelly
 from .funcotator import AnnotateVariantsWithFuncotator
@@ -116,7 +116,7 @@ class RunVariantCaller(luigi.WrapperTask):
                 cf=self.cf
             )
         elif 'somatic_copy_number_variation.gatk' == self.caller_mode:
-            return CallCopyRatioSegmentsTumor(
+            return CallCopyRatioSegmentsMatched(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
