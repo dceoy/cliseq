@@ -300,7 +300,7 @@ class IntervalList2BED(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.log_dir_path, commands=self.bgzip,
             cwd=str(Path(interval_bed_path).parent),
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.remove_if_failed
         )
         self.run_shell(
             args=(
@@ -577,6 +577,64 @@ class CreateCnvBlackListBED(ShellTask):
             tabix=self.cf['tabix'], n_cpu=self.cf['n_cpu_per_worker'],
             log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
+        )
+
+
+@requires(FetchEvaluationIntervalList, FetchCnvBlackList,
+          FetchReferenceFASTA, CreateSequenceDictionary)
+class PreprocessIntervals(ShellTask):
+    cf = luigi.DictParameter()
+    wes_param = luigi.DictParameter(default={'bin-length': 0, 'padding': 250})
+    wgs_param = luigi.DictParameter(default={'bin-length': 1000, 'padding': 0})
+    priority = 60
+
+    def output(self):
+        return luigi.LocalTarget(
+            str(
+                Path(self.cf['ref_dir_path']).joinpath(
+                    '{0}.w{1}s.preprocessed.interval_list'.format(
+                        Path(self.input()[0].path).stem,
+                        ('e' if self.cf['exome'] else 'g')
+                    )
+                )
+            )
+        )
+
+    def run(self):
+        evaluation_interval_path = self.input()[0].path
+        run_id = Path(evaluation_interval_path).stem
+        self.print_log(f'Prepares bins for coverage collection:\t{run_id}')
+        gatk = self.cf['gatk']
+        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        cnv_black_list_path = self.input()[1].path
+        fa_path = self.input()[2].path
+        seq_dict_path = self.input()[3].path
+        preprocessed_interval_path = self.output().path
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
+            cwd=self.cf['ref_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {gatk}{gatk_opts} PreprocessIntervals'
+                + f' --intervals {evaluation_interval_path}'
+                + f' --exclude-intervals {cnv_black_list_path}'
+                + f' --sequence-dictionary {seq_dict_path}'
+                + f' --reference {fa_path}'
+                + ''.join([
+                    f' --{k} {v}' for k, v in (
+                        self.wes_param if self.cf['exome'] else self.wgs_param
+                    ).items()
+                ])
+                + ' --interval-merging-rule OVERLAPPING_ONLY'
+                + f' --output {preprocessed_interval_path}'
+            ),
+            input_files_or_dirs=[
+                evaluation_interval_path, cnv_black_list_path,
+                seq_dict_path, fa_path
+            ],
+            output_files_or_dirs=preprocessed_interval_path
         )
 
 

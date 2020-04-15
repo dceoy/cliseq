@@ -161,7 +161,7 @@ class SetNmMdAndUqTags(ShellTask):
 
     def output(self):
         return [
-            luigi.LocalTarget(self.output_sam_path + s) for s in ['', '.crai']
+            luigi.LocalTarget(self.output_cram_path + s) for s in ['', '.crai']
         ]
 
     def run(self):

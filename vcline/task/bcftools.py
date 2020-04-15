@@ -138,7 +138,7 @@ class BcftoolsIndex(ShellTask):
             args=(
                 f'set -e && {self.bcftools} index --threads {self.n_cpu}'
                 + (' --tbi' if self.tbi else ' --csi')
-                + (' --nrecords --stats' if self.print_stats else '')
+                + (' --stats' if self.print_stats else '')
                 + f' {self.vcf_path}'
             ),
             input_files_or_dirs=self.vcf_path,
