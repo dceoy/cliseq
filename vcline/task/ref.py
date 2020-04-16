@@ -7,8 +7,7 @@ from pathlib import Path
 import luigi
 from luigi.util import requires
 
-from .base import ShellTask
-from .bcftools import BcftoolsIndex
+from .base import BaseTask, ShellTask
 from .samtools import SamtoolsFaidx, Tabix
 
 
@@ -105,8 +104,8 @@ class FetchResourceVCF(ShellTask):
             input_files_or_dirs=self.resource_vcf_path,
             output_files_or_dirs=dest_vcf_path
         )
-        yield BcftoolsIndex(
-            vcf_path=dest_vcf_path, bcftools=self.cf['bcftools'], n_cpu=n_cpu,
+        yield Tabix(
+            tsv_path=dest_vcf_path, tabix=self.cf['tabix'], preset='vcf',
             log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
@@ -196,7 +195,7 @@ class FetchResourceFile(ShellTask):
 
 
 @requires(FetchReferenceFASTA)
-class CreateFASTAIndex(ShellTask):
+class CreateFASTAIndex(BaseTask):
     cf = luigi.DictParameter()
     priority = 70
 
@@ -254,7 +253,7 @@ class FetchEvaluationIntervalList(luigi.WrapperTask):
 
 
 @requires(FetchEvaluationIntervalList)
-class CreateEvaluationIntervalListBED(ShellTask):
+class CreateEvaluationIntervalListBED(BaseTask):
     cf = luigi.DictParameter()
     priority = 70
 
@@ -498,10 +497,9 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
             input_files_or_dirs=input_vcf_path,
             output_files_or_dirs=biallelic_snp_vcf_path
         )
-        yield BcftoolsIndex(
-            vcf_path=biallelic_snp_vcf_path, bcftools=self.cf['bcftools'],
-            n_cpu=self.cf['n_cpu_per_worker'],
-            log_dir_path=self.cf['log_dir_path'],
+        yield Tabix(
+            tsv_path=biallelic_snp_vcf_path, tabix=self.cf['tabix'],
+            preset='vcf', log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
 
@@ -572,9 +570,32 @@ class CreateCnvBlackListBED(ShellTask):
         ]
 
     def run(self):
-        yield IntervalList2BED(
-            interval_list_path=self.input().path, bgzip=self.cf['bgzip'],
-            tabix=self.cf['tabix'], n_cpu=self.cf['n_cpu_per_worker'],
+        blacklist_path = self.input().path
+        run_id = Path(blacklist_path).stem
+        self.print_log(f'Create a blacklist BED:\t{run_id}')
+        bgzip = self.cf['bgzip']
+        n_cpu = self.cf['n_cpu_per_worker']
+        bed_path = self.output()[0].path
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=bgzip, cwd=self.cf['ref_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
+        )
+        self.run_shell(
+            args=(
+                f'set -eo pipefail && {sys.executable}'
+                + ' -c \'{}\''.format(
+                    'from fileinput import input;'
+                    '[(lambda a, b, c: print(f"{a}\t{int(b) - 1}\t{c}"))'
+                    '(*s.strip().replace(":", "-").split("-"))'
+                    ' for s in input()];'
+                ) + f' {blacklist_path}'
+                + f' | {bgzip} -@ {n_cpu} -c > {bed_path}'
+            ),
+            input_files_or_dirs=blacklist_path, output_files_or_dirs=bed_path
+        )
+        yield Tabix(
+            tsv_path=bed_path, tabix=self.cf['tabix'], preset='bed',
             log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
@@ -654,7 +675,7 @@ class FlagUniqueKmers(ShellTask):
         run_id = Path(input_fa_path).stem
         self.print_log(f'Flag unique k-mers:\t{run_id}')
         flaguniquekmers = self.cf['FlagUniqueKmers']
-        output_fa_path = self.output().path
+        output_fa_path = self.output()[0].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=flaguniquekmers, cwd=self.cf['ref_dir_path']
@@ -692,7 +713,7 @@ class PrepareCanvasGenomeFolder(ShellTask):
         return luigi.LocalTarget(
             str(
                 Path(self.cf['ref_dir_path']).joinpath(
-                    Path(self.input().path).stem
+                    Path(self.input()[0].path).stem + '.canvas'
                 )
             )
         )
@@ -702,9 +723,9 @@ class PrepareCanvasGenomeFolder(ShellTask):
         run_id = Path(output_dir_path).name
         self.print_log(f'Prepare Canvas genome folder:\t{run_id}')
         symlinks = {
-            o.path: f'{output_dir_path}/{n}'
-            for n, o in zip(
-                ['genome.fa', 'genome.fa.fai', 'GenomeSize.xml'], self.output()
+            i.path: f'{output_dir_path}/{n}'
+            for n, i in zip(
+                ['genome.fa', 'genome.fa.fai', 'GenomeSize.xml'], self.input()
             )
         }
         self.setup_shell(
@@ -718,7 +739,9 @@ class PrepareCanvasGenomeFolder(ShellTask):
         )
         for k, v in symlinks.items():
             self.run_shell(
-                args=f'ln -s {k} {v}',
+                args='ln -s {0} {1}'.format(
+                    str(Path(k).relative_to(output_dir_path)), v
+                ),
                 input_files_or_dirs=k, output_files_or_dirs=v
             )
 

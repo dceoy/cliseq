@@ -35,6 +35,7 @@ class RunVariantCaller(luigi.WrapperTask):
     gnomad_vcf_path = luigi.Parameter()
     evaluation_interval_path = luigi.Parameter()
     cnv_black_list_path = luigi.Parameter()
+    genomesize_xml_path = luigi.Parameter()
     funcotator_data_src_tar_path = luigi.Parameter()
     cf = luigi.DictParameter()
     caller_mode = luigi.ListParameter()
@@ -133,7 +134,8 @@ class RunVariantCaller(luigi.WrapperTask):
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
+                cnv_black_list_path=self.cnv_black_list_path,
+                genomesize_xml_path=self.genomesize_xml_path, cf=self.cf
             )
         else:
             raise ValueError(f'invalid caller mode: {self.caller_mode}')
@@ -170,6 +172,7 @@ class CallVariants(luigi.WrapperTask):
     gnomad_vcf_path = luigi.Parameter()
     evaluation_interval_path = luigi.Parameter()
     cnv_black_list_path = luigi.Parameter()
+    genomesize_xml_path = luigi.Parameter()
     funcotator_somatic_tar_path = luigi.Parameter()
     funcotator_germline_tar_path = luigi.Parameter()
     cf = luigi.DictParameter()
@@ -192,6 +195,7 @@ class CallVariants(luigi.WrapperTask):
                     gnomad_vcf_path=self.gnomad_vcf_path,
                     evaluation_interval_path=self.evaluation_interval_path,
                     cnv_black_list_path=self.cnv_black_list_path,
+                    genomesize_xml_path=self.genomesize_xml_path,
                     funcotator_data_src_tar_path=(
                         self.funcotator_germline_tar_path
                         if m.endswith('.germline') else
@@ -297,7 +301,7 @@ class RunAnalyticalPipeline(BaseTask):
                         else set()
                     ),
                     *(
-                        {'Canvas'} if (
+                        {'Canvas', 'FlagUniqueKmers'} if (
                             'somatic_copy_number_variation.canvas'
                             in caller_modes
                         ) else set()
@@ -312,7 +316,8 @@ class RunAnalyticalPipeline(BaseTask):
                     'annotate/funcotator', 'somatic_snv_indel/gatk',
                     'somatic_snv_indel/strelka', 'germline_snv_indel/gatk',
                     'germline_snv_indel/strelka', 'somatic_sv/manta',
-                    'somatic_sv/delly', 'somatic_sv/lumpy', 'somatic_cnv/gatk'
+                    'somatic_sv/delly', 'somatic_sv/lumpy', 'somatic_cnv/gatk',
+                    'somatic_cnv/canvas'
                 }
             },
             'ref_dir_path': str(Path(self.ref_dir_path).resolve()),

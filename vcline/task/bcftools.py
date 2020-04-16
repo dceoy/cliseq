@@ -112,7 +112,6 @@ class BcftoolsIndex(ShellTask):
     bcftools = luigi.Parameter()
     n_cpu = luigi.IntParameter(default=1)
     tbi = luigi.BoolParameter(default=True)
-    print_stats = luigi.BoolParameter(default=True)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     priority = 10
@@ -121,7 +120,7 @@ class BcftoolsIndex(ShellTask):
         return luigi.LocalTarget(
             re.sub(
                 r'\.(bcf|vcf.gz)$',
-                '.\1.{}'.format('tbi' if self.tbi else 'csi'), self.vcf_path
+                '.\\1.{}'.format('tbi' if self.tbi else 'csi'), self.vcf_path
             )
         )
 
@@ -138,8 +137,7 @@ class BcftoolsIndex(ShellTask):
             args=(
                 f'set -e && {self.bcftools} index --threads {self.n_cpu}'
                 + (' --tbi' if self.tbi else ' --csi')
-                + (' --stats' if self.print_stats else '')
-                + f' {self.vcf_path}'
+                + f' --stats {self.vcf_path}'
             ),
             input_files_or_dirs=self.vcf_path,
             output_files_or_dirs=self.output().path
