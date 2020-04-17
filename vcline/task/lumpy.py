@@ -7,15 +7,14 @@ import luigi
 from luigi.util import requires
 
 from ..cli.util import create_matched_id
-from .align import PrepareNormalCRAM, PrepareTumorCRAM
+from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
-from .ref import (CreateExclusionIntervalListBED, CreateFASTAIndex,
-                  FetchReferenceFASTA)
+from .ref import CreateExclusionIntervalListBED, FetchReferenceFASTA
 from .samtools import SamtoolsView
 
 
-@requires(PrepareTumorCRAM, PrepareNormalCRAM, FetchReferenceFASTA,
-          CreateFASTAIndex, CreateExclusionIntervalListBED)
+@requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFASTA,
+          CreateExclusionIntervalListBED)
 class CallStructualVariantsWithLumpy(ShellTask):
     cf = luigi.DictParameter()
     priority = 10
@@ -61,9 +60,8 @@ class CallStructualVariantsWithLumpy(ShellTask):
         n_cpu = self.cf['n_cpu_per_worker']
         memory_per_thread = self.cf['samtools_memory_per_thread']
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
-        fa_path = self.input()[2].path
-        fai_path = self.input()[3].path
-        exclusion_bed_path = self.input()[4][0].path
+        fa_path = self.input()[2][0].path
+        exclusion_bed_path = self.input()[3][0].path
         discordants_bam_paths = [
             re.sub(r'\.cram$', '.bam', o.path) for o in self.output()[1:3]
         ]
@@ -99,7 +97,7 @@ class CallStructualVariantsWithLumpy(ShellTask):
                     + f' -T {o}.sort -o {o} -'
                 ) for i, o in zip(input_cram_paths, splitters_bam_paths)
             ],
-            input_files_or_dirs=[*input_cram_paths, fa_path, fai_path],
+            input_files_or_dirs=[*input_cram_paths, fa_path],
             output_files_or_dirs=splitters_bam_paths
         )
         self.run_shell(
@@ -115,7 +113,7 @@ class CallStructualVariantsWithLumpy(ShellTask):
                 + f' -o {uncompressed_vcf_path}'
             ),
             input_files_or_dirs=[
-                *input_cram_paths, fa_path, fai_path, exclusion_bed_path
+                *input_cram_paths, fa_path, exclusion_bed_path
             ],
             output_files_or_dirs=uncompressed_vcf_path
         )

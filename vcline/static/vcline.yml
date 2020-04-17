@@ -34,8 +34,10 @@ references:   # These files can be downloaded with vcline download-resources.
   # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/wgs_calling_regions.hg38.interval_list
   cnv_black_list: /path/to/CNV_and_centromere_blacklist.hg38liftover.list.bz2
   # https://storage.googleapis.com/gatk-best-practices/somatic-hg38/CNV_and_centromere_blacklist.hg38liftover.list
-  genomesize_xml: /path/to/GenomeSize.xml.bz2
+  genomesize_xml: /path/to/canvas-cnv-public.GRCh38.WholeGenomeFasta.GenomeSize.xml.bz2
   # https://canvas-cnv-public.s3.amazonaws.com/GRCh38/WholeGenomeFasta/GenomeSize.xml
+  kmer_fa: /path/to/canvas-cnv-public.GRCh38.kmer.fa.bz2
+  # https://canvas-cnv-public.s3.amazonaws.com/GRCh38/kmer.fa
   funcotator_germline_tar: /path/to/funcotator_dataSources.v1.6.20190124g.tar.gz
   # gatk FuncotatorDataSourceDownloader --germline
   funcotator_somatic_tar: /path/to/funcotator_dataSources.v1.6.20190124s.tar.gz

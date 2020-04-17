@@ -61,7 +61,6 @@ Args:
 
 import logging
 import os
-import shutil
 from datetime import datetime
 from math import floor
 from pathlib import Path
@@ -76,8 +75,9 @@ from ..task.resource import (CreateIntervalListWithBED,
                              DownloadAndConvertVCFsIntoPassingAfOnlyVCF,
                              DownloadFuncotatorDataSources,
                              DownloadResourceFile, WritePassingAfOnlyVCF)
-from .util import (build_luigi_tasks, fetch_executable, load_default_url_dict,
-                   print_log, render_template)
+from .util import (build_luigi_tasks, convert_url_to_dest_file_path,
+                   fetch_executable, load_default_url_dict, print_log,
+                   render_template, write_config_yml)
 
 
 def main():
@@ -95,7 +95,7 @@ def main():
     logger = logging.getLogger(__name__)
     logger.debug(f'args:{os.linesep}{args}')
     if args['init']:
-        _write_config_yml(path=args['--yml'])
+        write_config_yml(path=args['--yml'])
     elif args['run']:
         _run_analytical_pipeline(
             config_yml_path=args['--yml'], ref_dir_path=args['--ref-dir'],
@@ -109,31 +109,43 @@ def main():
         n_cpu = int(args['--cpus'] or cpu_count())
         if args['download-resources']:
             url_dict = load_default_url_dict()
+            cmds = {
+                c: fetch_executable(c)
+                for c in ['wget', 'pbzip2', 'bgzip', 'gatk']
+            }
             build_luigi_tasks(
                 tasks=[
                     *[
                         DownloadResourceFile(
                             src_url=v, dest_dir_path=dest_dir_path,
-                            n_cpu=n_cpu,
-                            **{
-                                c: fetch_executable(c)
-                                for c in ['wget', 'pbzip2', 'bgzip']
-                            }
-                        ) for k, v in url_dict.items() if k != 'gnomad_vcf'
+                            n_cpu=n_cpu, wget=cmds['wget'],
+                            pbzip2=cmds['pbzip2'], bgzip=cmds['bgzip']
+                        ) for k, v in url_dict.items()
+                        if k not in {'gnomad_vcf', 'genomesize_xml', 'kmer_fa'}
+                    ],
+                    *[
+                        DownloadResourceFile(
+                            src_url=v,
+                            dest_file_path=(
+                                convert_url_to_dest_file_path(
+                                    url=v, dest_dir_path=dest_dir_path
+                                ) + '.bz2'
+                            ),
+                            n_cpu=n_cpu, wget=cmds['wget'],
+                            pbzip2=cmds['pbzip2'], bgzip=cmds['bgzip']
+                        ) for k, v in url_dict.items()
+                        if k in {'genomesize_xml', 'kmer_fa'}
                     ],
                     DownloadFuncotatorDataSources(
                         dest_dir_path=dest_dir_path, n_cpu=n_cpu,
-                        gatk=fetch_executable('gatk')
+                        gatk=cmds['gatk']
                     ),
                     *(
                         list() if args['--without-gnomad'] else [
                             DownloadAndConvertVCFsIntoPassingAfOnlyVCF(
                                 src_url=url_dict['gnomad_vcf'],
                                 dest_dir_path=dest_dir_path, n_cpu=n_cpu,
-                                **{
-                                    c: fetch_executable(c)
-                                    for c in ['wget', 'bgzip']
-                                }
+                                wget=cmds['wget'], bgzip=cmds['bgzip']
                             )
                         ]
                     )
@@ -214,17 +226,6 @@ def main():
                 ],
                 workers=n_worker, log_level=log_level
             )
-
-
-def _write_config_yml(path):
-    if Path(path).is_file():
-        print_log(f'The file exists:\t{path}')
-    else:
-        print_log(f'Create a config YAML:\t{path}')
-        shutil.copyfile(
-            str(Path(__file__).parent.joinpath('../static/vcline.yml')),
-            Path(path).resolve()
-        )
 
 
 def _run_analytical_pipeline(config_yml_path, dest_dir_path='.',

@@ -12,44 +12,47 @@ from .base import ShellTask
 class DownloadResourceFile(ShellTask):
     src_url = luigi.Parameter()
     dest_dir_path = luigi.Parameter(default='.')
+    dest_file_path = luigi.Parameter(default='')
     n_cpu = luigi.IntParameter(default=1)
     wget = luigi.Parameter(default='wget')
     pbzip2 = luigi.Parameter(default='pbzip2')
     bgzip = luigi.Parameter(default='bgzip')
 
     def output(self):
-        p = str(Path(self.dest_dir_path).joinpath(Path(self.src_url).name))
-        if p.endswith(('.gz', '.bz2')):
-            return luigi.LocalTarget(p)
-        elif p.endswith('.bgz'):
-            return luigi.LocalTarget(re.sub(r'\.bgz$', '.gz', p))
-        elif p.endswith('.vcf'):
-            return luigi.LocalTarget(f'{p}.gz')
+        if self.dest_file_path:
+            return luigi.LocalTarget(self.dest_file_path)
         else:
-            return luigi.LocalTarget(f'{p}.bz2')
+            p = str(Path(self.dest_dir_path).joinpath(Path(self.src_url).name))
+            if p.endswith(('.gz', '.bz2')):
+                return luigi.LocalTarget(p)
+            elif p.endswith('.bgz'):
+                return luigi.LocalTarget(re.sub(r'\.bgz$', '.gz', p))
+            elif p.endswith(('.vcf', '.bed')):
+                return luigi.LocalTarget(f'{p}.gz')
+            else:
+                return luigi.LocalTarget(f'{p}.bz2')
 
     def run(self):
-        dest_path = self.output().path
-        self.print_log(f'Download resource files:\t{dest_path}')
-        if self.src_url.endswith('.bgz'):
-            tmp_path = dest_path
+        dest_file_path = self.output().path
+        self.print_log(f'Download resource files:\t{dest_file_path}')
+        if (self.src_url.endswith(('.bgz', '.gz', '.bz2'))
+                or (Path(dest_file_path).suffix == Path(self.src_url).suffix)):
+            tmp_path = dest_file_path
             commands = self.wget
             postproc_args = None
+        elif dest_file_path.endswith('.gz'):
+            tmp_path = re.sub(r'\.gz$', '', dest_file_path)
+            commands = [self.wget, self.bgzip]
+            postproc_args = f'{self.bgzip} -@ {self.n_cpu} {tmp_path}'
+        elif dest_file_path.endswith('.bz2'):
+            tmp_path = re.sub(r'\.bz2$', '', dest_file_path)
+            commands = [self.wget, self.pbzip2]
+            postproc_args = f'{self.pbzip2} -p{self.n_cpu} {tmp_path}'
         else:
-            tmp_path = str(
-                Path(dest_path).parent.joinpath(Path(self.src_url).name)
-            )
-            if dest_path == tmp_path:
-                commands = self.wget
-                postproc_args = None
-            elif tmp_path.endswith('.vcf'):
-                commands = [self.wget, self.bgzip]
-                postproc_args = f'{self.bgzip} -@ {self.n_cpu} {tmp_path}'
-            else:
-                commands = [self.wget, self.pbzip2]
-                postproc_args = f'{self.pbzip2} -p{self.n_cpu} {tmp_path}'
+            raise ValueError(f'invalid dest_file_path: {dest_file_path}')
         self.setup_shell(
-            commands=commands, cwd=self.dest_dir_path, quiet=False
+            commands=commands, cwd=str(Path(dest_file_path).parent),
+            quiet=False
         )
         self.run_shell(
             args=f'set -e && {self.wget} -qSL {self.src_url} -O {tmp_path}',
@@ -58,7 +61,8 @@ class DownloadResourceFile(ShellTask):
         if postproc_args:
             self.run_shell(
                 args=f'set -e && {postproc_args}',
-                input_files_or_dirs=tmp_path, output_files_or_dirs=dest_path
+                input_files_or_dirs=tmp_path,
+                output_files_or_dirs=dest_file_path
             )
 
 
@@ -248,6 +252,31 @@ class CreateIntervalListWithBED(ShellTask):
             ),
             input_files_or_dirs=[self.bed_path, seq_dict_path],
             output_files_or_dirs=interval_list_path
+        )
+
+
+class FlagUniqueKmers(ShellTask):
+    input_fa_path = luigi.Parameter()
+    output_fa_path = luigi.Parameter()
+    flaguniquekmers = luigi.Parameter(default='FlagUniqueKmers')
+
+    def output(self):
+        return luigi.LocalTarget(self.output_fa_path)
+
+    def run(self):
+        run_id = Path(self.input_fa_path).stem
+        self.print_log(f'Flag unique k-mers:\t{run_id}')
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            cwd=self.cf['ref_dir_path']
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {self.flaguniquekmers}'
+                + f' {self.input_fa_path} {self.output_fa_path}'
+            ),
+            input_files_or_dirs=self.input_fa_path,
+            output_files_or_dirs=self.output_fa_path
         )
 
 

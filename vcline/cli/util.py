@@ -3,12 +3,34 @@
 import logging
 import os
 import re
+import shutil
 from pathlib import Path
 from pprint import pformat
+from urllib.parse import urlsplit
 
 import luigi
 import yaml
 from jinja2 import Environment, FileSystemLoader
+
+
+def write_config_yml(path):
+    if Path(path).is_file():
+        print_log(f'The file exists:\t{path}')
+    else:
+        print_log(f'Create a config YAML:\t{path}')
+        shutil.copyfile(
+            str(Path(__file__).parent.joinpath('../static/vcline.yml')),
+            Path(path).resolve()
+        )
+
+
+def convert_url_to_dest_file_path(url, dest_dir_path='.'):
+    res = urlsplit(url)
+    return str(
+        Path(dest_dir_path).joinpath(
+            '.'.join((res.netloc.split('.')[0] + res.path).split('/'))
+        )
+    )
 
 
 def print_log(message):

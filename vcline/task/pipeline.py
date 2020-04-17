@@ -9,7 +9,7 @@ import luigi
 from luigi.tools import deps_tree
 
 from ..cli.util import fetch_executable, parse_fq_id, read_config_yml
-from .align import PrepareCRAMs
+from .align import PrepareCRAMsMatched
 from .base import BaseTask
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
 from .canvas import CallSomaticCopyNumberVariantsWithCanvas
@@ -24,7 +24,7 @@ from .strelka import (CallGermlineVariantsWithStrelka,
 
 
 class RunVariantCaller(luigi.WrapperTask):
-    ref_fa_paths = luigi.ListParameter()
+    ref_fa_path = luigi.Parameter()
     fq_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
     sample_names = luigi.ListParameter()
@@ -36,6 +36,7 @@ class RunVariantCaller(luigi.WrapperTask):
     evaluation_interval_path = luigi.Parameter()
     cnv_black_list_path = luigi.Parameter()
     genomesize_xml_path = luigi.Parameter()
+    kmer_fa_path = luigi.Parameter()
     funcotator_data_src_tar_path = luigi.Parameter()
     cf = luigi.DictParameter()
     caller_mode = luigi.ListParameter()
@@ -47,7 +48,7 @@ class RunVariantCaller(luigi.WrapperTask):
         if 'germline_short_variant.gatk' == self.caller_mode:
             return FilterVariantTranches(
                 fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -58,7 +59,7 @@ class RunVariantCaller(luigi.WrapperTask):
         elif 'somatic_short_variant.gatk' == self.caller_mode:
             return FilterMutectCalls(
                 fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -69,7 +70,7 @@ class RunVariantCaller(luigi.WrapperTask):
         elif 'somatic_structual_variant.manta' == self.caller_mode:
             return CallStructualVariantsWithManta(
                 fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -79,7 +80,7 @@ class RunVariantCaller(luigi.WrapperTask):
         elif 'somatic_short_variant.strelka' == self.caller_mode:
             return CallSomaticVariantsWithStrelka(
                 fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -89,7 +90,7 @@ class RunVariantCaller(luigi.WrapperTask):
         elif 'germline_short_variant.strelka' == self.caller_mode:
             return CallGermlineVariantsWithStrelka(
                 fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -99,7 +100,7 @@ class RunVariantCaller(luigi.WrapperTask):
         elif 'somatic_structual_variant.delly' == self.caller_mode:
             return CallStructualVariantsWithDelly(
                 fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -109,7 +110,7 @@ class RunVariantCaller(luigi.WrapperTask):
         elif 'somatic_structual_variant.lumpy' == self.caller_mode:
             return CallStructualVariantsWithLumpy(
                 fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -119,7 +120,7 @@ class RunVariantCaller(luigi.WrapperTask):
         elif 'somatic_copy_number_variation.gatk' == self.caller_mode:
             return CallCopyRatioSegmentsMatched(
                 fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -129,13 +130,14 @@ class RunVariantCaller(luigi.WrapperTask):
         elif 'somatic_copy_number_variation.canvas' == self.caller_mode:
             return CallSomaticCopyNumberVariantsWithCanvas(
                 fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
                 cnv_black_list_path=self.cnv_black_list_path,
-                genomesize_xml_path=self.genomesize_xml_path, cf=self.cf
+                genomesize_xml_path=self.genomesize_xml_path,
+                kmer_fa_path=self.kmer_fa_path, cf=self.cf
             )
         else:
             raise ValueError(f'invalid caller mode: {self.caller_mode}')
@@ -148,23 +150,22 @@ class RunVariantCaller(luigi.WrapperTask):
             )
         ]
         if vcf_paths and 'funcotator' in self.annotators:
-            return [
-                AnnotateVariantsWithFuncotator(
+            for p in vcf_paths:
+                yield AnnotateVariantsWithFuncotator(
                     input_vcf_path=p,
                     data_src_tar_path=self.funcotator_data_src_tar_path,
-                    ref_fa_paths=self.ref_fa_paths,
-                    cf=self.cf, normalize_vcf=self.normalize_vcf
-                ).output() for p in vcf_paths
-            ]
+                    ref_fa_path=self.ref_fa_path, cf=self.cf,
+                    normalize_vcf=self.normalize_vcf
+                )
         else:
-            return self.input()
+            yield self.input()
 
 
 class CallVariants(luigi.WrapperTask):
     fq_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
     sample_names = luigi.ListParameter()
-    ref_fa_paths = luigi.ListParameter()
+    ref_fa_path = luigi.Parameter()
     dbsnp_vcf_path = luigi.Parameter()
     mills_indel_vcf_path = luigi.Parameter()
     known_indel_vcf_path = luigi.Parameter()
@@ -173,6 +174,7 @@ class CallVariants(luigi.WrapperTask):
     evaluation_interval_path = luigi.Parameter()
     cnv_black_list_path = luigi.Parameter()
     genomesize_xml_path = luigi.Parameter()
+    kmer_fa_path = luigi.Parameter()
     funcotator_somatic_tar_path = luigi.Parameter()
     funcotator_germline_tar_path = luigi.Parameter()
     cf = luigi.DictParameter()
@@ -187,7 +189,7 @@ class CallVariants(luigi.WrapperTask):
                 RunVariantCaller(
                     fq_list=self.fq_list, read_groups=self.read_groups,
                     sample_names=self.sample_names,
-                    ref_fa_paths=self.ref_fa_paths,
+                    ref_fa_path=self.ref_fa_path,
                     dbsnp_vcf_path=self.dbsnp_vcf_path,
                     mills_indel_vcf_path=self.mills_indel_vcf_path,
                     known_indel_vcf_path=self.known_indel_vcf_path,
@@ -196,6 +198,7 @@ class CallVariants(luigi.WrapperTask):
                     evaluation_interval_path=self.evaluation_interval_path,
                     cnv_black_list_path=self.cnv_black_list_path,
                     genomesize_xml_path=self.genomesize_xml_path,
+                    kmer_fa_path=self.kmer_fa_path,
                     funcotator_data_src_tar_path=(
                         self.funcotator_germline_tar_path
                         if m.endswith('.germline') else
@@ -207,9 +210,9 @@ class CallVariants(luigi.WrapperTask):
                 ) for m in self.caller_modes
             ]
         else:
-            return PrepareCRAMs(
+            return PrepareCRAMsMatched(
                 fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_paths=self.ref_fa_paths,
+                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
@@ -236,8 +239,9 @@ class RunAnalyticalPipeline(BaseTask):
         caller_modes = list()
         if 'callers' in config:
             for k, v in config['callers'].items():
-                for c in v:
-                    caller_modes.append(f'{k}.{c}')
+                for t, b in v.items():
+                    if b:
+                        caller_modes.append(f'{k}.{t}')
         annotators = (
             {k for k, v in config['annotators'].items() if v}
             if 'annotators' in config else {'funcotator'}
@@ -301,7 +305,7 @@ class RunAnalyticalPipeline(BaseTask):
                         else set()
                     ),
                     *(
-                        {'Canvas', 'FlagUniqueKmers'} if (
+                        {'Canvas'} if (
                             'somatic_copy_number_variation.canvas'
                             in caller_modes
                         ) else set()
@@ -324,12 +328,9 @@ class RunAnalyticalPipeline(BaseTask):
             'log_dir_path': str(Path(self.log_dir_path).resolve())
         }
         matched_keys = ['tumor', 'normal']
-        reference_file_paths = dict([
-            ((f'{k}s', [v]) if k == 'ref_fa_path' else (k, v))
-            for k, v in self._resolve_input_file_paths(
-                path_dict=config['references']
-            ).items()
-        ])
+        reference_file_paths = self._resolve_input_file_paths(
+            path_dict=config['references']
+        )
         task_kwargs = [
             {
                 'fq_list': [
@@ -352,7 +353,7 @@ class RunAnalyticalPipeline(BaseTask):
                 config['runs']
             )
         ]
-        logger.debug('task_kwargs:' + os.linesep + pformat(task_kwargs))
+        logger.info('task_kwargs:' + os.linesep + pformat(task_kwargs))
         return [CallVariants(**d) for d in task_kwargs]
 
     @staticmethod

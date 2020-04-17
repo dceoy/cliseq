@@ -6,10 +6,10 @@ from pathlib import Path
 import luigi
 from luigi.util import requires
 
-from .align import PrepareNormalCRAM
+from .align import PrepareCRAMNormal
 from .base import ShellTask
-from .ref import (CreateFASTAIndex, FetchDbsnpVCF, FetchEvaluationIntervalList,
-                  FetchHapmapVCF, FetchMillsIndelVCF, FetchReferenceFASTA)
+from .ref import (FetchDbsnpVCF, FetchEvaluationIntervalList, FetchHapmapVCF,
+                  FetchMillsIndelVCF, FetchReferenceFASTA)
 from .samtools import MergeSAMsIntoSortedSAM
 
 
@@ -35,7 +35,7 @@ class SplitEvaluationIntervals(ShellTask):
         self.print_log(f'Split an evaluation interval list:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        fa_path = self.input()[1].path
+        fa_path = self.input()[1][0].path
         scatter_count = self.cf['n_cpu_per_worker']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
@@ -67,21 +67,20 @@ class PrepareEvaluationIntervals(luigi.WrapperTask):
             SplitEvaluationIntervals(
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
-            ) if self.cf['split_intervals']
-            else FetchEvaluationIntervalList(
-                evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
-            )
+            ) if self.cf['split_intervals'] else [
+                FetchEvaluationIntervalList(
+                    evaluation_interval_path=self.evaluation_interval_path,
+                    cf=self.cf
+                )
+            ]
         )
 
     def output(self):
-        return (
-            self.input() if isinstance(self.input(), list) else [self.input()]
-        )
+        return self.input()
 
 
-@requires(PrepareNormalCRAM, FetchReferenceFASTA, CreateFASTAIndex,
-          FetchDbsnpVCF, PrepareEvaluationIntervals)
+@requires(PrepareCRAMNormal, FetchReferenceFASTA, FetchDbsnpVCF,
+          PrepareEvaluationIntervals)
 class CallVariantsWithHaplotypeCaller(ShellTask):
     cf = luigi.DictParameter()
     priority = 20
@@ -112,9 +111,9 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         n_cpu = self.cf['n_cpu_per_worker']
         memory_per_thread = self.cf['samtools_memory_per_thread']
         input_cram_path = self.input()[0][0].path
-        fa_path = self.input()[1].path
-        dbsnp_vcf_path = self.input()[3][0].path
-        evaluation_interval_paths = [i.path for i in self.input()[4]]
+        fa_path = self.input()[1][0].path
+        dbsnp_vcf_path = self.input()[2][0].path
+        evaluation_interval_paths = [i.path for i in self.input()[3]]
         output_cram_path = self.output()[2].path
         if len(evaluation_interval_paths) == 1:
             tmp_bam_paths = [re.sub(r'(\.cram)$', '.bam', output_cram_path)]
@@ -221,7 +220,7 @@ class GenotypeGVCF(ShellTask):
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         save_memory = str(self.cf['save_memory']).lower()
         gvcf_path = self.input()[0][0].path
-        fa_path = self.input()[1].path
+        fa_path = self.input()[1][0].path
         dbsnp_vcf_path = self.input()[2][0].path
         evaluation_interval_path = self.input()[3].path
         self.setup_shell(
@@ -269,7 +268,7 @@ class CNNScoreVariants(ShellTask):
         save_memory = str(self.cf['save_memory']).lower()
         raw_vcf_path = self.input()[0][0].path
         cram_path = self.input()[1][2].path
-        fa_path = self.input()[2].path
+        fa_path = self.input()[2][0].path
         evaluation_interval_path = self.input()[3].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],

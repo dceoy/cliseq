@@ -11,32 +11,41 @@ from .base import BaseTask, ShellTask
 from .samtools import SamtoolsFaidx, Tabix
 
 
-class FetchReferenceFASTA(ShellTask):
-    ref_fa_paths = luigi.ListParameter()
+class FetchReferenceFASTA(luigi.WrapperTask):
+    ref_fa_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 100
 
+    def requires(self):
+        return FetchResourceFASTA(
+            resource_file_path=self.ref_fa_path, cf=self.cf
+        )
+
+    def output(self):
+        return self.input()
+
+
+class FetchResourceFile(ShellTask):
+    resource_file_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 70
+
     def output(self):
         return luigi.LocalTarget(
-            self.ref_fa_paths[0] if (
-                len(self.ref_fa_paths) == 1
-                and (str(Path(self.ref_fa_paths[0]).parent)
-                     == self.cf['ref_dir_path'])
-                and self.ref_fa_paths[0].lower().endswith(('.fa', '.fasta'))
-            ) else str(
+            str(
                 Path(self.cf['ref_dir_path']).joinpath(
-                    '.'.join([
-                        re.sub(r'\.(fa|fasta)$', '', Path(p).stem, flags=re.I)
-                        for p in self.ref_fa_paths
-                    ]) + '.fa'
+                    re.sub(
+                        r'\.(gz|bz2)$', '', Path(self.resource_file_path).name
+                    )
                 )
             )
         )
 
     def run(self):
-        fa_path = self.output().path
-        run_id = Path(fa_path).stem
-        self.print_log(f'Create a reference FASTA:\t{run_id}')
+        dest_path = self.output().path
+        run_id = Path(dest_path).stem
+        self.print_log(f'Create a resource:\t{run_id}')
+        src_path = self.resource_file_path
         pigz = self.cf['pigz']
         pbzip2 = self.cf['pbzip2']
         n_cpu = self.cf['n_cpu_per_worker']
@@ -45,19 +54,33 @@ class FetchReferenceFASTA(ShellTask):
             commands=[pigz, pbzip2], cwd=self.cf['ref_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
-        args = list()
-        for i, p in enumerate(self.ref_fa_paths):
-            r = '>' if i == 0 else '>>'
-            if p.endswith('.gz'):
-                a = f'{pigz} -p {n_cpu} -dc {p} {r} {fa_path}'
-            elif p.endswith('.bz2'):
-                a = f'{pbzip2} -p{n_cpu} -dc {p} {r} {fa_path}'
-            else:
-                a = 'cat {p} {r} {fa_path}'
-            args.append(f'set -e && {a}')
+        if src_path.endswith('.gz'):
+            a = f'{pigz} -p {n_cpu} -dc {src_path} > {dest_path}'
+        elif src_path.endswith('.bz2'):
+            a = f'{pbzip2} -p{n_cpu} -dc {src_path} > {dest_path}'
+        else:
+            a = f'cp {src_path} {dest_path}'
         self.run_shell(
-            args=args, input_files_or_dirs=self.ref_fa_paths,
-            output_files_or_dirs=fa_path
+            args=a, input_files_or_dirs=src_path,
+            output_files_or_dirs=dest_path
+        )
+
+
+@requires(FetchResourceFile)
+class FetchResourceFASTA(BaseTask):
+    resource_file_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 70
+
+    def output(self):
+        fa_path = self.input().path
+        return [luigi.LocalTarget(f'{fa_path}{s}') for s in ['', '.fai']]
+
+    def run(self):
+        yield SamtoolsFaidx(
+            fa_path=self.input().path, samtools=self.cf['samtools'],
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
 
 
@@ -153,63 +176,6 @@ class FetchKnownIndelVCF(luigi.WrapperTask):
         return self.input()
 
 
-class FetchResourceFile(ShellTask):
-    resource_file_path = luigi.Parameter()
-    cf = luigi.DictParameter()
-    priority = 70
-
-    def output(self):
-        return luigi.LocalTarget(
-            str(
-                Path(self.cf['ref_dir_path']).joinpath(
-                    re.sub(
-                        r'\.(gz|bz2)$', '', Path(self.resource_file_path).name
-                    )
-                )
-            )
-        )
-
-    def run(self):
-        dest_path = self.output().path
-        run_id = Path(dest_path).stem
-        self.print_log(f'Create a resource:\t{run_id}')
-        src_path = self.resource_file_path
-        pigz = self.cf['pigz']
-        pbzip2 = self.cf['pbzip2']
-        n_cpu = self.cf['n_cpu_per_worker']
-        self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[pigz, pbzip2], cwd=self.cf['ref_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
-        )
-        if src_path.endswith('.gz'):
-            a = f'{pigz} -p {n_cpu} -dc {src_path} > {dest_path}'
-        elif src_path.endswith('.bz2'):
-            a = f'{pbzip2} -p{n_cpu} -dc {src_path} > {dest_path}'
-        else:
-            a = f'cp {src_path} {dest_path}'
-        self.run_shell(
-            args=a, input_files_or_dirs=src_path,
-            output_files_or_dirs=dest_path
-        )
-
-
-@requires(FetchReferenceFASTA)
-class CreateFASTAIndex(BaseTask):
-    cf = luigi.DictParameter()
-    priority = 70
-
-    def output(self):
-        return luigi.LocalTarget(self.input().path + '.fai')
-
-    def run(self):
-        yield SamtoolsFaidx(
-            fa_path=self.input().path, samtools=self.cf['samtools'],
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
-        )
-
-
 @requires(FetchReferenceFASTA)
 class CreateBWAIndices(ShellTask):
     cf = luigi.DictParameter()
@@ -217,12 +183,12 @@ class CreateBWAIndices(ShellTask):
 
     def output(self):
         return [
-            luigi.LocalTarget(self.input().path + s)
+            luigi.LocalTarget(self.input()[0].path + s)
             for s in ['.pac', '.bwt', '.ann', '.amb', '.sa']
         ]
 
     def run(self):
-        fa_path = self.input().path
+        fa_path = self.input()[0].path
         run_id = Path(fa_path).stem
         self.print_log(f'Create BWA indices:\t{run_id}')
         bwa = self.cf['bwa']
@@ -317,7 +283,7 @@ class IntervalList2BED(ShellTask):
         )
 
 
-@requires(CreateEvaluationIntervalListBED, CreateFASTAIndex)
+@requires(CreateEvaluationIntervalListBED, FetchReferenceFASTA)
 class CreateExclusionIntervalListBED(ShellTask):
     cf = luigi.DictParameter()
     priority = 70
@@ -332,9 +298,8 @@ class CreateExclusionIntervalListBED(ShellTask):
                     )
                 ) for s in ['', '.tbi']
             ] + [
-                luigi.LocalTarget(
-                    re.sub(r'\.fai$', f'.bed.gz{s}', self.input()[1].path)
-                ) for s in ['', '.tbi']
+                luigi.LocalTarget(self.input()[1][0].path + f'.bed.gz{s}')
+                for s in ['', '.tbi']
             ]
         )
 
@@ -344,7 +309,7 @@ class CreateExclusionIntervalListBED(ShellTask):
         self.print_log(f'Create an exclusion interval_list BED:\t{run_id}')
         bedtools = self.cf['bedtools']
         bgzip = self.cf['bgzip']
-        fai_path = self.input()[1].path
+        fai_path = self.input()[1][1].path
         n_cpu = self.cf['n_cpu_per_worker']
         exclusion_bed_path = self.output()[0].path
         genome_bed_path = self.output()[2].path
@@ -395,7 +360,7 @@ class CreateSequenceDictionary(ShellTask):
         return luigi.LocalTarget(
             str(
                 Path(self.cf['ref_dir_path']).joinpath(
-                    Path(self.input().path).stem + '.dict'
+                    Path(self.input()[0].path).stem + '.dict'
                 )
             )
         )
@@ -475,7 +440,7 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
         self.print_log(f'Create a common biallelic SNP VCF:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        fa_path = self.input()[1].path
+        fa_path = self.input()[1][0].path
         evaluation_interval_path = self.input()[2].path
         biallelic_snp_vcf_path = self.output()[0].path
         self.setup_shell(
@@ -486,15 +451,17 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
         self.run_shell(
             args=(
                 f'set -e && {gatk}{gatk_opts} SelectVariants'
-                + f' --reference {fa_path}'
                 + f' --variant {input_vcf_path}'
+                + f' --reference {fa_path}'
                 + f' --intervals {evaluation_interval_path}'
                 + f' --output {biallelic_snp_vcf_path}'
                 + ' --select-type-to-include SNP'
                 + ' --restrict-alleles-to BIALLELIC'
                 + ' --lenient'
             ),
-            input_files_or_dirs=input_vcf_path,
+            input_files_or_dirs=[
+                input_vcf_path, fa_path, evaluation_interval_path
+            ],
             output_files_or_dirs=biallelic_snp_vcf_path
         )
         yield Tabix(
@@ -613,7 +580,7 @@ class PreprocessIntervals(ShellTask):
         return luigi.LocalTarget(
             str(
                 Path(self.cf['ref_dir_path']).joinpath(
-                    '{0}.w{1}s.preprocessed.interval_list'.format(
+                    '{0}.preprocessed.w{1}s.interval_list'.format(
                         Path(self.input()[0].path).stem,
                         ('e' if self.cf['exome'] else 'g')
                     )
@@ -628,7 +595,7 @@ class PreprocessIntervals(ShellTask):
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         cnv_black_list_path = self.input()[1].path
-        fa_path = self.input()[2].path
+        fa_path = self.input()[2][0].path
         seq_dict_path = self.input()[3].path
         preprocessed_interval_path = self.output().path
         self.setup_shell(
@@ -659,91 +626,54 @@ class PreprocessIntervals(ShellTask):
         )
 
 
-@requires(FetchReferenceFASTA)
-class FlagUniqueKmers(ShellTask):
-    cf = luigi.DictParameter()
-    priority = 60
-
-    def output(self):
-        return [
-            luigi.LocalTarget(self.input().path + f'.kmer.fa{s}')
-            for s in ['', '.fai']
-        ]
-
-    def run(self):
-        input_fa_path = self.input().path
-        run_id = Path(input_fa_path).stem
-        self.print_log(f'Flag unique k-mers:\t{run_id}')
-        flaguniquekmers = self.cf['FlagUniqueKmers']
-        output_fa_path = self.output()[0].path
-        self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=flaguniquekmers, cwd=self.cf['ref_dir_path']
-        )
-        self.run_shell(
-            args=(
-                f'set -e && {flaguniquekmers} {input_fa_path} {output_fa_path}'
-            ),
-            input_files_or_dirs=input_fa_path,
-            output_files_or_dirs=output_fa_path
-        )
-        yield SamtoolsFaidx(
-            fa_path=output_fa_path, samtools=self.cf['samtools'],
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
-        )
-
-
-class PrepareCanvasGenomeFolder(ShellTask):
-    ref_fa_paths = luigi.ListParameter()
-    genomesize_xml_path = luigi.ListParameter()
+class CreateCanvasGenomeSymlinks(ShellTask):
+    ref_fa_path = luigi.Parameter()
+    genomesize_xml_path = luigi.Parameter()
+    kmer_fa_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 10
 
     def requires(self):
         return [
-            FetchReferenceFASTA(ref_fa_paths=self.ref_fa_paths, cf=self.cf),
-            CreateFASTAIndex(ref_fa_paths=self.ref_fa_paths, cf=self.cf),
+            FetchReferenceFASTA(ref_fa_path=self.ref_fa_path, cf=self.cf),
             FetchResourceFile(
                 resource_file_path=self.genomesize_xml_path, cf=self.cf
+            ),
+            FetchResourceFASTA(
+                resource_file_path=self.kmer_fa_path, cf=self.cf
             )
         ]
 
     def output(self):
-        return luigi.LocalTarget(
-            str(
-                Path(self.cf['ref_dir_path']).joinpath(
-                    Path(self.input()[0].path).stem + '.canvas'
-                )
-            )
-        )
+        return [
+            luigi.LocalTarget(
+                str(Path(self.cf['ref_dir_path']).joinpath(f'canvas/{n}'))
+            ) for n in [
+                'genome.fa', 'genome.fa.fai', 'GenomeSize.xml',
+                'kmer.fa', 'kmer.fa.fai'
+            ]
+        ]
 
     def run(self):
-        output_dir_path = self.output().path
-        run_id = Path(output_dir_path).name
+        src_paths = [
+            *[i.path for i in self.input()[0]], self.input()[1].path,
+            *[i.path for i in self.input()[2]]
+        ]
+        run_id = Path(src_paths[0]).stem
         self.print_log(f'Prepare Canvas genome folder:\t{run_id}')
         symlinks = {
-            i.path: f'{output_dir_path}/{n}'
-            for n, i in zip(
-                ['genome.fa', 'genome.fa.fai', 'GenomeSize.xml'], self.input()
-            )
+            '../{}'.format(Path(p).name): o.path
+            for p, o in zip(src_paths, self.output())
         }
+        output_dir_path = str(Path(list(symlinks.values())[0]).parent)
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=self.cf['ref_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            cwd=output_dir_path, remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
-            args=f'mkdir {output_dir_path}',
-            output_files_or_dirs=output_dir_path
+            args=[f'ln -s {s} {d}' for s, d in symlinks.items()],
+            output_files_or_dirs=list(symlinks.values())
         )
-        for k, v in symlinks.items():
-            self.run_shell(
-                args='ln -s {0} {1}'.format(
-                    str(Path(k).relative_to(output_dir_path)), v
-                ),
-                input_files_or_dirs=k, output_files_or_dirs=v
-            )
 
 
 if __name__ == '__main__':

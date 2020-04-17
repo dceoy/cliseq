@@ -63,12 +63,13 @@ class NormalizeVCF(ShellTask):
         )
 
 
-class MergeVCFs(ShellTask):
-    input_vcf_paths = luigi.Parameter()
+class MergeVCFsIntoSortedVCF(ShellTask):
+    input_vcf_paths = luigi.ListParameter()
     output_vcf_path = luigi.Parameter()
     bcftools = luigi.Parameter()
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.IntParameter(default=(4 * 1024))
+    remove_input = luigi.BoolParameter(default=True)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     priority = 10
@@ -81,21 +82,31 @@ class MergeVCFs(ShellTask):
     def run(self):
         output_vcf_path = self.output()[0].path
         run_id = '.'.join(Path(output_vcf_path).name.split('.')[:-2])
-        self.print_log(f'Merge VCFs:\t{run_id}')
+        self.print_log(
+            f'Merge VCFs:\t{run_id}' if len(self.input_vcf_paths) == 1
+            else f'Sort VCF:\t{run_id}'
+        )
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=self.bcftools, cwd=self.dest_dir_path,
+            commands=self.bcftools, cwd=str(Path(self.output_vcf_path).parent),
             remove_if_failed=self.remove_if_failed,
             quiet=bool(self.log_dir_path)
         )
         self.run_shell(
             args=(
-                f'set -eo pipefail && '
-                + f'{self.bcftools} merge --threads {self.n_cpu} '
-                + ' '.join(self.input_vcf_paths)
-                + f' | {self.bcftools} sort --max-mem {self.memory_mb}M'
-                + f' --temp-dir {output_vcf_path}.sort --output-type z'
-                + f' --output {output_vcf_path} -'
+                (
+                    f'set -e && '
+                    + f'{self.bcftools} sort --max-mem {self.memory_mb}M'
+                    + f' --temp-dir {output_vcf_path}.sort --output-type z'
+                    + f' --output {output_vcf_path} {self.input_vcf_paths[0]}'
+                ) if len(self.input_vcf_paths) == 1 else (
+                    f'set -eo pipefail && '
+                    + f'{self.bcftools} merge --threads {self.n_cpu} '
+                    + ' '.join(self.input_vcf_paths)
+                    + f' | {self.bcftools} sort --max-mem {self.memory_mb}M'
+                    + f' --temp-dir {output_vcf_path}.sort --output-type z'
+                    + f' --output {output_vcf_path} -'
+                )
             ),
             input_files_or_dirs=self.input_vcf_paths,
             output_files_or_dirs=output_vcf_path
@@ -105,6 +116,11 @@ class MergeVCFs(ShellTask):
             log_dir_path=self.log_dir_path,
             remove_if_failed=self.remove_if_failed
         )
+        if self.remove_input:
+            self.run_shell(
+                args=('rm -f ' + ' '.join(self.input_vcf_paths)),
+                input_files_or_dirs=[output_vcf_path, self.input_vcf_paths],
+            )
 
 
 class BcftoolsIndex(ShellTask):

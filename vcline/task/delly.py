@@ -6,14 +6,13 @@ import luigi
 from luigi.util import requires
 
 from ..cli.util import create_matched_id
-from .align import PrepareNormalCRAM, PrepareTumorCRAM
+from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
-from .ref import (CreateExclusionIntervalListBED, CreateFASTAIndex,
-                  FetchReferenceFASTA)
+from .ref import CreateExclusionIntervalListBED, FetchReferenceFASTA
 
 
-@requires(PrepareTumorCRAM, PrepareNormalCRAM, FetchReferenceFASTA,
-          CreateFASTAIndex, CreateExclusionIntervalListBED)
+@requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFASTA,
+          CreateExclusionIntervalListBED)
 class CallStructualVariantsWithDelly(ShellTask):
     cf = luigi.DictParameter()
     priority = 10
@@ -38,9 +37,8 @@ class CallStructualVariantsWithDelly(ShellTask):
         delly = self.cf['delly']
         n_cpu = self.cf['n_cpu_per_worker']
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
-        fa_path = self.input()[2].path
-        fai_path = self.input()[3].path
-        exclusion_bed_path = self.input()[4][0].path
+        fa_path = self.input()[2][0].path
+        exclusion_bed_path = self.input()[3][0].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=delly, cwd=self.cf['somatic_sv_delly_dir_path'],
@@ -56,7 +54,7 @@ class CallStructualVariantsWithDelly(ShellTask):
                 + ''.join([f' {p}' for p in input_cram_paths])
             ),
             input_files_or_dirs=[
-                *input_cram_paths, fa_path, fai_path, exclusion_bed_path
+                *input_cram_paths, fa_path, exclusion_bed_path
             ],
             output_files_or_dirs=output_bcf_path
         )

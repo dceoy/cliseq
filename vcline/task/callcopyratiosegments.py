@@ -6,7 +6,7 @@ import luigi
 from luigi.util import requires
 
 from ..cli.util import create_matched_id
-from .align import PrepareNormalCRAM, PrepareTumorCRAM
+from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
 from .haplotypecaller import GenotypeGVCF
 from .ref import (CreateSequenceDictionary, FetchReferenceFASTA,
@@ -95,7 +95,7 @@ class CollectAllelicCounts(ShellTask):
         )
 
 
-@requires(PrepareTumorCRAM, CreateGermlineSnpIntervalList, FetchReferenceFASTA)
+@requires(PrepareCRAMTumor, CreateGermlineSnpIntervalList, FetchReferenceFASTA)
 class CollectAllelicCountsTumor(luigi.WrapperTask):
     cf = luigi.DictParameter()
     priority = 10
@@ -104,11 +104,11 @@ class CollectAllelicCountsTumor(luigi.WrapperTask):
         return CollectAllelicCounts(
             cram_path=self.input()[0][0].path,
             common_sites_interval_path=self.input()[1].path,
-            fa_path=self.input()[2].path, cf=self.cf
+            fa_path=self.input()[2][0].path, cf=self.cf
         ).output()
 
 
-@requires(PrepareNormalCRAM, CreateGermlineSnpIntervalList,
+@requires(PrepareCRAMNormal, CreateGermlineSnpIntervalList,
           FetchReferenceFASTA)
 class CollectAllelicCountsNormal(luigi.WrapperTask):
     cf = luigi.DictParameter()
@@ -118,7 +118,7 @@ class CollectAllelicCountsNormal(luigi.WrapperTask):
         return CollectAllelicCounts(
             cram_path=self.input()[0][0].path,
             common_sites_interval_path=self.input()[1].path,
-            fa_path=self.input()[2].path, cf=self.cf
+            fa_path=self.input()[2][0].path, cf=self.cf
         ).output()
 
 
@@ -339,7 +339,7 @@ class ModelSegments(ShellTask):
             )
 
 
-@requires(PrepareTumorCRAM, PreprocessIntervals, FetchReferenceFASTA,
+@requires(PrepareCRAMTumor, PreprocessIntervals, FetchReferenceFASTA,
           CreateSequenceDictionary, CollectAllelicCountsTumor,
           CollectAllelicCountsNormal)
 class ModelSegmentsTumor(luigi.WrapperTask):
@@ -350,13 +350,14 @@ class ModelSegmentsTumor(luigi.WrapperTask):
         return ModelSegments(
             cram_path=self.input()[0][0].path,
             preprocessed_interval_path=self.input()[1].path,
-            fa_path=self.input()[2].path, seq_dict_path=self.input()[3].path,
+            fa_path=self.input()[2][0].path,
+            seq_dict_path=self.input()[3].path,
             case_allelic_counts_tsv_path=self.input()[4].path,
             normal_allelic_counts_tsv_path=self.input()[5].path, cf=self.cf
         ).output()
 
 
-@requires(PrepareNormalCRAM, PreprocessIntervals, FetchReferenceFASTA,
+@requires(PrepareCRAMNormal, PreprocessIntervals, FetchReferenceFASTA,
           CreateSequenceDictionary, CollectAllelicCountsNormal)
 class ModelSegmentsNormal(luigi.WrapperTask):
     cf = luigi.DictParameter()
@@ -366,7 +367,8 @@ class ModelSegmentsNormal(luigi.WrapperTask):
         return ModelSegments(
             cram_path=self.input()[0][0].path,
             preprocessed_interval_path=self.input()[1].path,
-            fa_path=self.input()[2].path, seq_dict_path=self.input()[3].path,
+            fa_path=self.input()[2][0].path,
+            seq_dict_path=self.input()[3].path,
             normal_allelic_counts_tsv_path=self.input()[4].path, cf=self.cf
         ).output()
 

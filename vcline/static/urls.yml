@@ -8,3 +8,4 @@ evaluation_interval: https://storage.googleapis.com/genomics-public-data/resourc
 gnomad_vcf: https://storage.googleapis.com/gnomad-public/release/3.0/vcf/genomes/gnomad.genomes.r3.0.sites.vcf.bgz
 cnv_black_list: https://storage.googleapis.com/gatk-best-practices/somatic-hg38/CNV_and_centromere_blacklist.hg38liftover.list
 genomesize_xml: https://canvas-cnv-public.s3.amazonaws.com/GRCh38/WholeGenomeFasta/GenomeSize.xml
+kmer_fa: https://canvas-cnv-public.s3.amazonaws.com/GRCh38/kmer.fa

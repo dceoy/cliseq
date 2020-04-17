@@ -7,14 +7,13 @@ import luigi
 
 from .base import ShellTask
 from .bcftools import NormalizeVCF
-from .ref import (CreateFASTAIndex, CreateSequenceDictionary, ExtractTarFile,
-                  FetchReferenceFASTA)
+from .ref import CreateSequenceDictionary, ExtractTarFile, FetchReferenceFASTA
 
 
 class AnnotateVariantsWithFuncotator(luigi.WrapperTask):
     input_vcf_path = luigi.Parameter()
     data_src_tar_path = luigi.Parameter()
-    ref_fa_paths = luigi.ListParameter()
+    ref_fa_path = luigi.Parameter()
     cf = luigi.DictParameter()
     normalize_vcf = luigi.BoolParameter(default=True)
     priority = 10
@@ -24,10 +23,9 @@ class AnnotateVariantsWithFuncotator(luigi.WrapperTask):
             ExtractTarFile(
                 tar_path=self.data_src_tar_path, cf=self.cf
             ),
-            FetchReferenceFASTA(ref_fa_paths=self.ref_fa_paths, cf=self.cf),
-            CreateFASTAIndex(ref_fa_paths=self.ref_fa_paths, cf=self.cf),
+            FetchReferenceFASTA(ref_fa_path=self.ref_fa_path, cf=self.cf),
             CreateSequenceDictionary(
-                ref_fa_paths=self.ref_fa_paths, cf=self.cf
+                ref_fa_path=self.ref_fa_path, cf=self.cf
             )
         ]
 
@@ -35,7 +33,8 @@ class AnnotateVariantsWithFuncotator(luigi.WrapperTask):
         return RunFuncotator(
             input_vcf_path=self.input_vcf_path,
             data_src_dir_path=self.input()[0].path,
-            fa_path=self.input()[1].path, ref_version=self.cf['ref_version'],
+            fa_path=self.input()[1][0].path,
+            ref_version=self.cf['ref_version'],
             dest_dir_path=self.cf['annotate_funcotator_dir_path'],
             normalize_vcf=self.normalize_vcf,
             norm_dir_path=self.cf['annotate_bcftools_dir_path'],
