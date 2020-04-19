@@ -98,14 +98,14 @@ class MergeVCFsIntoSortedVCF(ShellTask):
                     f'set -e && '
                     + f'{self.bcftools} sort --max-mem {self.memory_mb}M'
                     + f' --temp-dir {output_vcf_path}.sort --output-type z'
-                    + f' --output {output_vcf_path} {self.input_vcf_paths[0]}'
+                    + f' --output-file {output_vcf_path} {self.input_vcf_paths[0]}'
                 ) if len(self.input_vcf_paths) == 1 else (
                     f'set -eo pipefail && '
                     + f'{self.bcftools} merge --threads {self.n_cpu} '
                     + ' '.join(self.input_vcf_paths)
                     + f' | {self.bcftools} sort --max-mem {self.memory_mb}M'
                     + f' --temp-dir {output_vcf_path}.sort --output-type z'
-                    + f' --output {output_vcf_path} -'
+                    + f' --output-file {output_vcf_path} -'
                 )
             ),
             input_files_or_dirs=self.input_vcf_paths,
