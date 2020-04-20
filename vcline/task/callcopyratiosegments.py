@@ -211,11 +211,12 @@ class DenoiseReadCounts(ShellTask):
         self.print_log(f'Produce denoised copy ratios:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        r = self.cf['R']
         denoised_cr_tsv_path = self.output()[0].path
         standardized_cr_tsv_path = self.output()[1].path
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['somatic_cnv_gatk_dir_path'],
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=[gatk, r], cwd=self.cf['somatic_cnv_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -284,12 +285,13 @@ class ModelSegments(ShellTask):
         ]
 
     def run(self):
-        output_file_paths = [o.path for o in self.output()]
-        run_id = Path(Path(output_file_paths[0]).stem).stem
+        denoised_cr_tsv_path = self.input()[0].path
+        run_id = Path(Path(denoised_cr_tsv_path).stem).stem
         self.print_log(f'Produce denoised copy ratios:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        denoised_cr_tsv_path = self.denoised_cr_tsv_path
+        output_file_paths = [o.path for o in self.output()]
+        r = self.cf['R']
         if self.case_allelic_counts_tsv_path:
             allelic_count_args = (
                 f' --allelic-counts {self.case_allelic_counts_tsv_path}'
@@ -315,8 +317,8 @@ class ModelSegments(ShellTask):
                 denoised_cr_tsv_path, self.normal_allelic_counts_tsv_path
             ]
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['somatic_cnv_gatk_dir_path'],
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=[gatk, r], cwd=self.cf['somatic_cnv_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(

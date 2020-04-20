@@ -305,6 +305,12 @@ class RunAnalyticalPipeline(BaseTask):
                         else set()
                     ),
                     *(
+                        {'R'} if (
+                            'somatic_copy_number_variation.gatk'
+                            in caller_modes
+                        ) else set()
+                    ),
+                    *(
                         {'Canvas'} if (
                             'somatic_copy_number_variation.canvas'
                             in caller_modes

@@ -626,6 +626,40 @@ class PreprocessIntervals(ShellTask):
         )
 
 
+@requires(CreateCnvBlackListBED)
+class UncompressCnvBlackListBED(ShellTask):
+    cf = luigi.DictParameter()
+    priority = 70
+
+    def output(self):
+        return luigi.LocalTarget(
+            Path(self.cf['ref_dir_path']).joinpath(
+                'canvas/{}'.format(Path(self.input()[0].path).stem)
+            )
+        )
+
+    def run(self):
+        bed_path = self.input()[0].path
+        run_id = Path(Path(bed_path).stem).stem
+        self.print_log(f'Extract a blacklist BED:\t{run_id}')
+        bgzip = self.cf['bgzip']
+        n_cpu = self.cf['n_cpu_per_worker']
+        uncompressed_bed_path = self.output().path
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=bgzip, cwd=str(Path(uncompressed_bed_path).parent),
+            remove_if_failed=self.cf['remove_if_failed']
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {bgzip} -@ {n_cpu} -dc {bed_path}'
+                + f' > {uncompressed_bed_path}',
+            ),
+            input_files_or_dirs=bed_path,
+            output_files_or_dirs=uncompressed_bed_path
+        )
+
+
 class CreateCanvasGenomeSymlinks(ShellTask):
     ref_fa_path = luigi.Parameter()
     genomesize_xml_path = luigi.Parameter()
@@ -665,10 +699,10 @@ class CreateCanvasGenomeSymlinks(ShellTask):
             '../{}'.format(Path(p).name): o.path
             for p, o in zip(src_paths, self.output())
         }
-        output_dir_path = str(Path(list(symlinks.values())[0]).parent)
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=output_dir_path, remove_if_failed=self.cf['remove_if_failed']
+            cwd=str(Path(list(symlinks.values())[0]).parent),
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=[f'ln -s {s} {d}' for s, d in symlinks.items()],

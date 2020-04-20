@@ -172,7 +172,6 @@ class CallVariantsWithMutect2(ShellTask):
                     raw_vcf_path
                 ) for i in evaluation_interval_paths
             ]
-        tmp_tbi_paths = [f'{p}.tbi' for p in tmp_vcf_paths]
         f1r2_paths = [
             re.sub(
                 r'\.cram$', '.{}.f1r2.tar.gz'.format(Path(i).stem),
@@ -215,8 +214,7 @@ class CallVariantsWithMutect2(ShellTask):
                 gnomad_vcf_path
             ],
             output_files_or_dirs=[
-                *tmp_vcf_paths, *tmp_tbi_paths, *tmp_bam_paths, *f1r2_paths,
-                *tmp_stats_paths
+                *tmp_vcf_paths, *tmp_bam_paths, *f1r2_paths, *tmp_stats_paths
             ],
             asynchronous=(len(evaluation_interval_paths) > 1)
         )
@@ -237,29 +235,32 @@ class CallVariantsWithMutect2(ShellTask):
         )
         if len(tmp_vcf_paths) > 1:
             self.run_shell(
-                args=[
-                    (
-                        f'set -e && {gatk}{gatk_opts} MergeMutectStats'
-                        + ''.join([f' --stats {s}' for s in tmp_stats_paths])
-                        + f' --output {raw_stats_path}'
-                    ),
-                    ('rm -f ' + ' '.join(tmp_stats_paths))
-                ],
+                args=(
+                    f'set -e && {gatk}{gatk_opts} MergeMutectStats'
+                    + ''.join([f' --stats {s}' for s in tmp_stats_paths])
+                    + f' --output {raw_stats_path}'
+                ),
                 input_files_or_dirs=tmp_stats_paths,
                 output_files_or_dirs=raw_stats_path
             )
             self.run_shell(
-                args=[
-                    (
-                        f'set -e && {gatk}{gatk_opts} MergeVcfs'
-                        + ''.join([f' --INPUT {v}' for v in tmp_vcf_paths])
-                        + f' --OUTPUT {raw_vcf_path}'
-                    ),
-                    ('rm -f ' + ' '.join([*tmp_vcf_paths, *tmp_tbi_paths]))
-                ],
-                input_files_or_dirs=[*tmp_vcf_paths, *tmp_tbi_paths],
+                args=(
+                    f'set -e && {gatk}{gatk_opts} MergeVcfs'
+                    + ''.join([f' --INPUT {v}' for v in tmp_vcf_paths])
+                    + f' --OUTPUT {raw_vcf_path}'
+                ),
+                input_files_or_dirs=tmp_vcf_paths,
                 output_files_or_dirs=raw_vcf_path
             )
+            if self.cf['remove_if_failed']:
+                self.run_shell(
+                    args=(
+                        'rm -f '
+                        + ' '.join(tmp_stats_paths),
+                        + ''.join([f' {p} {p}.tbi' for p in tmp_vcf_paths])
+                    ),
+                    input_files_or_dirs=[*tmp_stats_paths, *tmp_vcf_paths]
+                )
 
 
 @requires(CallVariantsWithMutect2, FetchReferenceFASTA,

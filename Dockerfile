@@ -65,15 +65,17 @@ ENV DEBIAN_FRONTEND noninteractive
 
 COPY --from=builder /usr/local /usr/local
 COPY --from=builder /opt /opt
+COPY --from=dceoy/gatk:latest /etc/apt /etc/apt
 ADD http://mirrors.edge.kernel.org/ubuntu/pool/main/libp/libpng/libpng12-0_1.2.54-1ubuntu1.1_amd64.deb /tmp/libpng12-0.deb
 
 RUN set -e \
       && ln -sf /bin/bash /bin/sh
 
 RUN set -e \
+      && mv /etc/apt/sources.list.d/r.list /tmp/ \
       && apt-get -y update \
       && apt-get -y install --no-install-recommends --no-install-suggests \
-        apt-transport-https ca-certificates curl software-properties-common \
+        apt-transport-https ca-certificates curl gnupg software-properties-common \
       && sed -ne 's/^DISTRIB_RELEASE=\(.*\)$/\1/p' /etc/lsb-release \
         | xargs -i curl -SLO \
           https://packages.microsoft.com/config/ubuntu/{}/packages-microsoft-prod.deb \
@@ -81,6 +83,7 @@ RUN set -e \
       && rm -f packages-microsoft-prod.deb /tmp/libpng12-0.deb
 
 RUN set -e \
+      && mv /tmp/r.list /etc/apt/sources.list.d/ \
       && add-apt-repository universe \
       && apt-get -y update \
       && apt-get -y dist-upgrade \

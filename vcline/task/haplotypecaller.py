@@ -131,7 +131,6 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                     gvcf_path
                 ) for i in evaluation_interval_paths
             ]
-        tmp_tbi_paths = [f'{p}.tbi' for p in tmp_gvcf_paths]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=gatk, cwd=self.cf['germline_snv_indel_gatk_dir_path'],
@@ -171,9 +170,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                 input_cram_path, fa_path, dbsnp_vcf_path,
                 *evaluation_interval_paths
             ],
-            output_files_or_dirs=[
-                *tmp_gvcf_paths, *tmp_tbi_paths, *tmp_bam_paths
-            ],
+            output_files_or_dirs=[*tmp_gvcf_paths, *tmp_bam_paths],
             asynchronous=(len(evaluation_interval_paths) > 1)
         )
         yield MergeSAMsIntoSortedSAM(
@@ -185,18 +182,23 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         )
         if len(tmp_gvcf_paths) > 1:
             self.run_shell(
-                args=[
-                    (
-                        f'set -e && {gatk}{gatk_opts} CombineGVCFs'
-                        + f' --reference {fa_path}'
-                        + ''.join([f' --variant {g}' for g in tmp_gvcf_paths])
-                        + f' --output {gvcf_path}'
-                    ),
-                    ('rm -f ' + ' '.join([*tmp_gvcf_paths, *tmp_tbi_paths]))
-                ],
-                input_files_or_dirs=[*tmp_gvcf_paths, *tmp_tbi_paths, fa_path],
+                args=(
+                    f'set -e && {gatk}{gatk_opts} CombineGVCFs'
+                    + f' --reference {fa_path}'
+                    + ''.join([f' --variant {g}' for g in tmp_gvcf_paths])
+                    + f' --output {gvcf_path}'
+                ),
+                input_files_or_dirs=[*tmp_gvcf_paths, fa_path],
                 output_files_or_dirs=[gvcf_path, f'{gvcf_path}.tbi']
             )
+            if self.cf['remove_if_failed']:
+                self.run_shell(
+                    args=(
+                        'rm -f'
+                        + ''.join([f' {p} {p}.tbi' for p in tmp_gvcf_paths])
+                    ),
+                    input_files_or_dirs=tmp_gvcf_paths
+                )
 
 
 @requires(CallVariantsWithHaplotypeCaller, FetchReferenceFASTA,
