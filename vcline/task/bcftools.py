@@ -63,7 +63,7 @@ class NormalizeVCF(ShellTask):
         )
 
 
-class MergeVCFsIntoSortedVCF(ShellTask):
+class ConcatenateVCFsIntoSortedVCF(ShellTask):
     input_vcf_paths = luigi.ListParameter()
     output_vcf_path = luigi.Parameter()
     bcftools = luigi.Parameter()
@@ -83,7 +83,7 @@ class MergeVCFsIntoSortedVCF(ShellTask):
         output_vcf_path = self.output()[0].path
         run_id = '.'.join(Path(output_vcf_path).name.split('.')[:-2])
         self.print_log(
-            f'Merge VCFs:\t{run_id}' if len(self.input_vcf_paths) == 1
+            f'Concatenate VCFs:\t{run_id}' if len(self.input_vcf_paths) == 1
             else f'Sort VCF:\t{run_id}'
         )
         self.setup_shell(
@@ -98,10 +98,11 @@ class MergeVCFsIntoSortedVCF(ShellTask):
                     f'set -e && '
                     + f'{self.bcftools} sort --max-mem {self.memory_mb}M'
                     + f' --temp-dir {output_vcf_path}.sort --output-type z'
-                    + f' --output-file {output_vcf_path} {self.input_vcf_paths[0]}'
+                    + f' --output-file {output_vcf_path}'
+                    + f' {self.input_vcf_paths[0]}'
                 ) if len(self.input_vcf_paths) == 1 else (
                     f'set -eo pipefail && '
-                    + f'{self.bcftools} merge --threads {self.n_cpu} '
+                    + f'{self.bcftools} concat --threads {self.n_cpu} '
                     + ' '.join(self.input_vcf_paths)
                     + f' | {self.bcftools} sort --max-mem {self.memory_mb}M'
                     + f' --temp-dir {output_vcf_path}.sort --output-type z'
@@ -112,14 +113,14 @@ class MergeVCFsIntoSortedVCF(ShellTask):
             output_files_or_dirs=output_vcf_path
         )
         yield BcftoolsIndex(
-            vcf_path=output_vcf_path, n_cpu=self.n_cpu,
-            log_dir_path=self.log_dir_path,
+            vcf_path=output_vcf_path, bcftools=self.bcftools, n_cpu=self.n_cpu,
+            tbi=True, log_dir_path=self.log_dir_path,
             remove_if_failed=self.remove_if_failed
         )
         if self.remove_input:
             self.run_shell(
                 args=('rm -f ' + ' '.join(self.input_vcf_paths)),
-                input_files_or_dirs=[output_vcf_path, self.input_vcf_paths],
+                input_files_or_dirs=[output_vcf_path, *self.input_vcf_paths],
             )
 
 
@@ -153,7 +154,7 @@ class BcftoolsIndex(ShellTask):
             args=(
                 f'set -e && {self.bcftools} index --threads {self.n_cpu}'
                 + (' --tbi' if self.tbi else ' --csi')
-                + f' --stats {self.vcf_path}'
+                + f' {self.vcf_path}'
             ),
             input_files_or_dirs=self.vcf_path,
             output_files_or_dirs=self.output().path

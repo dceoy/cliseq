@@ -101,11 +101,20 @@ class CollectAllelicCountsTumor(luigi.WrapperTask):
     priority = 10
 
     def output(self):
-        return CollectAllelicCounts(
+        return luigi.LocalTarget(
+            str(
+                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                    Path(self.input()[0][0].path).stem + '.allelic_counts.tsv'
+                )
+            )
+        )
+
+    def run(self):
+        yield CollectAllelicCounts(
             cram_path=self.input()[0][0].path,
             common_sites_interval_path=self.input()[1].path,
             fa_path=self.input()[2][0].path, cf=self.cf
-        ).output()
+        )
 
 
 @requires(PrepareCRAMNormal, CreateGermlineSnpIntervalList,
@@ -115,11 +124,20 @@ class CollectAllelicCountsNormal(luigi.WrapperTask):
     priority = 10
 
     def output(self):
-        return CollectAllelicCounts(
+        return luigi.LocalTarget(
+            str(
+                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                    Path(self.input()[0][0].path).stem + '.allelic_counts.tsv'
+                )
+            )
+        )
+
+    def run(self):
+        yield CollectAllelicCounts(
             cram_path=self.input()[0][0].path,
             common_sites_interval_path=self.input()[1].path,
             fa_path=self.input()[2][0].path, cf=self.cf
-        ).output()
+        )
 
 
 class CollectReadCounts(ShellTask):
@@ -253,13 +271,13 @@ class ModelSegments(ShellTask):
             luigi.LocalTarget(
                 str(
                     Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                        (
+                        Path(
                             create_matched_id(
                                 self.case_allelic_counts_tsv_path,
                                 self.normal_allelic_counts_tsv_path
                             ) if self.case_allelic_counts_tsv_path else
                             Path(self.normal_allelic_counts_tsv_path).stem
-                        ) + f'.{s}'
+                        ).stem + f'.{s}'
                     )
                 )
             ) for s in ['cr.seg', 'hets.tsv', 'modelFinal.seg']
@@ -339,42 +357,8 @@ class ModelSegments(ShellTask):
             )
 
 
-@requires(PrepareCRAMTumor, PreprocessIntervals, FetchReferenceFASTA,
-          CreateSequenceDictionary, CollectAllelicCountsTumor,
-          CollectAllelicCountsNormal)
-class ModelSegmentsTumor(luigi.WrapperTask):
-    cf = luigi.DictParameter()
-    priority = 10
-
-    def output(self):
-        return ModelSegments(
-            cram_path=self.input()[0][0].path,
-            preprocessed_interval_path=self.input()[1].path,
-            fa_path=self.input()[2][0].path,
-            seq_dict_path=self.input()[3].path,
-            case_allelic_counts_tsv_path=self.input()[4].path,
-            normal_allelic_counts_tsv_path=self.input()[5].path, cf=self.cf
-        ).output()
-
-
-@requires(PrepareCRAMNormal, PreprocessIntervals, FetchReferenceFASTA,
-          CreateSequenceDictionary, CollectAllelicCountsNormal)
-class ModelSegmentsNormal(luigi.WrapperTask):
-    cf = luigi.DictParameter()
-    priority = 10
-
-    def output(self):
-        return ModelSegments(
-            cram_path=self.input()[0][0].path,
-            preprocessed_interval_path=self.input()[1].path,
-            fa_path=self.input()[2][0].path,
-            seq_dict_path=self.input()[3].path,
-            normal_allelic_counts_tsv_path=self.input()[4].path, cf=self.cf
-        ).output()
-
-
+@requires(ModelSegments)
 class CallCopyRatioSegments(ShellTask):
-    cr_seg_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 10
 
@@ -382,13 +366,14 @@ class CallCopyRatioSegments(ShellTask):
         return luigi.LocalTarget(
             str(
                 Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                    Path(self.cr_seg_path).stem + '.called.seg'
+                    Path(self.input()[0].path).stem + '.called.seg'
                 )
             )
         )
 
     def run(self):
-        run_id = self.cr_seg_path
+        cr_seg_path = Path(self.input()[0].path).stem
+        run_id = cr_seg_path
         self.print_log(f'Produce denoised copy ratios:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
@@ -401,34 +386,72 @@ class CallCopyRatioSegments(ShellTask):
         self.run_shell(
             args=(
                 f'set -e && {gatk}{gatk_opts} CallCopyRatioSegments'
-                + f' --input {self.cr_seg_path}'
+                + f' --input {cr_seg_path}'
                 + f' --output {output_seg_path}'
             ),
-            input_files_or_dirs=self.cr_seg_path,
+            input_files_or_dirs=cr_seg_path,
             output_files_or_dirs=output_seg_path
         )
 
 
-@requires(ModelSegmentsTumor)
+@requires(PrepareCRAMTumor, PreprocessIntervals, FetchReferenceFASTA,
+          CreateSequenceDictionary, CollectAllelicCountsTumor,
+          CollectAllelicCountsNormal)
 class CallCopyRatioSegmentsTumor(luigi.WrapperTask):
     cf = luigi.DictParameter()
     priority = 10
 
     def output(self):
-        return CallCopyRatioSegments(
-            cr_seg_path=self.input()[0].path, cf=self.cf
-        ).output()
+        return [
+            luigi.LocalTarget(
+                str(
+                    Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                        create_matched_id(
+                            *[Path(i.path).stem for i in self.input()[4:6]]
+                        ) + f'.{s}'
+                    )
+                )
+            )
+            for s in ['cr.seg', 'hets.tsv', 'modelFinal.seg', '.cr.called.seg']
+        ]
+
+    def run(self):
+        yield CallCopyRatioSegments(
+            cram_path=self.input()[0][0].path,
+            preprocessed_interval_path=self.input()[1].path,
+            fa_path=self.input()[2][0].path,
+            seq_dict_path=self.input()[3].path,
+            case_allelic_counts_tsv_path=self.input()[4].path,
+            normal_allelic_counts_tsv_path=self.input()[5].path, cf=self.cf
+        )
 
 
-@requires(ModelSegmentsNormal)
+@requires(PrepareCRAMNormal, PreprocessIntervals, FetchReferenceFASTA,
+          CreateSequenceDictionary, CollectAllelicCountsNormal)
 class CallCopyRatioSegmentsNormal(luigi.WrapperTask):
     cf = luigi.DictParameter()
     priority = 10
 
     def output(self):
-        return CallCopyRatioSegments(
-            cr_seg_path=self.input()[0].path, cf=self.cf
-        ).output()
+        return [
+            luigi.LocalTarget(
+                str(
+                    Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                        Path(Path(self.input()[4].path).stem).stem + f'.{s}'
+                    )
+                )
+            )
+            for s in ['cr.seg', 'hets.tsv', 'modelFinal.seg', '.cr.called.seg']
+        ]
+
+    def run(self):
+        yield CallCopyRatioSegments(
+            cram_path=self.input()[0][0].path,
+            preprocessed_interval_path=self.input()[1].path,
+            fa_path=self.input()[2][0].path,
+            seq_dict_path=self.input()[3].path,
+            normal_allelic_counts_tsv_path=self.input()[4].path, cf=self.cf
+        )
 
 
 @requires(CallCopyRatioSegmentsTumor, CallCopyRatioSegmentsNormal)
@@ -436,7 +459,7 @@ class CallCopyRatioSegmentsMatched(luigi.WrapperTask):
     priority = 10
 
     def output(self):
-        return self.input()
+        return (self.input()[0] + self.input()[1])
 
 
 if __name__ == '__main__':

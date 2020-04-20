@@ -10,7 +10,7 @@ from luigi.util import requires
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
-from .bcftools import MergeVCFsIntoSortedVCF
+from .bcftools import ConcatenateVCFsIntoSortedVCF
 from .manta import CallStructualVariantsWithManta
 from .ref import CreateEvaluationIntervalListBED, FetchReferenceFASTA
 
@@ -97,13 +97,13 @@ class CallSomaticVariantsWithStrelka(ShellTask):
             ],
             output_files_or_dirs=[*result_file_paths, run_dir_path]
         )
-        yield MergeVCFsIntoSortedVCF(
+        yield ConcatenateVCFsIntoSortedVCF(
             input_vcf_paths=[
                 p for p in result_file_paths if p.endswith('.vcf.gz')
             ],
             output_vcf_path=output_vcf_path,
             bcftools=self.cf['bcftools'], n_cpu=n_cpu,
-            memory_mb=self.cf['memory_mb_per_worker'],
+            memory_mb=self.cf['memory_mb_per_worker'], remove_input=False,
             log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )

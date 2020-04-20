@@ -5,12 +5,12 @@ from pathlib import Path
 
 import luigi
 
-from .base import ShellTask
+from .base import BaseTask, ShellTask
 from .bcftools import NormalizeVCF
 from .ref import CreateSequenceDictionary, ExtractTarFile, FetchReferenceFASTA
 
 
-class AnnotateVariantsWithFuncotator(luigi.WrapperTask):
+class AnnotateVariantsWithFuncotator(BaseTask):
     input_vcf_path = luigi.Parameter()
     data_src_tar_path = luigi.Parameter()
     ref_fa_path = luigi.Parameter()
@@ -30,7 +30,24 @@ class AnnotateVariantsWithFuncotator(luigi.WrapperTask):
         ]
 
     def output(self):
-        return RunFuncotator(
+        return [
+            luigi.LocalTarget(
+                str(
+                    Path(self.dest_dir_path).joinpath(
+                        re.sub(
+                            r'\.vcf$',
+                            '{0}.funcotator.vcf.gz{1}'.format(
+                                ('.norm' if self.normalize_vcf else ''), s
+                            ),
+                            Path(self.input_vcf_path).stem
+                        )
+                    )
+                )
+            ) for s in ['', '.tbi']
+        ]
+
+    def run(self):
+        yield RunFuncotator(
             input_vcf_path=self.input_vcf_path,
             data_src_dir_path=self.input()[0].path,
             fa_path=self.input()[1][0].path,
@@ -44,7 +61,7 @@ class AnnotateVariantsWithFuncotator(luigi.WrapperTask):
             bcftools=self.cf['bcftools'], log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
             disable_vcf_validation=False
-        ).output()
+        )
 
 
 class RunFuncotator(ShellTask):
@@ -84,12 +101,12 @@ class RunFuncotator(ShellTask):
                 str(
                     Path(self.dest_dir_path).joinpath(
                         re.sub(
-                            r'\.vcf$', '',
+                            r'\.vcf$', f'.funcotator.vcf.gz{s}',
                             Path(
                                 self.input()[0].path if self.normalize_vcf
                                 else self.input_vcf_path
                             ).stem
-                        ) + f'.funcotator.vcf.gz{s}'
+                        )
                     )
                 )
             ) for s in ['', '.tbi']
