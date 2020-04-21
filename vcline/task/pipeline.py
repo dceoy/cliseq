@@ -134,6 +134,7 @@ class RunVariantCaller(luigi.WrapperTask):
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
+                gnomad_vcf_path=self.gnomad_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
                 cnv_black_list_path=self.cnv_black_list_path,
                 genomesize_xml_path=self.genomesize_xml_path,

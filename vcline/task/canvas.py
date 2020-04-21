@@ -8,15 +8,15 @@ from luigi.util import requires
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
+from .haplotypecaller import GenotypeHaplotypeCallerGVCFVCF
+from .mutect2 import CallVariantsWithMutect2
 from .ref import CreateCanvasGenomeSymlinks, UncompressCnvBlackListBED
 from .samtools import SamtoolsIndex, SamtoolsView
-from .strelka import (CallGermlineVariantsWithStrelka,
-                      CallSomaticVariantsWithStrelka)
 
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal, CreateCanvasGenomeSymlinks,
-          UncompressCnvBlackListBED, CallGermlineVariantsWithStrelka,
-          CallSomaticVariantsWithStrelka)
+          UncompressCnvBlackListBED, GenotypeHaplotypeCallerGVCFVCF,
+          CallVariantsWithMutect2)
 class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
     sample_names = luigi.ListParameter()
     cf = luigi.DictParameter()
@@ -62,15 +62,9 @@ class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
         sample_name = self.sample_names[0]
         kmer_fa_path = self.input()[2][3].path
         canvas_genome_dir_path = str(Path(self.input()[2][0].path).parent)
-        filter_bed_path = self.input()[3][0].path
-        germline_b_allele_vcf = [
-            i.path for i in self.input()[4]
-            if i.path.endswith('.variants.vcf.gz')
-        ][0]
-        somatic_vcf = [
-            i.path for i in self.input()[5]
-            if i.path.endswith('.somatic.vcf.gz')
-        ][0]
+        filter_bed_path = self.input()[3].path
+        germline_b_allele_vcf = self.input()[4][0].path
+        somatic_vcf = self.input()[5][0].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=canvas, cwd=self.cf['somatic_cnv_canvas_dir_path'],

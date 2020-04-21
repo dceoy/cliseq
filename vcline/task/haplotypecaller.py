@@ -203,7 +203,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
 
 @requires(CallVariantsWithHaplotypeCaller, FetchReferenceFASTA,
           FetchDbsnpVCF, FetchEvaluationIntervalList)
-class GenotypeGVCF(ShellTask):
+class GenotypeHaplotypeCallerGVCFVCF(ShellTask):
     cf = luigi.DictParameter()
     priority = 60
 
@@ -247,8 +247,8 @@ class GenotypeGVCF(ShellTask):
         )
 
 
-@requires(GenotypeGVCF, CallVariantsWithHaplotypeCaller, FetchReferenceFASTA,
-          FetchEvaluationIntervalList)
+@requires(GenotypeHaplotypeCallerGVCFVCF, CallVariantsWithHaplotypeCaller,
+          FetchReferenceFASTA, FetchEvaluationIntervalList)
 class CNNScoreVariants(ShellTask):
     cf = luigi.DictParameter()
     priority = 60

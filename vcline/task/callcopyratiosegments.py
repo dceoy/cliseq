@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from itertools import chain
 from pathlib import Path
 
 import luigi
@@ -8,12 +9,12 @@ from luigi.util import requires
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
-from .haplotypecaller import GenotypeGVCF
+from .haplotypecaller import GenotypeHaplotypeCallerGVCFVCF
 from .ref import (CreateSequenceDictionary, FetchReferenceFASTA,
                   PreprocessIntervals)
 
 
-@requires(GenotypeGVCF)
+@requires(GenotypeHaplotypeCallerGVCFVCF)
 class CreateGermlineSnpIntervalList(ShellTask):
     cf = luigi.DictParameter()
     priority = 10
@@ -285,12 +286,12 @@ class ModelSegments(ShellTask):
         ]
 
     def run(self):
-        denoised_cr_tsv_path = self.input()[0].path
-        run_id = Path(Path(denoised_cr_tsv_path).stem).stem
+        output_file_paths = [o.path for o in self.output()]
+        run_id = Path(Path(output_file_paths[0]).stem).stem
         self.print_log(f'Produce denoised copy ratios:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        output_file_paths = [o.path for o in self.output()]
+        denoised_cr_tsv_path = self.input()[0].path
         r = self.cf['R']
         if self.case_allelic_counts_tsv_path:
             allelic_count_args = (
@@ -374,8 +375,8 @@ class CallCopyRatioSegments(ShellTask):
         )
 
     def run(self):
-        cr_seg_path = Path(self.input()[0].path).stem
-        run_id = cr_seg_path
+        cr_seg_path = self.input()[0].path
+        run_id = Path(cr_seg_path).stem
         self.print_log(f'Produce denoised copy ratios:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
@@ -461,7 +462,7 @@ class CallCopyRatioSegmentsMatched(luigi.WrapperTask):
     priority = 10
 
     def output(self):
-        return (self.input()[0] + self.input()[1])
+        return list(chain.from_iterable(self.input()))
 
 
 if __name__ == '__main__':
