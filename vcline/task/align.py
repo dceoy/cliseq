@@ -10,7 +10,7 @@ from ..cli.util import parse_fq_id
 from .base import BaseTask, ShellTask
 from .ref import (CreateBWAIndices, CreateSequenceDictionary, FetchDbsnpVCF,
                   FetchKnownIndelVCF, FetchMillsIndelVCF, FetchReferenceFASTA)
-from .samtools import ConvertSAMIntoSortedSAM, SamtoolsIndex, SamtoolsView
+from .samtools import SamtoolsIndex, SamtoolsView, SortSAM
 from .trim import TrimAdapters
 
 
@@ -134,7 +134,7 @@ class MarkDuplicates(ShellTask):
             input_files_or_dirs=[input_cram_path, fa_path],
             output_files_or_dirs=tmp_bam_paths[0]
         )
-        yield ConvertSAMIntoSortedSAM(
+        yield SortSAM(
             input_sam_path=tmp_bam_paths[0],
             output_sam_path=tmp_bam_paths[1], fa_path=fa_path,
             samtools=self.cf['samtools'], n_cpu=self.cf['n_cpu_per_worker'],

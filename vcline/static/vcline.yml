@@ -11,7 +11,7 @@ callers:
     lumpy: false
   somatic_copy_number_variation:
     gatk: true
-    canvas: true
+    canvas: false
   germline_short_variant:
     gatk: true
     strelka: true

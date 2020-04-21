@@ -18,8 +18,8 @@ Usage:
     vcline create-interval-list [--debug|--info] [--cpus=<int>]
         [--dest-dir=<path>] <fa_path> <bed_path>
     vcline funcotator [--debug|--info] [--cpus=<int>] [--ref-ver=<str>]
-        [--normalize-vcf] [--dest-dir=<path>] <data_dir_path> <fa_path>
-        <vcf_path>...
+        [--normalize-vcf] [--output-format=<str>] [--dest-dir=<path>]
+        <data_dir_path> <fa_path> <vcf_path>...
     vcline -h|--help
     vcline --version
 
@@ -50,6 +50,7 @@ Options:
     --src-path=<path>       Specify a source path
     --ref-ver=<str>         Specify a reference version [default: hg38]
     --normalize-vcf         Normalize VCF files
+    --output-format=<str>   Specify output file format [default: VCF]
 
 Args:
     <fa_path>               Path to an reference FASTA file
@@ -69,7 +70,7 @@ from docopt import docopt
 from psutil import cpu_count, virtual_memory
 
 from .. import __version__
-from ..task.funcotator import RunFuncotator
+from ..task.funcotator import Funcotator
 from ..task.pipeline import RunAnalyticalPipeline
 from ..task.resource import (CreateIntervalListWithBED,
                              DownloadAndConvertVCFsIntoPassingAfOnlyVCF,
@@ -216,13 +217,13 @@ def main():
                 'n_cpu': (floor(n_cpu / n_vcf) if n_cpu > n_vcf else 1),
                 'memory_mb':
                 int(virtual_memory().total / 1024 / 1024 / n_worker),
+                'output_file_format': args['--output-format'],
                 **{c: fetch_executable(c) for c in ['gatk', 'bcftools']}
             }
             build_luigi_tasks(
                 tasks=[
-                    RunFuncotator(
-                        input_vcf_path=str(Path(p).resolve()), **kwargs
-                    ) for p in args['<vcf_path>']
+                    Funcotator(input_vcf_path=str(Path(p).resolve()), **kwargs)
+                    for p in args['<vcf_path>']
                 ],
                 workers=n_worker, log_level=log_level
             )

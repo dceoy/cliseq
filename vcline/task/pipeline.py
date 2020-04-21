@@ -14,7 +14,7 @@ from .base import BaseTask
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
 from .canvas import CallSomaticCopyNumberVariantsWithCanvas
 from .delly import CallStructualVariantsWithDelly
-from .funcotator import AnnotateVariantsWithFuncotator
+from .funcotator import FuncotateSegments, FuncotateVariants
 from .haplotypecaller import FilterVariantTranches
 from .lumpy import CallStructualVariantsWithLumpy
 from .manta import CallStructualVariantsWithManta
@@ -23,7 +23,7 @@ from .strelka import (CallGermlineVariantsWithStrelka,
                       CallSomaticVariantsWithStrelka)
 
 
-class RunVariantCaller(luigi.WrapperTask):
+class RunVariantCaller(BaseTask):
     ref_fa_path = luigi.Parameter()
     fq_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
@@ -144,22 +144,57 @@ class RunVariantCaller(luigi.WrapperTask):
             raise ValueError(f'invalid caller mode: {self.caller_mode}')
 
     def output(self):
-        vcf_paths = [
-            i.path for i in self.input() if (
-                i.path.endswith(('.vcf.gz', '.bcf'))
-                and self.caller_mode in Path(i.path).name
-            )
-        ]
-        if vcf_paths and 'funcotator' in self.annotators:
-            for p in vcf_paths:
-                yield AnnotateVariantsWithFuncotator(
+        target_paths = self._find_annotation_target_paths()
+        if 'funcotator' in self.annotators and target_paths:
+            return [
+                luigi.LocalTarget(
+                    str(
+                        Path(self.cf['annotate_funcotator_dir_path']).joinpath(
+                            '{0}.norm.funcotated.{1}'.format(
+                                Path(Path(p).stem).stem,
+                                (
+                                    'seg.tsv'
+                                    if self.caller_mode.endswith('.delly')
+                                    else 'vcf.gz'
+                                )
+                            ) if p.endswith('.vcf.gz')
+                            else (Path(p).name + '.funcotated.tsv')
+                        )
+                    )
+                ) for p in target_paths
+            ]
+        else:
+            return self.input()
+
+    def _find_annotation_target_paths(self):
+        if 'somatic_structual_variant.delly' == self.caller_mode:
+            return list()
+        else:
+            if 'somatic_structual_variant.manta' == self.caller_mode:
+                suffix = '.manta.somaticSV.vcf.gz'
+            elif 'germline_short_variant.strelka' == self.caller_mode:
+                suffix = '.strelka.germline.variants.vcf.gz'
+            elif 'somatic_copy_number_variation.gatk' == self.caller_mode:
+                suffix = '.called.seg'
+            else:
+                suffix = '.vcf.gz'
+            return [i.path for i in self.input() if i.path.endswith(suffix)]
+
+    def run(self):
+        for p in self._find_annotation_target_paths():
+            if p.endswith('.vcf.gz'):
+                yield FuncotateVariants(
                     input_vcf_path=p,
                     data_src_tar_path=self.funcotator_data_src_tar_path,
                     ref_fa_path=self.ref_fa_path, cf=self.cf,
                     normalize_vcf=self.normalize_vcf
                 )
-        else:
-            yield self.input()
+            elif p.endswith('.seg'):
+                yield FuncotateSegments(
+                    input_seg_path=p,
+                    data_src_tar_path=self.funcotator_data_src_tar_path,
+                    ref_fa_path=self.ref_fa_path, cf=self.cf
+                )
 
 
 class CallVariants(luigi.WrapperTask):
@@ -202,7 +237,7 @@ class CallVariants(luigi.WrapperTask):
                     kmer_fa_path=self.kmer_fa_path,
                     funcotator_data_src_tar_path=(
                         self.funcotator_germline_tar_path
-                        if m.endswith('.germline') else
+                        if m.startswith('.germline') else
                         self.funcotator_somatic_tar_path
                     ),
                     cf=self.cf, caller_mode=m,
@@ -243,6 +278,10 @@ class RunAnalyticalPipeline(BaseTask):
                 for t, b in v.items():
                     if b:
                         caller_modes.append(f'{k}.{t}')
+        if ({m for m in caller_modes if m.endswith('.canvas')}
+                and self.n_cpu_per_worker >= 8
+                and self.memory_mb_per_worker >= 25 * 1024):
+            logger.warning('Canvas requires 8 CPUs and 25 GB RAM.')
         annotators = (
             {k for k, v in config['annotators'].items() if v}
             if 'annotators' in config else {'funcotator'}

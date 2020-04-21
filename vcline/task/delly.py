@@ -8,6 +8,7 @@ from luigi.util import requires
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
+from .bcftools import SortVCF
 from .ref import CreateExclusionIntervalListBED, FetchReferenceFASTA
 
 
@@ -24,10 +25,10 @@ class CallStructualVariantsWithDelly(ShellTask):
                     Path(self.cf['somatic_sv_delly_dir_path']).joinpath(
                         create_matched_id(
                             *[i[0].path for i in self.input()[0:2]]
-                        ) + '.delly.bcf'
+                        ) + f'.delly.{s}'
                     )
                 )
-            )
+            ) for s in ['bcf', 'vcf.gz', 'vcf.gz.tbi']
         ]
 
     def run(self):
@@ -39,6 +40,7 @@ class CallStructualVariantsWithDelly(ShellTask):
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
         fa_path = self.input()[2][0].path
         exclusion_bed_path = self.input()[3][0].path
+        output_vcf_path = self.output()[1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=delly, cwd=self.cf['somatic_sv_delly_dir_path'],
@@ -57,6 +59,13 @@ class CallStructualVariantsWithDelly(ShellTask):
                 *input_cram_paths, fa_path, exclusion_bed_path
             ],
             output_files_or_dirs=output_bcf_path
+        )
+        yield SortVCF(
+            input_vcf_path=output_bcf_path, output_vcf_path=output_vcf_path,
+            bcftools=self.cf['bcftools'], n_cpu=self.cf['n_cpu_per_worker'],
+            memory_mb=self.cf['memory_mb_per_worker'], index_vcf=True,
+            remove_input=False, log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed'],
         )
 
 

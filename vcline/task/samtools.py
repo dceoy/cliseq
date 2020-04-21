@@ -114,7 +114,7 @@ class SamtoolsView(ShellTask):
             )
 
 
-class ConvertSAMIntoSortedSAM(ShellTask):
+class SortSAM(ShellTask):
     input_sam_path = luigi.Parameter()
     output_sam_path = luigi.Parameter()
     fa_path = luigi.Parameter()
@@ -207,7 +207,7 @@ class MergeSAMsIntoSortedSAM(ShellTask):
 
     def run(self):
         if len(self.input_sam_paths) == 1:
-            yield ConvertSAMIntoSortedSAM(
+            yield SortSAM(
                 input_sam_path=self.input_sam_paths[0],
                 output_sam_path=self.output_sam_path, fa_path=self.fa_path,
                 samtools=self.samtools, n_cpu=self.n_cpu,
