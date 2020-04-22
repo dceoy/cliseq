@@ -327,6 +327,7 @@ class RemoveDuplicates(BaseTask):
 class PrepareCRAMTumor(luigi.WrapperTask):
     ref_fa_path = luigi.Parameter()
     fq_list = luigi.ListParameter()
+    cram_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
     sample_names = luigi.ListParameter()
     dbsnp_vcf_path = luigi.Parameter()
@@ -336,21 +337,30 @@ class PrepareCRAMTumor(luigi.WrapperTask):
     priority = 100
 
     def requires(self):
-        return RemoveDuplicates(
-            fq_paths=self.fq_list[0], read_group=self.read_groups[0],
-            sample_name=self.sample_names[0], ref_fa_path=self.ref_fa_path,
-            dbsnp_vcf_path=self.dbsnp_vcf_path,
-            mills_indel_vcf_path=self.mills_indel_vcf_path,
-            known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
-        )
+        if self.cram_list:
+            return super().requires()
+        else:
+            return RemoveDuplicates(
+                fq_paths=self.fq_list[0], read_group=self.read_groups[0],
+                sample_name=self.sample_names[0], ref_fa_path=self.ref_fa_path,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
+            )
 
     def output(self):
-        return self.input()
+        if self.cram_list:
+            return [
+                luigi.LocalTarget(self.cram_list[0] + s) for s in ['', '.crai']
+            ]
+        else:
+            return self.input()
 
 
 class PrepareCRAMNormal(luigi.WrapperTask):
     ref_fa_path = luigi.Parameter()
     fq_list = luigi.ListParameter()
+    cram_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
     sample_names = luigi.ListParameter()
     dbsnp_vcf_path = luigi.Parameter()
@@ -360,16 +370,24 @@ class PrepareCRAMNormal(luigi.WrapperTask):
     priority = 100
 
     def requires(self):
-        return RemoveDuplicates(
-            fq_paths=self.fq_list[1], read_group=self.read_groups[1],
-            sample_name=self.sample_names[1], ref_fa_path=self.ref_fa_path,
-            dbsnp_vcf_path=self.dbsnp_vcf_path,
-            mills_indel_vcf_path=self.mills_indel_vcf_path,
-            known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
-        )
+        if self.cram_list:
+            return super().requires()
+        else:
+            return RemoveDuplicates(
+                fq_paths=self.fq_list[1], read_group=self.read_groups[1],
+                sample_name=self.sample_names[1], ref_fa_path=self.ref_fa_path,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
+            )
 
     def output(self):
-        return self.input()
+        if self.cram_list:
+            return [
+                luigi.LocalTarget(self.cram_list[1] + s) for s in ['', '.crai']
+            ]
+        else:
+            return self.input()
 
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal)

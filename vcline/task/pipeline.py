@@ -2,15 +2,18 @@
 
 import logging
 import os
+import re
+import sys
 from pathlib import Path
 from pprint import pformat
 
 import luigi
+import yaml
 from luigi.tools import deps_tree
 
-from ..cli.util import fetch_executable, parse_fq_id, read_config_yml
+from ..cli.util import fetch_executable, parse_cram_id, parse_fq_id, read_yml
 from .align import PrepareCRAMsMatched
-from .base import BaseTask
+from .base import BaseTask, ShellTask
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
 from .canvas import CallSomaticCopyNumberVariantsWithCanvas
 from .delly import CallStructualVariantsWithDelly
@@ -26,6 +29,7 @@ from .strelka import (CallGermlineVariantsWithStrelka,
 class RunVariantCaller(BaseTask):
     ref_fa_path = luigi.Parameter()
     fq_list = luigi.ListParameter()
+    cram_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
     sample_names = luigi.ListParameter()
     dbsnp_vcf_path = luigi.Parameter()
@@ -47,8 +51,9 @@ class RunVariantCaller(BaseTask):
     def requires(self):
         if 'germline_short_variant.gatk' == self.caller_mode:
             return FilterVariantTranches(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
+                fq_list=self.fq_list, cram_list=self.cram_list,
+                read_groups=self.read_groups, sample_names=self.sample_names,
+                ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -58,8 +63,9 @@ class RunVariantCaller(BaseTask):
             )
         elif 'somatic_short_variant.gatk' == self.caller_mode:
             return FilterMutectCalls(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
+                fq_list=self.fq_list, cram_list=self.cram_list,
+                read_groups=self.read_groups, sample_names=self.sample_names,
+                ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -69,8 +75,9 @@ class RunVariantCaller(BaseTask):
             )
         elif 'somatic_structual_variant.manta' == self.caller_mode:
             return CallStructualVariantsWithManta(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
+                fq_list=self.fq_list, cram_list=self.cram_list,
+                read_groups=self.read_groups, sample_names=self.sample_names,
+                ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -79,8 +86,9 @@ class RunVariantCaller(BaseTask):
             )
         elif 'somatic_short_variant.strelka' == self.caller_mode:
             return CallSomaticVariantsWithStrelka(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
+                fq_list=self.fq_list, cram_list=self.cram_list,
+                read_groups=self.read_groups, sample_names=self.sample_names,
+                ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -89,8 +97,9 @@ class RunVariantCaller(BaseTask):
             )
         elif 'germline_short_variant.strelka' == self.caller_mode:
             return CallGermlineVariantsWithStrelka(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
+                fq_list=self.fq_list, cram_list=self.cram_list,
+                read_groups=self.read_groups, sample_names=self.sample_names,
+                ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -99,8 +108,9 @@ class RunVariantCaller(BaseTask):
             )
         elif 'somatic_structual_variant.delly' == self.caller_mode:
             return CallStructualVariantsWithDelly(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
+                fq_list=self.fq_list, cram_list=self.cram_list,
+                read_groups=self.read_groups, sample_names=self.sample_names,
+                ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -109,8 +119,9 @@ class RunVariantCaller(BaseTask):
             )
         elif 'somatic_structual_variant.lumpy' == self.caller_mode:
             return CallStructualVariantsWithLumpy(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
+                fq_list=self.fq_list, cram_list=self.cram_list,
+                read_groups=self.read_groups, sample_names=self.sample_names,
+                ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -119,8 +130,9 @@ class RunVariantCaller(BaseTask):
             )
         elif 'somatic_copy_number_variation.gatk' == self.caller_mode:
             return CallCopyRatioSegmentsMatched(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
+                fq_list=self.fq_list, cram_list=self.cram_list,
+                read_groups=self.read_groups, sample_names=self.sample_names,
+                ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -129,8 +141,9 @@ class RunVariantCaller(BaseTask):
             )
         elif 'somatic_copy_number_variation.canvas' == self.caller_mode:
             return CallSomaticCopyNumberVariantsWithCanvas(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
+                fq_list=self.fq_list, cram_list=self.cram_list,
+                read_groups=self.read_groups, sample_names=self.sample_names,
+                ref_fa_path=self.ref_fa_path,
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
@@ -149,7 +162,7 @@ class RunVariantCaller(BaseTask):
             return [
                 luigi.LocalTarget(
                     str(
-                        Path(self.cf['annotate_funcotator_dir_path']).joinpath(
+                        Path(self.cf['postproc_funcotator_dir_path']).joinpath(
                             '{0}.norm.funcotated.{1}'.format(
                                 Path(Path(p).stem).stem,
                                 (
@@ -199,6 +212,7 @@ class RunVariantCaller(BaseTask):
 
 class CallVariants(luigi.WrapperTask):
     fq_list = luigi.ListParameter()
+    cram_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
     sample_names = luigi.ListParameter()
     ref_fa_path = luigi.Parameter()
@@ -223,7 +237,8 @@ class CallVariants(luigi.WrapperTask):
         if self.caller_modes:
             return [
                 RunVariantCaller(
-                    fq_list=self.fq_list, read_groups=self.read_groups,
+                    fq_list=self.fq_list, cram_list=self.cram_list,
+                    read_groups=self.read_groups,
                     sample_names=self.sample_names,
                     ref_fa_path=self.ref_fa_path,
                     dbsnp_vcf_path=self.dbsnp_vcf_path,
@@ -245,7 +260,7 @@ class CallVariants(luigi.WrapperTask):
                     normalize_vcf=self.normalize_vcf
                 ) for m in self.caller_modes
             ]
-        else:
+        elif self.fq_list:
             return PrepareCRAMsMatched(
                 fq_list=self.fq_list, read_groups=self.read_groups,
                 sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
@@ -253,9 +268,30 @@ class CallVariants(luigi.WrapperTask):
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
             )
+        else:
+            return super().requires()
 
     def output(self):
         return self.input()
+
+
+class PrintEnvVersions(ShellTask):
+    cf = luigi.DictParameter()
+    priority = sys.maxsize
+
+    def run(self):
+        python = sys.executable
+        self.print_log(f'Print environment versions: {python}')
+        self.setup_shell(
+            run_id='env', log_dir_path=self.cf['log_dir_path'],
+            commands=[python, self.cf['java']]
+        )
+        self.run_shell(
+            args=[f'{python} -m pip --version', f'{python} -m pip freeze']
+        )
+
+    def complete(self):
+        return True
 
 
 class RunAnalyticalPipeline(BaseTask):
@@ -271,7 +307,7 @@ class RunAnalyticalPipeline(BaseTask):
 
     def requires(self):
         logger = logging.getLogger(__name__)
-        config = read_config_yml(config_yml_path=self.config_yml_path)
+        config = self._read_config_yml(config_yml_path=self.config_yml_path)
         caller_modes = list()
         if 'callers' in config:
             for k, v in config['callers'].items():
@@ -310,8 +346,8 @@ class RunAnalyticalPipeline(BaseTask):
             **{
                 c: fetch_executable(c) for c in {
                     'bcftools', 'bedtools', 'bgzip', 'bwa', 'cutadapt',
-                    'fastqc', 'gawk', 'gatk', 'pbzip2', 'pigz', 'samtools',
-                    'tabix', 'trim_galore',
+                    'fastqc', 'gawk', 'gatk', 'java', 'pbzip2', 'pigz',
+                    'samtools', 'tabix', 'trim_galore',
                     *(
                         {'python2', 'configureStrelkaSomaticWorkflow.py'}
                         if 'somatic_short_variant.strelka' in caller_modes
@@ -351,7 +387,7 @@ class RunAnalyticalPipeline(BaseTask):
                         ) else set()
                     ),
                     *(
-                        {'Canvas'} if (
+                        {'Canvas', 'dotnet'} if (
                             'somatic_copy_number_variation.canvas'
                             in caller_modes
                         ) else set()
@@ -362,8 +398,8 @@ class RunAnalyticalPipeline(BaseTask):
                 (k.replace('/', '_') + '_dir_path'): str(
                     Path(self.dest_dir_path).joinpath(k)
                 ) for k in {
-                    'trim', 'align', 'annotate/bcftools',
-                    'annotate/funcotator', 'somatic_snv_indel/gatk',
+                    'trim', 'align', 'postproc/bcftools',
+                    'postproc/funcotator', 'somatic_snv_indel/gatk',
                     'somatic_snv_indel/strelka', 'germline_snv_indel/gatk',
                     'germline_snv_indel/strelka', 'somatic_sv/manta',
                     'somatic_sv/delly', 'somatic_sv/lumpy', 'somatic_cnv/gatk',
@@ -373,59 +409,133 @@ class RunAnalyticalPipeline(BaseTask):
             'ref_dir_path': str(Path(self.ref_dir_path).resolve()),
             'log_dir_path': str(Path(self.log_dir_path).resolve())
         }
-        matched_keys = ['tumor', 'normal']
         reference_file_paths = self._resolve_input_file_paths(
             path_dict=config['references']
         )
         task_kwargs = [
             {
-                'fq_list': [
-                    list(self._resolve_input_file_paths(path_list=r[k]['fq']))
-                    for k in matched_keys if r[k].get('fq')
-                ],
-                'read_groups':
-                [(r[k].get('read_group') or dict()) for k in matched_keys],
-                'sample_names': [
-                    (
-                        (r[k].get('read_group') or dict()).get('SM')
-                        or parse_fq_id(fq_path=r[k]['fq'][0])
-                    ) for k in matched_keys
-                ],
                 'priority': p, 'cf': common_config,
                 'caller_modes': caller_modes, 'annotators': annotators,
+                **self._determine_input_samples(run_dict=r),
                 **reference_file_paths
             } for p, r in zip(
                 [i * 1000 for i in range(1, (len(config['runs']) + 1))[::-1]],
                 config['runs']
             )
         ]
+        yaml.dump({
+            'SAMPLES': [
+                dict(zip(['TUMOR', 'NORMAL'], d['sample_names']))
+                for d in task_kwargs
+            ]
+        })
         logger.info('task_kwargs:' + os.linesep + pformat(task_kwargs))
-        return [CallVariants(**d) for d in task_kwargs]
+        return [
+            PrintEnvVersions(cf=common_config),
+            *[CallVariants(**d) for d in task_kwargs]
+        ]
+
+    def _read_config_yml(self, config_yml_path):
+        config = read_yml(path=str(Path(config_yml_path).resolve()))
+        assert isinstance(config, dict)
+        for k in ['references', 'runs']:
+            assert config.get(k)
+        assert isinstance(config['references'], dict)
+        assert {
+            'ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
+            'hapmap_vcf', 'gnomad_vcf', 'evaluation_interval',
+            'funcotator_germline_tar', 'funcotator_somatic_tar'
+        }.issubset(set(config['references'].keys()))
+        for k in ['ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
+                  'hapmap_vcf', 'gnomad_vcf', 'evaluation_interval',
+                  'funcotator_germline_tar', 'funcotator_somatic_tar']:
+            v = config['references'].get(k)
+            if k == 'ref_fa' and isinstance(v, list):
+                assert self._has_unique_elements(v)
+                for s in v:
+                    assert isinstance(s, str)
+            else:
+                assert isinstance(v, str)
+        assert isinstance(config['runs'], list)
+        for r in config['runs']:
+            assert isinstance(r, dict)
+            assert set(r.keys()).intersection({'tumor', 'normal'})
+            for t in ['tumor', 'normal']:
+                assert isinstance(r[t], dict)
+                assert r[t].get('fq') or r[t].get('cram')
+                if r[t].get('fq'):
+                    assert isinstance(r[t]['fq'], list)
+                    assert self._has_unique_elements(r[t]['fq'])
+                    assert len(r[t]['fq']) <= 2
+                else:
+                    assert isinstance(r[t]['cram'], str)
+                if r[t].get('read_group'):
+                    assert isinstance(r[k]['read_group'], dict)
+                    for k, v in r[t]['read_group'].items():
+                        assert re.fullmatch(r'[A-Z]{2}', k)
+                        assert type(v) not in [list, dict]
+                if r[t].get('sample_name'):
+                    assert isinstance(r[k]['sample_name'], str)
+        return config
 
     @staticmethod
-    def _resolve_input_file_paths(path_list=None, path_dict=None):
+    def _has_unique_elements(elements):
+        return len(set(elements)) == len(tuple(elements))
+
+    @staticmethod
+    def _resolve_file_path(path):
+        p = Path(path).resolve()
+        assert p.is_file(), f'file not found: {p}'
+        return str(p)
+
+    def _resolve_input_file_paths(self, path_list=None, path_dict=None):
         assert bool(path_list or path_dict)
         if path_list:
-            new_list = list()
-            for s in path_list:
-                p = Path(s).resolve()
-                assert p.is_file(), f'file not found: {p}'
-                new_list.append(str(p))
-            return new_list
+            return [self._resolve_file_path(s) for s in path_list]
         elif path_dict:
             new_dict = dict()
             for k, v in path_dict.items():
                 if isinstance(v, str):
-                    p = Path(v).resolve()
-                    assert p.is_file(), f'file not found: {p}'
-                    new_dict[f'{k}_path'] = str(p)
+                    new_dict[f'{k}_path'] = self._resolve_file_path(v)
                 else:
-                    new_dict[f'{k}_paths'] = list()
-                    for s in v:
-                        p = Path(s).resolve()
-                        assert p.is_file(), f'file not found: {p}'
-                        new_dict[f'{k}_paths'].append(str(p))
+                    new_dict[f'{k}_paths'] = [
+                        self._resolve_file_path(s) for s in v
+                    ]
             return new_dict
+
+    def _determine_input_samples(self, run_dict):
+        tn = [run_dict[i] for i in ['tumor', 'normal']]
+        cram_paths = [d.get('cram') for d in tn]
+        if all(cram_paths):
+            cram_list = self._resolve_input_file_paths(path_list=cram_paths)
+            self._resolve_input_file_paths(
+                path_list=[f'{p}.crai' for p in cram_list]
+            )
+            return {
+                'fq_list': list(), 'read_groups': list(),
+                'cram_list': cram_list,
+                'sample_names': [
+                    (
+                        d.get('sample_name')
+                        or parse_cram_id(cram_path=d['cram'])
+                    ) for d in tn
+                ]
+            }
+        else:
+            return {
+                'fq_list': [
+                    list(self._resolve_input_file_paths(path_list=d['fq']))
+                    for d in tn
+                ],
+                'read_groups': [(d.get('read_group') or dict()) for d in tn],
+                'cram_list': list(),
+                'sample_names': [
+                    (
+                        (d.get('read_group') or dict()).get('SM')
+                        or parse_fq_id(fq_path=d['fq'][0])
+                    ) for d in tn
+                ]
+            }
 
     def output(self):
         return self.input()

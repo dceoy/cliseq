@@ -71,3 +71,17 @@ runs:
         SM: sample02.blood_frozen
         PL: ILLUMINA
         LB: LIBRARY-2
+  - tumor:
+      cram: /path/to/sample03.tumor_FFPE.WGS.dedup.cram
+    normal:
+      cram: /path/to/sample03.blood_frozen.WGS.dedup.cram
+  - tumor:
+      cram: /path/to/sample04.tumor_FFPE.WGS.dedup.cram
+      sample_name: sample04.tumor_FFPE
+    normal:
+      cram: /path/to/sample04.blood_frozen.WGS.dedup.cram
+      sample_name: sample04.blood_frozen
+  - tumor:
+      cram: /path/to/sample05.tumor_FFPE.WGS.dedup.bam
+    normal:
+      cram: /path/to/sample05.blood_frozen.WGS.dedup.bam

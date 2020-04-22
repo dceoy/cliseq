@@ -47,7 +47,7 @@ class FuncotateVariants(BaseTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['annotate_funcotator_dir_path']).joinpath(
+                    Path(self.cf['postproc_funcotator_dir_path']).joinpath(
                         re.sub(r'\.vcf$', s, Path(self.input_vcf_path).stem)
                     )
                 )
@@ -60,9 +60,9 @@ class FuncotateVariants(BaseTask):
             data_src_dir_path=self.input()[0].path,
             fa_path=self.input()[1][0].path,
             ref_version=self.cf['ref_version'],
-            dest_dir_path=self.cf['annotate_funcotator_dir_path'],
+            dest_dir_path=self.cf['postproc_funcotator_dir_path'],
             normalize_vcf=self.normalize_vcf,
-            norm_dir_path=self.cf['annotate_bcftools_dir_path'],
+            norm_dir_path=self.cf['postproc_bcftools_dir_path'],
             gatk=self.cf['gatk'],
             gatk_java_options=self.cf['gatk_java_options'],
             bcftools=self.cf['bcftools'], n_cpu=self.cf['n_cpu_per_worker'],
@@ -194,7 +194,7 @@ class FuncotateSegments(ShellTask):
     def output(self):
         return luigi.LocalTarget(
             str(
-                Path(self.cf['annotate_bcftools_dir_path']).joinpath(
+                Path(self.cf['postproc_funcotator_dir_path']).joinpath(
                     Path(self.input_seg_path).name + '.funcotated.tsv'
                 )
             )
@@ -211,7 +211,7 @@ class FuncotateSegments(ShellTask):
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=gatk, cwd=self.cf['annotate_funcotator_dir_path'],
+            commands=gatk, cwd=self.cf['postproc_funcotator_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
