@@ -1,4 +1,4 @@
-FROM ubuntu:latest AS builder
+FROM ubuntu:18.04 AS builder
 
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -18,6 +18,7 @@ COPY --from=dceoy/msisensor:latest /usr/local/bin/msisensor /usr/local/bin/msise
 COPY --from=dceoy/lumpy:latest /opt/lumpy-sv /opt/lumpy-sv
 COPY --from=dceoy/lumpy:latest /usr/local/src/samblaster /usr/local/src/samblaster
 COPY --from=dceoy/lumpy:latest /usr/local/bin/sambamba /usr/local/bin/sambamba
+COPY --from=dceoy/snpEff:latest /opt/snpEff /opt/snpEff
 ADD https://bootstrap.pypa.io/get-pip.py /tmp/get-pip.py
 ADD . /tmp/vcline
 
@@ -59,7 +60,7 @@ RUN set -e \
         cutadapt pip /tmp/vcline \
       && rm -f /tmp/get-pip.py
 
-FROM ubuntu:latest
+FROM ubuntu:18.04
 
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -103,7 +104,7 @@ RUN set -e \
         >> /usr/local/src/gatk/gatkenv.rc
 
 ENV PYTHONPATH /opt/manta/lib/python:/opt/strelka/lib/python:${PYTHONPATH}
-ENV PATH /opt/conda/envs/gatk/bin:/opt/conda/bin:/opt/manta/bin:/opt/strelka/bin:/opt/canvas/bin:/opt/lumpy-sv/bin:${PATH}
+ENV PATH /opt/conda/envs/gatk/bin:/opt/conda/bin:/opt/manta/bin:/opt/strelka/bin:/opt/canvas/bin:/opt/lumpy-sv/bin:/opt/snpEff/bin:${PATH}
 ENV BCFTOOLS_PLUGINS /usr/local/src/bcftools/plugins
 
 ENTRYPOINT ["/opt/conda/bin/vcline"]
