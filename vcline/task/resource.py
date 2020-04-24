@@ -120,6 +120,56 @@ class DownloadFuncotatorDataSources(ShellTask):
                 )
 
 
+class DownloadSnpeffDataSource(ShellTask):
+    dest_dir_path = luigi.Parameter(default='.')
+    genome_version = luigi.Parameter(default='GRCh38')
+    snpeff = luigi.Parameter(default='snpEff')
+
+    def output(self):
+        dir_data_paths = self._fetch_existing_snpeff_data()
+        if dir_data_paths:
+            return luigi.LocalTarget(dir_data_paths[0])
+        else:
+            return super().output()
+
+    def complete(self):
+        return bool(self._fetch_existing_snpeff_data())
+
+    def _fetch_existing_snpeff_data(self):
+        return [
+            str(o) for o in Path(self.dest_dir_path).iterdir() if (
+                o.name.startswith('snpEff_')
+                and o.name.contains(self.genome_version)
+                and o.name.endswith('.zip')
+            )
+        ]
+
+    def run(self):
+        self.print_log(
+            f'Download snpEff data source:\t{self.dest_dir_path}'
+        )
+        config_path = str(Path(self.dest_dir_path).joinpath('snpeff.config'))
+        self.setup_shell(
+            commands=self.snpeff, cwd=self.dest_dir_path, quiet=False
+        )
+        self.run_shell(
+            args=[
+                (
+                    'set -e && '
+                    + f'echo "data.dir = {self.dest_dir_path}" > {config_path}'
+                ),
+                (
+                    'set -e && '
+                    + f'{self.snpeff} databases'
+                    + ' | grep -e "^{self.db}[\\.0-9]*"'
+                    + ' | cut -f 1'
+                    + f' | xargs {self.snpeff} download -c {config_path}'
+                )
+            ],
+            output_files_or_dirs=[config_path]
+        )
+
+
 class DownloadAndConvertVCFsIntoPassingAfOnlyVCF(ShellTask):
     src_url = luigi.Parameter()
     dest_dir_path = luigi.Parameter(default='.')

@@ -11,6 +11,7 @@ Usage:
         [--without-gnomad] [--dest-dir=<path>]
     vcline download-funcotator-data [--debug|--info] [--cpus=<int>]
         [--dest-dir=<path>]
+    vcline download-snpeff-data [--debug|--info] [--dest-dir=<path>]
     vcline download-gnomad-af-only-vcf [--debug|--info] [--cpus=<int>]
         [--dest-dir=<path>]
     vcline write-af-only-vcf [--debug|--info] [--cpus=<int>]
@@ -29,6 +30,7 @@ Commands:
     download-resources      Download and process resource data
     download-funcotator-data
                             Download Funcotator data sources
+    download-snpeff-data    Download snpEff data sources
     download-gnomad-af-only-vcf
                             Download gnomAD VCF and process it into AF-only VCF
     write-af-only-vcf       Extract and write only AF from VCF INFO
@@ -75,7 +77,8 @@ from ..task.pipeline import RunAnalyticalPipeline
 from ..task.resource import (CreateIntervalListWithBED,
                              DownloadAndConvertVCFsIntoPassingAfOnlyVCF,
                              DownloadFuncotatorDataSources,
-                             DownloadResourceFile, WritePassingAfOnlyVCF)
+                             DownloadResourceFile, DownloadSnpeffDataSource,
+                             WritePassingAfOnlyVCF)
 from .util import (build_luigi_tasks, convert_url_to_dest_file_path,
                    fetch_executable, load_default_url_dict, print_log,
                    render_template, write_config_yml)
@@ -112,7 +115,7 @@ def main():
             url_dict = load_default_url_dict()
             cmds = {
                 c: fetch_executable(c)
-                for c in ['wget', 'pbzip2', 'bgzip', 'gatk']
+                for c in ['wget', 'pbzip2', 'bgzip', 'gatk', 'snpEff']
             }
             build_luigi_tasks(
                 tasks=[
@@ -141,6 +144,9 @@ def main():
                         dest_dir_path=dest_dir_path, n_cpu=n_cpu,
                         gatk=cmds['gatk']
                     ),
+                    DownloadSnpeffDataSource(
+                        dest_dir_path=dest_dir_path, snpeff=cmds['snpEff']
+                    ),
                     *(
                         list() if args['--without-gnomad'] else [
                             DownloadAndConvertVCFsIntoPassingAfOnlyVCF(
@@ -159,6 +165,16 @@ def main():
                     DownloadFuncotatorDataSources(
                         dest_dir_path=dest_dir_path, n_cpu=n_cpu,
                         gatk=fetch_executable('gatk')
+                    )
+                ],
+                log_level=log_level
+            )
+        elif args['download-snpeff-data']:
+            build_luigi_tasks(
+                tasks=[
+                    DownloadSnpeffDataSource(
+                        dest_dir_path=dest_dir_path,
+                        snpeff=fetch_executable('snpEff')
                     )
                 ],
                 log_level=log_level

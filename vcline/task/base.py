@@ -91,7 +91,7 @@ class ShellTask(BaseTask):
                 yield f'{c} 2>&1 | grep -e "Program:" -e "Version:"'
             elif Path(c).name == 'wget':
                 yield f'{c} --version | head -1'
-            elif Path(c).name == 'java':
+            elif Path(c).name in {'java', 'snpEff'}:
                 yield f'{c} -version'
             elif Path(c).name == 'dotnet':
                 yield f'{c} --info'
