@@ -120,7 +120,7 @@ class DownloadFuncotatorDataSources(ShellTask):
                 )
 
 
-class DownloadSnpeffDataSource(ShellTask):
+class DownloadSnpEffDataSource(ShellTask):
     dest_dir_path = luigi.Parameter(default='.')
     genome_version = luigi.Parameter(default='GRCh38')
     snpeff = luigi.Parameter(default='snpEff')
@@ -137,16 +137,13 @@ class DownloadSnpeffDataSource(ShellTask):
 
     def _fetch_existing_snpeff_data(self):
         return [
-            str(o) for o in Path(self.dest_dir_path).iterdir() if (
-                o.name.startswith('snpEff_')
-                and o.name.contains(self.genome_version)
-                and o.name.endswith('.zip')
-            )
+            str(o) for o in Path(self.dest_dir_path).iterdir()
+            if o.name.startswith(self.genome_version) and o.is_dir()
         ]
 
     def run(self):
         self.print_log(
-            f'Download snpEff data source:\t{self.dest_dir_path}'
+            f'Download SnpEff data source:\t{self.dest_dir_path}'
         )
         config_path = str(Path(self.dest_dir_path).joinpath('snpeff.config'))
         self.setup_shell(

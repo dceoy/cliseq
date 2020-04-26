@@ -32,7 +32,7 @@ class FuncotateVariants(BaseTask):
 
     def output(self):
         suffixes = [
-            '{0}.funcotated.{1}.{2}'.format(
+            '{0}.funcotator.{1}.{2}'.format(
                 ('.norm' if self.normalize_vcf else ''),
                 self.output_file_format.lower(),
                 (f'tsv{s}' if self.output_file_format == 'SEG' else f'gz{s}')
@@ -87,10 +87,10 @@ class Funcotator(ShellTask):
     bcftools = luigi.Parameter()
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.IntParameter(default=(4 * 1024))
-    output_file_format = luigi.Parameter(default='VCF')
-    disable_vcf_validation = luigi.BoolParameter(default=False)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
+    output_file_format = luigi.Parameter(default='VCF')
+    disable_vcf_validation = luigi.BoolParameter(default=False)
     priority = 10
 
     def requires(self):
@@ -108,7 +108,7 @@ class Funcotator(ShellTask):
 
     def output(self):
         suffixes = [
-            '.funcotated.{0}.{1}'.format(
+            '.funcotator.{0}.{1}'.format(
                 self.output_file_format.lower(),
                 (f'tsv{s}' if self.output_file_format == 'SEG' else f'gz{s}')
             ) for s in [
@@ -195,7 +195,7 @@ class FuncotateSegments(ShellTask):
         return luigi.LocalTarget(
             str(
                 Path(self.cf['postproc_funcotator_dir_path']).joinpath(
-                    Path(self.input_seg_path).name + '.funcotated.tsv'
+                    Path(self.input_seg_path).name + '.funcotator.tsv'
                 )
             )
         )

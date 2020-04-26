@@ -22,6 +22,7 @@ from .haplotypecaller import FilterVariantTranches
 from .lumpy import CallStructualVariantsWithLumpy
 from .manta import CallStructualVariantsWithManta
 from .mutect2 import FilterMutectCalls
+from .snpeff import AnnotateVariantsWithSnpEff
 from .strelka import (CallGermlineVariantsWithStrelka,
                       CallSomaticVariantsWithStrelka)
 
@@ -42,6 +43,7 @@ class RunVariantCaller(BaseTask):
     genomesize_xml_path = luigi.Parameter()
     kmer_fa_path = luigi.Parameter()
     funcotator_data_src_tar_path = luigi.Parameter()
+    snpeff_config_path = luigi.Parameter()
     cf = luigi.DictParameter()
     caller_mode = luigi.ListParameter()
     annotators = luigi.ListParameter()
@@ -157,57 +159,90 @@ class RunVariantCaller(BaseTask):
             raise ValueError(f'invalid caller mode: {self.caller_mode}')
 
     def output(self):
-        target_paths = self._find_annotation_target_paths()
-        if 'funcotator' in self.annotators and target_paths:
-            return [
-                luigi.LocalTarget(
-                    str(
-                        Path(self.cf['postproc_funcotator_dir_path']).joinpath(
-                            '{0}.norm.funcotated.{1}'.format(
-                                Path(Path(p).stem).stem,
-                                (
-                                    'seg.tsv'
-                                    if self.caller_mode.endswith('.delly')
-                                    else 'vcf.gz'
-                                )
-                            ) if p.endswith('.vcf.gz')
-                            else (Path(p).name + '.funcotated.tsv')
-                        )
-                    )
-                ) for p in target_paths
-            ]
+        output_pos = list()
+        for k, v in self._find_annotation_targets().items():
+            if k == 'FuncotateVariants':
+                output_pos.extend([
+                    Path(self.cf['postproc_funcotator_dir_path']).joinpath(
+                        Path(Path(p).stem).stem + '.norm.funcotator.vcf.gz'
+                    ) for p in v
+                ])
+            elif k == 'FuncotateSegments':
+                output_pos.extend([
+                    Path(self.cf['postproc_funcotator_dir_path']).joinpath(
+                        Path(p).name + '.funcotator.tsv'
+                    ) for p in v
+                ])
+            elif k == 'snpEff':
+                output_pos.extend([
+                    Path(self.cf['postproc_snpeff_dir_path']).joinpath(
+                        Path(Path(p).stem).stem + '.norm.snpeff.vcf.gz'
+                    ) for p in v
+                ])
+        if output_pos:
+            return [luigi.LocalTarget(str(o)) for o in output_pos]
         else:
             return self.input()
 
-    def _find_annotation_target_paths(self):
+    def _find_annotation_targets(self):
+        input_paths = [i.path for i in self.input()]
         if 'somatic_structual_variant.delly' == self.caller_mode:
-            return list()
+            return {
+                'FuncotateVariants': list(), 'FuncotateSegments': list(),
+                'snpEff': (
+                    [p for p in input_paths if p.endswith('.vcf.gz')]
+                    if 'snpeff' in self.annotators else list()
+                )
+            }
         else:
             if 'somatic_structual_variant.manta' == self.caller_mode:
-                suffix = '.manta.somaticSV.vcf.gz'
+                vcf_suffix = '.manta.somaticSV.vcf.gz'
             elif 'germline_short_variant.strelka' == self.caller_mode:
-                suffix = '.strelka.germline.variants.vcf.gz'
-            elif 'somatic_copy_number_variation.gatk' == self.caller_mode:
-                suffix = '.called.seg'
+                vcf_suffix = '.strelka.germline.variants.vcf.gz'
             else:
-                suffix = '.vcf.gz'
-            return [i.path for i in self.input() if i.path.endswith(suffix)]
+                vcf_suffix = '.vcf.gz'
+            return {
+                'FuncotateVariants': (
+                    [p for p in input_paths if p.endswith(vcf_suffix)]
+                    if 'funcotator' in self.annotators else list()
+                ),
+                'FuncotateSegments': (
+                    [p for p in input_paths if p.endswith('.called.seg')]
+                    if 'funcotator' in self.annotators else list()
+                ),
+                'snpEff': (
+                    [p for p in input_paths if p.endswith('.vcf.gz')]
+                    if 'snpeff' in self.annotators else list()
+                )
+            }
 
     def run(self):
-        for p in self._find_annotation_target_paths():
-            if p.endswith('.vcf.gz'):
-                yield FuncotateVariants(
-                    input_vcf_path=p,
-                    data_src_tar_path=self.funcotator_data_src_tar_path,
-                    ref_fa_path=self.ref_fa_path, cf=self.cf,
-                    normalize_vcf=self.normalize_vcf
-                )
-            elif p.endswith('.seg'):
-                yield FuncotateSegments(
-                    input_seg_path=p,
-                    data_src_tar_path=self.funcotator_data_src_tar_path,
-                    ref_fa_path=self.ref_fa_path, cf=self.cf
-                )
+        for k, v in self._find_annotation_targets().items():
+            if k == 'FuncotateVariants':
+                yield [
+                    FuncotateVariants(
+                        input_vcf_path=p,
+                        data_src_tar_path=self.funcotator_data_src_tar_path,
+                        ref_fa_path=self.ref_fa_path, cf=self.cf,
+                        normalize_vcf=self.normalize_vcf
+                    ) for p in v
+                ]
+            elif k == 'FuncotateSegments':
+                yield [
+                    FuncotateSegments(
+                        input_seg_path=p,
+                        data_src_tar_path=self.funcotator_data_src_tar_path,
+                        ref_fa_path=self.ref_fa_path, cf=self.cf
+                    ) for p in v
+                ]
+            elif k == 'snpEff':
+                yield [
+                    AnnotateVariantsWithSnpEff(
+                        input_vcf_path=p,
+                        snpeff_config_path=self.snpeff_config_path, cf=self.cf,
+                        normalize_vcf=self.normalize_vcf
+                    ) for p in v
+                ]
 
 
 class CallVariants(luigi.WrapperTask):
@@ -227,6 +262,7 @@ class CallVariants(luigi.WrapperTask):
     kmer_fa_path = luigi.Parameter()
     funcotator_somatic_tar_path = luigi.Parameter()
     funcotator_germline_tar_path = luigi.Parameter()
+    snpeff_config_path = luigi.Parameter()
     cf = luigi.DictParameter()
     caller_modes = luigi.ListParameter()
     annotators = luigi.ListParameter()
@@ -255,6 +291,7 @@ class CallVariants(luigi.WrapperTask):
                         if m.startswith('.germline') else
                         self.funcotator_somatic_tar_path
                     ),
+                    snpeff_config_path=self.snpeff_config_path,
                     cf=self.cf, caller_mode=m,
                     annotators=self.annotators,
                     normalize_vcf=self.normalize_vcf
@@ -320,7 +357,7 @@ class RunAnalyticalPipeline(BaseTask):
             logger.warning('Canvas requires 8 CPUs and 25 GB RAM.')
         annotators = (
             {k for k, v in config['annotators'].items() if v}
-            if 'annotators' in config else {'funcotator'}
+            if 'annotators' in config else {'funcotator', 'snpeff'}
         )
         common_config = {
             'ref_version': (config.get('reference_version') or 'hg38'),
@@ -391,7 +428,8 @@ class RunAnalyticalPipeline(BaseTask):
                             'somatic_copy_number_variation.canvas'
                             in caller_modes
                         ) else set()
-                    )
+                    ),
+                    *({'snpEff'} if 'snpeff' in annotators else set())
                 }
             },
             **{
@@ -399,11 +437,11 @@ class RunAnalyticalPipeline(BaseTask):
                     Path(self.dest_dir_path).joinpath(k)
                 ) for k in {
                     'trim', 'align', 'postproc/bcftools',
-                    'postproc/funcotator', 'somatic_snv_indel/gatk',
-                    'somatic_snv_indel/strelka', 'germline_snv_indel/gatk',
-                    'germline_snv_indel/strelka', 'somatic_sv/manta',
-                    'somatic_sv/delly', 'somatic_sv/lumpy', 'somatic_cnv/gatk',
-                    'somatic_cnv/canvas'
+                    'postproc/funcotator', 'postproc/snpeff',
+                    'somatic_snv_indel/gatk', 'somatic_snv_indel/strelka',
+                    'germline_snv_indel/gatk', 'germline_snv_indel/strelka',
+                    'somatic_sv/manta', 'somatic_sv/delly', 'somatic_sv/lumpy',
+                    'somatic_cnv/gatk', 'somatic_cnv/canvas'
                 }
             },
             'ref_dir_path': str(Path(self.ref_dir_path).resolve()),
@@ -444,11 +482,13 @@ class RunAnalyticalPipeline(BaseTask):
         assert {
             'ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
             'hapmap_vcf', 'gnomad_vcf', 'evaluation_interval',
-            'funcotator_germline_tar', 'funcotator_somatic_tar'
+            'funcotator_germline_tar', 'funcotator_somatic_tar',
+            'snpeff_config', 'exome_manifest'
         }.issubset(set(config['references'].keys()))
         for k in ['ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
                   'hapmap_vcf', 'gnomad_vcf', 'evaluation_interval',
-                  'funcotator_germline_tar', 'funcotator_somatic_tar']:
+                  'funcotator_germline_tar', 'funcotator_somatic_tar',
+                  'snpeff_config', 'exome_manifest']:
             v = config['references'].get(k)
             if k == 'ref_fa' and isinstance(v, list):
                 assert self._has_unique_elements(v)

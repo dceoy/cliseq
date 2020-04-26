@@ -77,7 +77,7 @@ from ..task.pipeline import RunAnalyticalPipeline
 from ..task.resource import (CreateIntervalListWithBED,
                              DownloadAndConvertVCFsIntoPassingAfOnlyVCF,
                              DownloadFuncotatorDataSources,
-                             DownloadResourceFile, DownloadSnpeffDataSource,
+                             DownloadResourceFile, DownloadSnpEffDataSource,
                              WritePassingAfOnlyVCF)
 from .util import (build_luigi_tasks, convert_url_to_dest_file_path,
                    fetch_executable, load_default_url_dict, print_log,
@@ -144,7 +144,7 @@ def main():
                         dest_dir_path=dest_dir_path, n_cpu=n_cpu,
                         gatk=cmds['gatk']
                     ),
-                    DownloadSnpeffDataSource(
+                    DownloadSnpEffDataSource(
                         dest_dir_path=dest_dir_path, snpeff=cmds['snpEff']
                     ),
                     *(
@@ -172,7 +172,7 @@ def main():
         elif args['download-snpeff-data']:
             build_luigi_tasks(
                 tasks=[
-                    DownloadSnpeffDataSource(
+                    DownloadSnpEffDataSource(
                         dest_dir_path=dest_dir_path,
                         snpeff=fetch_executable('snpEff')
                     )

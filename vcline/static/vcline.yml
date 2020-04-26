@@ -1,5 +1,5 @@
 ---
-reference_version: hg38     # {hg19, hg38, b37}
+reference_version: hg38     # {hg38, hg19}
 exome: false
 callers:
   somatic_short_variant:
@@ -17,6 +17,7 @@ callers:
     strelka: true
 annotators:
   funcotator: true
+  snpeff: true
 references:   # These files can be downloaded with vcline download-resources.
   ref_fa: /path/to/Homo_sapiens_assembly38.fasta.bz2
   # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta
@@ -42,6 +43,9 @@ references:   # These files can be downloaded with vcline download-resources.
   # gatk FuncotatorDataSourceDownloader --germline
   funcotator_somatic_tar: /path/to/funcotator_dataSources.v1.6.20190124s.tar.gz
   # gatk FuncotatorDataSourceDownloader --somatic
+  snpeff_config: /path/to/snpeff.config
+  # exome_manifest: /path/to/xgen-exome-research-panel-v2-probes-manifest-hg38.txt.bz2
+  # https://sfvideo.blob.core.windows.net/sitefinity/docs/default-source/supplementary-product-info/xgen-exome-research-panel-v2-probes-manifest-hg38.txt
 runs:
   - tumor:
       fq:
