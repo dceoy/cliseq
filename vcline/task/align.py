@@ -398,5 +398,75 @@ class PrepareCRAMsMatched(luigi.WrapperTask):
         return self.input()
 
 
+@requires(PrepareCRAMTumor, FetchReferenceFASTA)
+class PrepareBAMTumor(ShellTask):
+    sample_names = luigi.ListParameter()
+    cf = luigi.DictParameter()
+    priority = 10
+
+    def output(self):
+        return [
+            luigi.LocalTarget(
+                str(
+                    Path(self.cf['align_dir_path']).joinpath(
+                        Path(self.input()[0][0].path).stem + s
+                    )
+                )
+            ) for s in ['bam', 'bam.bai']
+        ]
+
+    def run(self):
+        cram_path = self.input()[0][0].path
+        bam_path = self.output()[0].path
+        yield SamtoolsView(
+            input_sam_path=cram_path, output_sam_path=bam_path,
+            fa_path=self.input()[1][0].path, samtools=self.cf['samtools'],
+            n_cpu=self.cf['n_cpu_per_worker'], message='Convert CRAM to BAM',
+            remove_input=False, log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed'],
+        )
+        yield SamtoolsIndex(
+            sam_path=bam_path, samtools=self.cf['samtools'],
+            n_cpu=self.cf['n_cpu_per_worker'],
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
+        )
+
+
+@requires(PrepareCRAMNormal, FetchReferenceFASTA)
+class PrepareBAMNormal(ShellTask):
+    sample_names = luigi.ListParameter()
+    cf = luigi.DictParameter()
+    priority = 10
+
+    def output(self):
+        return [
+            luigi.LocalTarget(
+                str(
+                    Path(self.cf['align_dir_path']).joinpath(
+                        Path(self.input()[0][0].path).stem + s
+                    )
+                )
+            ) for s in ['bam', 'bam.bai']
+        ]
+
+    def run(self):
+        cram_path = self.input()[0][0].path
+        bam_path = self.output()[0].path
+        yield SamtoolsView(
+            input_sam_path=cram_path, output_sam_path=bam_path,
+            fa_path=self.input()[1][0].path, samtools=self.cf['samtools'],
+            n_cpu=self.cf['n_cpu_per_worker'], message='Convert CRAM to BAM',
+            remove_input=False, log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed'],
+        )
+        yield SamtoolsIndex(
+            sam_path=bam_path, samtools=self.cf['samtools'],
+            n_cpu=self.cf['n_cpu_per_worker'],
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
+        )
+
+
 if __name__ == '__main__':
     luigi.run()

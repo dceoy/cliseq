@@ -660,55 +660,5 @@ class UncompressCnvBlackListBED(ShellTask):
         )
 
 
-class CreateCanvasGenomeSymlinks(ShellTask):
-    ref_fa_path = luigi.Parameter()
-    genomesize_xml_path = luigi.Parameter()
-    kmer_fa_path = luigi.Parameter()
-    cf = luigi.DictParameter()
-    priority = 10
-
-    def requires(self):
-        return [
-            FetchReferenceFASTA(ref_fa_path=self.ref_fa_path, cf=self.cf),
-            FetchResourceFile(
-                resource_file_path=self.genomesize_xml_path, cf=self.cf
-            ),
-            FetchResourceFASTA(
-                resource_file_path=self.kmer_fa_path, cf=self.cf
-            )
-        ]
-
-    def output(self):
-        return [
-            luigi.LocalTarget(
-                str(Path(self.cf['ref_dir_path']).joinpath(f'canvas/{n}'))
-            ) for n in [
-                'genome.fa', 'genome.fa.fai', 'GenomeSize.xml',
-                'kmer.fa', 'kmer.fa.fai'
-            ]
-        ]
-
-    def run(self):
-        src_paths = [
-            *[i.path for i in self.input()[0]], self.input()[1].path,
-            *[i.path for i in self.input()[2]]
-        ]
-        run_id = Path(src_paths[0]).stem
-        self.print_log(f'Prepare Canvas genome folder:\t{run_id}')
-        symlinks = {
-            '../{}'.format(Path(p).name): o.path
-            for p, o in zip(src_paths, self.output())
-        }
-        self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=str(Path(list(symlinks.values())[0]).parent),
-            remove_if_failed=self.cf['remove_if_failed']
-        )
-        self.run_shell(
-            args=[f'ln -s {s} {d}' for s, d in symlinks.items()],
-            output_files_or_dirs=list(symlinks.values())
-        )
-
-
 if __name__ == '__main__':
     luigi.run()

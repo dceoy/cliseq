@@ -21,6 +21,7 @@ from .funcotator import FuncotateSegments, FuncotateVariants
 from .haplotypecaller import FilterVariantTranches
 from .lumpy import CallStructualVariantsWithLumpy
 from .manta import CallStructualVariantsWithManta
+from .msisensor import ScoreMSIWithMSIsensor
 from .mutect2 import FilterMutectCalls
 from .snpeff import AnnotateVariantsWithSnpEff
 from .strelka import (CallGermlineVariantsWithStrelka,
@@ -154,6 +155,17 @@ class RunVariantCaller(BaseTask):
                 cnv_black_list_path=self.cnv_black_list_path,
                 genomesize_xml_path=self.genomesize_xml_path,
                 kmer_fa_path=self.kmer_fa_path, cf=self.cf
+            )
+        elif 'somatic_msi.msisensor' == self.caller_mode:
+            return ScoreMSIWithMSIsensor(
+                fq_list=self.fq_list, cram_list=self.cram_list,
+                read_groups=self.read_groups, sample_names=self.sample_names,
+                ref_fa_path=self.ref_fa_path,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf
             )
         else:
             raise ValueError(f'invalid caller mode: {self.caller_mode}')
@@ -429,7 +441,11 @@ class RunAnalyticalPipeline(BaseTask):
                             in caller_modes
                         ) else set()
                     ),
-                    *({'snpEff'} if 'snpeff' in annotators else set())
+                    *({'snpEff'} if 'snpeff' in annotators else set()),
+                    *(
+                        {'msisensor'}
+                        if 'somatic_msi.msisensor' in caller_modes else set()
+                    )
                 }
             },
             **{
@@ -441,7 +457,8 @@ class RunAnalyticalPipeline(BaseTask):
                     'somatic_snv_indel/gatk', 'somatic_snv_indel/strelka',
                     'germline_snv_indel/gatk', 'germline_snv_indel/strelka',
                     'somatic_sv/manta', 'somatic_sv/delly', 'somatic_sv/lumpy',
-                    'somatic_cnv/gatk', 'somatic_cnv/canvas'
+                    'somatic_cnv/gatk', 'somatic_cnv/canvas',
+                    'somatic_msi/msisensor'
                 }
             },
             'ref_dir_path': str(Path(self.ref_dir_path).resolve()),

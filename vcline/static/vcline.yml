@@ -12,6 +12,8 @@ callers:
   somatic_copy_number_variation:
     gatk: true
     canvas: false
+  somatic_msi:
+    msisensor: true
   germline_short_variant:
     gatk: true
     strelka: true
