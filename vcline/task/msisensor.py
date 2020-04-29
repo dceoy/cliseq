@@ -56,7 +56,7 @@ class ScoreMSIWithMSIsensor(ShellTask):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['somatic_msi_msisensor_path']).joinpath(
+                    Path(self.cf['somatic_msi_msisensor_dir_path']).joinpath(
                         create_matched_id(
                             *[i[0].path for i in self.input()[0:2]]
                         )
@@ -77,7 +77,7 @@ class ScoreMSIWithMSIsensor(ShellTask):
         output_prefix = Path(output_file_paths[0]).name
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=msisensor, cwd=self.cf['ref_dir_path'],
+            commands=msisensor, cwd=self.cf['somatic_msi_msisensor_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(

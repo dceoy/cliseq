@@ -8,26 +8,34 @@ import luigi
 
 from .base import BaseTask, ShellTask
 from .bcftools import NormalizeVCF, SortVCF
-from .ref import FetchResourceFile
+from .ref import (CreateSequenceDictionary, FetchReferenceFASTA,
+                  FetchResourceFile)
 
 
 class AnnotateVariantsWithSnpEff(BaseTask):
     input_vcf_path = luigi.Parameter()
     snpeff_config_path = luigi.Parameter()
+    ref_fa_path = luigi.Parameter()
     cf = luigi.DictParameter()
     normalize_vcf = luigi.BoolParameter(default=True)
     priority = 10
 
     def requires(self):
-        return FetchResourceFile(
-            resource_file_path=self.snpeff_config_path, cf=self.cf
-        )
+        return [
+            FetchResourceFile(
+                resource_file_path=self.snpeff_config_path, cf=self.cf
+            ),
+            FetchReferenceFASTA(ref_fa_path=self.ref_fa_path, cf=self.cf),
+            CreateSequenceDictionary(
+                ref_fa_path=self.ref_fa_path, cf=self.cf
+            )
+        ]
 
     def output(self):
         return [
             luigi.LocalTarget(
                 str(
-                    Path(self.cf['postproc_funcotator_dir_path']).joinpath(
+                    Path(self.cf['postproc_snpeff_dir_path']).joinpath(
                         re.sub(
                             r'\.vcf$',
                             '{0}.snpeff.vcf.gz{1}'.format(
@@ -43,9 +51,10 @@ class AnnotateVariantsWithSnpEff(BaseTask):
     def run(self):
         yield SnpEff(
             input_vcf_path=self.input_vcf_path,
-            snpeff_config_path=self.input().path,
+            fa_path=self.input()[1][0].path,
+            snpeff_config_path=self.input()[0].path,
             ref_version=self.cf['ref_version'],
-            dest_dir_path=self.cf['postproc_funcotator_dir_path'],
+            dest_dir_path=self.cf['postproc_snpeff_dir_path'],
             normalize_vcf=self.normalize_vcf,
             norm_dir_path=self.cf['postproc_bcftools_dir_path'],
             snpeff=self.cf['snpEff'], bcftools=self.cf['bcftools'],
@@ -58,6 +67,7 @@ class AnnotateVariantsWithSnpEff(BaseTask):
 
 class SnpEff(ShellTask):
     input_vcf_path = luigi.Parameter()
+    fa_path = luigi.Parameter()
     snpeff_config_path = luigi.Parameter()
     ref_version = luigi.Parameter(default='hg38')
     dest_dir_path = luigi.Parameter(default='.')
@@ -112,9 +122,12 @@ class SnpEff(ShellTask):
         config = RawConfigParser()
         config.read(self.snpeff_config_path)
         genome_version = [
-            o.name for o in Path(config.get('data.dir')).iterdir()
-            if o.name.startswith(self.genome_version) and o.is_dir()
-        ]
+            o.name for o in Path(config.get('data.dir')).iterdir() if (
+                o.name.startswith(
+                    {'hg38': 'GRCh38', 'hg19': 'GRCh38'}[self.ref_version]
+                ) and o.is_dir()
+            )
+        ][0]
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
             commands=[self.snpeff, self.bgzip], cwd=self.dest_dir_path,

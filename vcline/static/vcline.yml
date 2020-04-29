@@ -45,7 +45,7 @@ references:   # These files can be downloaded with vcline download-resources.
   # gatk FuncotatorDataSourceDownloader --germline
   funcotator_somatic_tar: /path/to/funcotator_dataSources.v1.6.20190124s.tar.gz
   # gatk FuncotatorDataSourceDownloader --somatic
-  snpeff_config: /path/to/snpeff.config
+  snpeff_config: /path/to/snpEff.config
   # exome_manifest: /path/to/xgen-exome-research-panel-v2-probes-manifest-hg38.txt.bz2
   # https://sfvideo.blob.core.windows.net/sitefinity/docs/default-source/supplementary-product-info/xgen-exome-research-panel-v2-probes-manifest-hg38.txt
 runs:

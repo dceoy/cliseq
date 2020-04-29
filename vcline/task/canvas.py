@@ -71,10 +71,8 @@ class CreateCanvasGenomeSymlinks(ShellTask):
             cwd=str(Path(list(symlinks.values())[0]).parent),
             remove_if_failed=self.cf['remove_if_failed']
         )
-        self.run_shell(
-            args=[f'ln -s {s} {d}' for s, d in symlinks.items()],
-            output_files_or_dirs=list(symlinks.values())
-        )
+        for s, d in symlinks.items():
+            self.run_shell(args=f'ln -s {s} {d}', output_files_or_dirs=d)
 
 
 @requires(PrepareBAMTumor, PrepareBAMNormal, CreateCanvasGenomeSymlinks,

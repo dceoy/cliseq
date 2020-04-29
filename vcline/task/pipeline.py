@@ -11,7 +11,8 @@ import luigi
 import yaml
 from luigi.tools import deps_tree
 
-from ..cli.util import fetch_executable, parse_cram_id, parse_fq_id, read_yml
+from ..cli.util import (create_matched_id, fetch_executable, parse_cram_id,
+                        parse_fq_id, read_yml)
 from .align import PrepareCRAMsMatched
 from .base import BaseTask, ShellTask
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
@@ -253,13 +254,14 @@ class RunVariantCaller(BaseTask):
                 yield [
                     AnnotateVariantsWithSnpEff(
                         input_vcf_path=p,
-                        snpeff_config_path=self.snpeff_config_path, cf=self.cf,
+                        snpeff_config_path=self.snpeff_config_path,
+                        ref_fa_path=self.ref_fa_path, cf=self.cf,
                         normalize_vcf=self.normalize_vcf
                     ) for p in v
                 ]
 
 
-class CallVariants(luigi.WrapperTask):
+class CallVariants(ShellTask):
     fq_list = luigi.ListParameter()
     cram_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
@@ -313,19 +315,39 @@ class CallVariants(luigi.WrapperTask):
                     normalize_vcf=self.normalize_vcf
                 ) for m in self.caller_modes
             ]
-        elif self.fq_list:
-            return PrepareCRAMsMatched(
-                fq_list=self.fq_list, read_groups=self.read_groups,
-                sample_names=self.sample_names, ref_fa_path=self.ref_fa_path,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
-            )
         else:
             return super().requires()
 
     def output(self):
         return self.input()
+
+    def run(self):
+        cram_targets = yield PrepareCRAMsMatched(
+            fq_list=self.fq_list, read_groups=self.read_groups,
+            sample_names=self.sample_names,
+            ref_fa_path=self.ref_fa_path,
+            dbsnp_vcf_path=self.dbsnp_vcf_path,
+            mills_indel_vcf_path=self.mills_indel_vcf_path,
+            known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
+        )
+        bam_paths = [
+            str(
+                Path(self.cf['align_dir_path']).joinpath(
+                    Path(t[0].path).stem + '.bam'
+                )
+            ) for t in cram_targets
+        ]
+        if any([Path(p).is_file() for p in bam_paths]):
+            run_id = create_matched_id(*bam_paths)
+            self.print_log(f'Remove BAM files:\t{run_id}')
+            self.setup_shell(
+                run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+                cwd=self.cf['align_dir_path'],
+                remove_if_failed=self.cf['remove_if_failed']
+            )
+            self.run_shell(
+                args=('rm -f' + ''.join([f' {p}*' for p in bam_paths]))
+            )
 
 
 class PrintEnvVersions(ShellTask):

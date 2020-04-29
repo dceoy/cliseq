@@ -27,7 +27,8 @@ RUN set -e \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
         g++ gcc libbz2-dev libc-dev libcurl4-gnutls-dev libgsl-dev \
-        libperl-dev liblzma-dev libssl-dev libz-dev make python \
+        libncurses5-dev libperl-dev liblzma-dev libssl-dev libz-dev make \
+        pkg-config python \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
@@ -43,12 +44,27 @@ RUN set -e \
         /usr/local/src/samblaster \
         -maxdepth 1 -type f -executable -exec ln -s {} /usr/local/bin \; \
       && cd /usr/local/src/samtools/htslib-* \
+      && make clean \
+      && ./configure \
+      && make \
       && make install \
       && cd /usr/local/src/samtools \
+      && make clean \
+      && ./configure \
+      && make \
       && make install \
+      && cd /usr/local/src/bcftools/htslib-* \
+      && make clean \
+      && ./configure \
+      && make \
       && cd /usr/local/src/bcftools \
+      && make clean \
+      && ./configure --enable-libgsl --enable-perl-filters \
+      && make \
       && make install \
       && cd /usr/local/src/bedtools2 \
+      && make clean \
+      && make \
       && make install
 
 RUN set -e \
@@ -76,7 +92,8 @@ RUN set -e \
       && mv /etc/apt/sources.list.d/r.list /tmp/ \
       && apt-get -y update \
       && apt-get -y install --no-install-recommends --no-install-suggests \
-        apt-transport-https ca-certificates curl gnupg software-properties-common \
+        apt-transport-https apt-utils ca-certificates curl gnupg \
+        software-properties-common \
       && sed -ne 's/^DISTRIB_RELEASE=\(.*\)$/\1/p' /etc/lsb-release \
         | xargs -i curl -SLO \
           https://packages.microsoft.com/config/ubuntu/{}/packages-microsoft-prod.deb \
@@ -89,9 +106,8 @@ RUN set -e \
       && apt-get -y update \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
-        apt-transport-https apt-utils bsdmainutils ca-certificates curl \
-        dotnet-runtime-2.1 gawk openjdk-8-jre libcurl3-gnutls libgsl23 \
-        libncurses5 pbzip2 perl pigz python r-base wget \
+        bsdmainutils dotnet-runtime-2.1 gawk libcurl3-gnutls libgsl23 \
+        libncurses5 openjdk-8-jre pbzip2 perl pigz python r-base wget \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*

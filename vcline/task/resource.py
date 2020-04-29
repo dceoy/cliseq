@@ -145,25 +145,28 @@ class DownloadSnpEffDataSource(ShellTask):
         self.print_log(
             f'Download SnpEff data source:\t{self.dest_dir_path}'
         )
-        config_path = str(Path(self.dest_dir_path).joinpath('snpeff.config'))
+        src_config_path = str(
+            Path(self.snpeff).parent.parent.joinpath('snpEff.config')
+        )
+        dest_config_path = str(
+            Path(self.dest_dir_path).joinpath(Path(src_config_path).name)
+        )
         self.setup_shell(
             commands=self.snpeff, cwd=self.dest_dir_path, quiet=False
         )
         self.run_shell(
             args=[
-                (
-                    'set -e && '
-                    + f'echo "data.dir = {self.dest_dir_path}" > {config_path}'
-                ),
+                f'set -e && cp {src_config_path} {dest_config_path}',
                 (
                     'set -e && '
                     + f'{self.snpeff} databases'
-                    + ' | grep -e "^{self.db}[\\.0-9]*"'
+                    + f' | grep -e "^{self.genome_version}[\\.0-9]*\\s"'
                     + ' | cut -f 1'
-                    + f' | xargs {self.snpeff} download -c {config_path}'
+                    + f' | xargs {self.snpeff} download'
+                    + f' -verbose -config {dest_config_path}'
                 )
             ],
-            output_files_or_dirs=[config_path]
+            output_files_or_dirs=[dest_config_path]
         )
 
 

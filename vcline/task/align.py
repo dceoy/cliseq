@@ -409,10 +409,10 @@ class PrepareBAMTumor(ShellTask):
             luigi.LocalTarget(
                 str(
                     Path(self.cf['align_dir_path']).joinpath(
-                        Path(self.input()[0][0].path).stem + s
+                        Path(self.input()[0][0].path).stem + f'.bam{s}'
                     )
                 )
-            ) for s in ['bam', 'bam.bai']
+            ) for s in ['', '.bai']
         ]
 
     def run(self):
@@ -444,10 +444,10 @@ class PrepareBAMNormal(ShellTask):
             luigi.LocalTarget(
                 str(
                     Path(self.cf['align_dir_path']).joinpath(
-                        Path(self.input()[0][0].path).stem + s
+                        Path(self.input()[0][0].path).stem + f'.bam{s}'
                     )
                 )
-            ) for s in ['bam', 'bam.bai']
+            ) for s in ['', 'bai']
         ]
 
     def run(self):
