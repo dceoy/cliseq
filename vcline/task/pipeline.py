@@ -43,6 +43,7 @@ class RunVariantCaller(BaseTask):
     cnv_black_list_path = luigi.Parameter()
     genomesize_xml_path = luigi.Parameter()
     kmer_fa_path = luigi.Parameter()
+    exome_manifest_path = luigi.Parameter(default='')
     funcotator_data_src_tar_path = luigi.Parameter()
     snpeff_config_path = luigi.Parameter()
     cf = luigi.DictParameter()
@@ -154,7 +155,8 @@ class RunVariantCaller(BaseTask):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cnv_black_list_path=self.cnv_black_list_path,
                 genomesize_xml_path=self.genomesize_xml_path,
-                kmer_fa_path=self.kmer_fa_path, cf=self.cf
+                kmer_fa_path=self.kmer_fa_path,
+                exome_manifest_path=self.exome_manifest_path, cf=self.cf
             )
         elif 'somatic_msi.msisensor' == self.caller_mode:
             return ScoreMSIWithMSIsensor(
@@ -272,6 +274,7 @@ class CallVariants(luigi.WrapperTask):
     cnv_black_list_path = luigi.Parameter()
     genomesize_xml_path = luigi.Parameter()
     kmer_fa_path = luigi.Parameter()
+    exome_manifest_path = luigi.Parameter(default='')
     funcotator_somatic_tar_path = luigi.Parameter()
     funcotator_germline_tar_path = luigi.Parameter()
     snpeff_config_path = luigi.Parameter()
@@ -298,6 +301,7 @@ class CallVariants(luigi.WrapperTask):
                     cnv_black_list_path=self.cnv_black_list_path,
                     genomesize_xml_path=self.genomesize_xml_path,
                     kmer_fa_path=self.kmer_fa_path,
+                    exome_manifest_path=self.exome_manifest_path,
                     funcotator_data_src_tar_path=(
                         self.funcotator_germline_tar_path
                         if m.startswith('.germline') else
