@@ -20,7 +20,7 @@ class CreateCanvasGenomeSymlinks(ShellTask):
     kmer_fa_path = luigi.Parameter()
     exome_manifest_path = luigi.Parameter(default='')
     cf = luigi.DictParameter()
-    priority = 10
+    priority = 60
 
     def requires(self):
         return [

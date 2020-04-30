@@ -39,10 +39,12 @@ RUN set -e \
       && rm -rf /root/.cache/pip
 
 RUN set -e \
-      && find \
-        /usr/local/src/bwa /usr/local/src/FastQC /usr/local/src/TrimGalore \
-        /usr/local/src/samblaster \
-        -maxdepth 1 -type f -executable -exec ln -s {} /usr/local/bin \; \
+      && cd /usr/local/src/bwa \
+      && make clean \
+      && make \
+      && cd /usr/local/src/samblaster \
+      && make clean \
+      && make \
       && cd /usr/local/src/samtools/htslib-* \
       && make clean \
       && ./configure \
@@ -65,7 +67,11 @@ RUN set -e \
       && cd /usr/local/src/bedtools2 \
       && make clean \
       && make \
-      && make install
+      && make install \
+      && find \
+        /usr/local/src/bwa /usr/local/src/FastQC /usr/local/src/TrimGalore \
+        /usr/local/src/samblaster \
+        -maxdepth 1 -type f -executable -exec ln -s {} /usr/local/bin \;
 
 RUN set -e \
       && /usr/bin/python /tmp/get-pip.py \

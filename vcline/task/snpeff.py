@@ -1,33 +1,30 @@
 #!/usr/bin/env python
 
 import re
-from configparser import RawConfigParser
 from pathlib import Path
 
 import luigi
 
 from .base import BaseTask, ShellTask
 from .bcftools import NormalizeVCF, SortVCF
-from .ref import (CreateSequenceDictionary, FetchReferenceFASTA,
-                  FetchResourceFile)
+from .ref import CreateSequenceDictionary, CreateSymlinks, FetchReferenceFASTA
 
 
 class AnnotateVariantsWithSnpEff(BaseTask):
     input_vcf_path = luigi.Parameter()
-    snpeff_config_path = luigi.Parameter()
     ref_fa_path = luigi.Parameter()
+    snpeff_config_path = luigi.Parameter()
     cf = luigi.DictParameter()
     normalize_vcf = luigi.BoolParameter(default=True)
     priority = 10
 
     def requires(self):
         return [
-            FetchResourceFile(
-                resource_file_path=self.snpeff_config_path, cf=self.cf
-            ),
             FetchReferenceFASTA(ref_fa_path=self.ref_fa_path, cf=self.cf),
-            CreateSequenceDictionary(
-                ref_fa_path=self.ref_fa_path, cf=self.cf
+            CreateSequenceDictionary(ref_fa_path=self.ref_fa_path, cf=self.cf),
+            CreateSymlinks(
+                src_paths=[self.snpeff_config_path],
+                dest_dir_path=self.cf['ref_dir_path'], cf=self.cf
             )
         ]
 
@@ -51,8 +48,8 @@ class AnnotateVariantsWithSnpEff(BaseTask):
     def run(self):
         yield SnpEff(
             input_vcf_path=self.input_vcf_path,
-            fa_path=self.input()[1][0].path,
-            snpeff_config_path=self.input()[0].path,
+            fa_path=self.input()[0][0].path,
+            snpeff_config_path=self.input()[2][0].path,
             ref_version=self.cf['ref_version'],
             dest_dir_path=self.cf['postproc_snpeff_dir_path'],
             normalize_vcf=self.normalize_vcf,
@@ -118,11 +115,11 @@ class SnpEff(ShellTask):
         input_vcf_path = (
             self.input()[0].path if self.normalize_vcf else self.input_vcf_path
         )
+        config_path = str(Path(self.snpeff_config_path).resolve())
         tmp_vcf_path = re.sub(r'\.gz$', '', output_vcf_path)
-        config = RawConfigParser()
-        config.read(self.snpeff_config_path)
         genome_version = [
-            o.name for o in Path(config.get('data.dir')).iterdir() if (
+            o.name for o in Path(config_path).parent.joinpath('data').iterdir()
+            if (
                 o.name.startswith(
                     {'hg38': 'GRCh38', 'hg19': 'GRCh38'}[self.ref_version]
                 ) and o.is_dir()
@@ -130,15 +127,18 @@ class SnpEff(ShellTask):
         ][0]
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=[self.snpeff, self.bgzip], cwd=self.dest_dir_path,
+            commands=self.snpeff, cwd=self.dest_dir_path,
             remove_if_failed=self.remove_if_failed,
             quiet=bool(self.log_dir_path)
         )
         self.run_shell(
-            args=(
-                f'set -e && {self.snpeff} {genome_version} {input_vcf_path}'
-                + f' > {tmp_vcf_path}'
-            ),
+            args=[
+                (
+                    f'set -e && {self.snpeff}'
+                    + f' -verbose -config {config_path}'
+                    + f' {genome_version} {input_vcf_path} > {tmp_vcf_path}'
+                )
+            ],
             input_files_or_dirs=input_vcf_path,
             output_files_or_dirs=tmp_vcf_path
         )

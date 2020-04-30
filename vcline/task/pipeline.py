@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import sys
+from itertools import chain
 from pathlib import Path
 from pprint import pformat
 
@@ -174,83 +175,62 @@ class RunVariantCaller(BaseTask):
             raise ValueError(f'invalid caller mode: {self.caller_mode}')
 
     def output(self):
-        output_pos = list()
-        for k, v in self._find_annotation_targets().items():
-            if k == 'FuncotateVariants':
-                output_pos.extend([
-                    Path(self.cf['postproc_funcotator_dir_path']).joinpath(
-                        Path(Path(p).stem).stem + '.norm.funcotator.vcf.gz'
-                    ) for p in v
-                ])
-            elif k == 'FuncotateSegments':
-                output_pos.extend([
-                    Path(self.cf['postproc_funcotator_dir_path']).joinpath(
-                        Path(p).name + '.funcotator.tsv'
-                    ) for p in v
-                ])
-            elif k == 'snpEff':
-                output_pos.extend([
-                    Path(self.cf['postproc_snpeff_dir_path']).joinpath(
-                        Path(Path(p).stem).stem + '.norm.snpeff.vcf.gz'
-                    ) for p in v
-                ])
-        if output_pos:
-            return [luigi.LocalTarget(str(o)) for o in output_pos]
-        else:
-            return self.input()
+        output_iter = chain.from_iterable([
+            [
+                Path(self.cf[f'postproc_{k}_dir_path']).joinpath(
+                    (Path(p).name + f'.{k}.tsv') if p.endswith('.seg')
+                    else (Path(Path(p).stem).stem + f'.norm.{k}.vcf.gz')
+                ) for p in v
+            ] for k, v in self._find_annotation_targets().items()
+        ])
+        return (
+            [luigi.LocalTarget(str(o)) for o in output_iter]
+            if len(output_iter) else self.input()
+        )
 
     def _find_annotation_targets(self):
         input_paths = [i.path for i in self.input()]
         if 'somatic_structual_variant.delly' == self.caller_mode:
-            return {
-                'FuncotateVariants': list(), 'FuncotateSegments': list(),
-                'snpEff': (
-                    [p for p in input_paths if p.endswith('.vcf.gz')]
-                    if 'snpeff' in self.annotators else list()
-                )
+            suffix_dict = {'funcotator': None, 'snpeff': '.vcf.gz'}
+        elif 'somatic_structual_variant.manta' == self.caller_mode:
+            suffix_dict = {
+                'funcotator': '.manta.somaticSV.vcf.gz',
+                'snpeff': ('.manta.somaticSV.vcf.gz', '.diploidSV.vcf.gz')
+            }
+        elif 'germline_short_variant.strelka' == self.caller_mode:
+            suffix_dict = {
+                k: '.strelka.germline.variants.vcf.gz'
+                for k in ['funcotator', 'snpeff']
             }
         else:
-            if 'somatic_structual_variant.manta' == self.caller_mode:
-                vcf_suffix = '.manta.somaticSV.vcf.gz'
-            elif 'germline_short_variant.strelka' == self.caller_mode:
-                vcf_suffix = '.strelka.germline.variants.vcf.gz'
-            else:
-                vcf_suffix = '.vcf.gz'
-            return {
-                'FuncotateVariants': (
-                    [p for p in input_paths if p.endswith(vcf_suffix)]
-                    if 'funcotator' in self.annotators else list()
-                ),
-                'FuncotateSegments': (
-                    [p for p in input_paths if p.endswith('.called.seg')]
-                    if 'funcotator' in self.annotators else list()
-                ),
-                'snpEff': (
-                    [p for p in input_paths if p.endswith('.vcf.gz')]
-                    if 'snpeff' in self.annotators else list()
-                )
+            suffix_dict = {
+                'funcotator': ('.vcf.gz', '.called.seg'), 'snpeff': '.vcf.gz'
             }
+        return {
+            k: (
+                [p for p in input_paths if v and p.endswith(v)]
+                if k in self.annotators else list()
+            ) for k, v in suffix_dict.items()
+        }
 
     def run(self):
         for k, v in self._find_annotation_targets().items():
-            if k == 'FuncotateVariants':
+            if k == 'funcotator':
+                common_kwargs = {
+                    'data_src_tar_path': self.funcotator_data_src_tar_path,
+                    'ref_fa_path': self.ref_fa_path, 'cf': self.cf
+                }
                 yield [
-                    FuncotateVariants(
-                        input_vcf_path=p,
-                        data_src_tar_path=self.funcotator_data_src_tar_path,
-                        ref_fa_path=self.ref_fa_path, cf=self.cf,
-                        normalize_vcf=self.normalize_vcf
+                    (
+                        FuncotateSegments(input_seg_path=p, **common_kwargs)
+                        if p.endswith('.seg')
+                        else FuncotateVariants(
+                            input_vcf_path=p, normalize_vcf=self.normalize_vcf,
+                            **common_kwargs
+                        )
                     ) for p in v
                 ]
-            elif k == 'FuncotateSegments':
-                yield [
-                    FuncotateSegments(
-                        input_seg_path=p,
-                        data_src_tar_path=self.funcotator_data_src_tar_path,
-                        ref_fa_path=self.ref_fa_path, cf=self.cf
-                    ) for p in v
-                ]
-            elif k == 'snpEff':
+            elif k == 'snpeff':
                 yield [
                     AnnotateVariantsWithSnpEff(
                         input_vcf_path=p,

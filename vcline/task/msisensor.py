@@ -59,7 +59,7 @@ class ScoreMSIWithMSIsensor(ShellTask):
                     Path(self.cf['somatic_msi_msisensor_dir_path']).joinpath(
                         create_matched_id(
                             *[i[0].path for i in self.input()[0:2]]
-                        )
+                        ) + s
                     )
                 )
             ) for s in ['', '_dis_tab', '_germline', '_somatic']
@@ -95,3 +95,7 @@ class ScoreMSIWithMSIsensor(ShellTask):
             ],
             output_files_or_dirs=output_file_paths
         )
+
+
+if __name__ == '__main__':
+    luigi.run()

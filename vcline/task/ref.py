@@ -660,5 +660,33 @@ class UncompressCnvBlackListBED(ShellTask):
         )
 
 
+class CreateSymlinks(ShellTask):
+    src_paths = luigi.ListParameter()
+    dest_dir_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 60
+
+    def output(self):
+        return [
+            luigi.LocalTarget(
+                str(Path(self.dest_dir_path).joinpath(Path(p).name))
+            ) for p in self.src_paths
+        ]
+
+    def run(self):
+        run_id = Path(self.dest_dir_path).stem
+        self.print_log(f'Create a symlink:\t{run_id}')
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            cwd=self.dest_dir_path,
+            remove_if_failed=self.cf['remove_if_failed']
+        )
+        for p, o in zip(self.src_paths, self.output()):
+            self.run_shell(
+                args=f'ln -s {p} {o.path}',
+                input_files_or_dirs=p, output_files_or_dirs=o.path
+            )
+
+
 if __name__ == '__main__':
     luigi.run()

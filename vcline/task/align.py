@@ -399,8 +399,7 @@ class PrepareCRAMsMatched(luigi.WrapperTask):
 
 
 @requires(PrepareCRAMTumor, FetchReferenceFASTA)
-class PrepareBAMTumor(ShellTask):
-    sample_names = luigi.ListParameter()
+class PrepareBAMTumor(BaseTask):
     cf = luigi.DictParameter()
     priority = 10
 
@@ -434,8 +433,7 @@ class PrepareBAMTumor(ShellTask):
 
 
 @requires(PrepareCRAMNormal, FetchReferenceFASTA)
-class PrepareBAMNormal(ShellTask):
-    sample_names = luigi.ListParameter()
+class PrepareBAMNormal(BaseTask):
     cf = luigi.DictParameter()
     priority = 10
 
