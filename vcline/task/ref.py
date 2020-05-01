@@ -366,7 +366,7 @@ class CreateSequenceDictionary(ShellTask):
         )
 
     def run(self):
-        fa_path = self.input().path
+        fa_path = self.input()[0].path
         run_id = Path(fa_path).stem
         self.print_log(f'Create a sequence dictionary:\t{run_id}')
         gatk = self.cf['gatk']
@@ -417,7 +417,7 @@ class FetchGnomadVCF(luigi.WrapperTask):
 
 
 @requires(FetchGnomadVCF, FetchReferenceFASTA,
-          FetchEvaluationIntervalList)
+          FetchEvaluationIntervalList, CreateSequenceDictionary)
 class CreateGnomadBiallelicSnpVCF(ShellTask):
     cf = luigi.DictParameter()
     priority = 90

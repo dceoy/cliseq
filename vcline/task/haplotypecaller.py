@@ -8,7 +8,8 @@ from luigi.util import requires
 
 from .align import PrepareCRAMNormal
 from .base import ShellTask
-from .ref import (FetchDbsnpVCF, FetchEvaluationIntervalList, FetchHapmapVCF,
+from .ref import (CreateSequenceDictionary, FetchDbsnpVCF,
+                  FetchEvaluationIntervalList, FetchHapmapVCF,
                   FetchMillsIndelVCF, FetchReferenceFASTA)
 from .samtools import MergeSAMsIntoSortedSAM
 
@@ -80,7 +81,7 @@ class PrepareEvaluationIntervals(luigi.WrapperTask):
 
 
 @requires(PrepareCRAMNormal, FetchReferenceFASTA, FetchDbsnpVCF,
-          PrepareEvaluationIntervals)
+          PrepareEvaluationIntervals, CreateSequenceDictionary)
 class CallVariantsWithHaplotypeCaller(ShellTask):
     cf = luigi.DictParameter()
     priority = 20
@@ -191,19 +192,18 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                 input_files_or_dirs=[*tmp_gvcf_paths, fa_path],
                 output_files_or_dirs=[gvcf_path, f'{gvcf_path}.tbi']
             )
-            if self.cf['remove_if_failed']:
-                self.run_shell(
-                    args=(
-                        'rm -f'
-                        + ''.join([f' {p} {p}.tbi' for p in tmp_gvcf_paths])
-                    ),
-                    input_files_or_dirs=tmp_gvcf_paths
-                )
+            self.run_shell(
+                args=(
+                    'rm -f'
+                    + ''.join([f' {p} {p}.tbi' for p in tmp_gvcf_paths])
+                ),
+                input_files_or_dirs=tmp_gvcf_paths
+            )
 
 
 @requires(CallVariantsWithHaplotypeCaller, FetchReferenceFASTA,
-          FetchDbsnpVCF, FetchEvaluationIntervalList)
-class GenotypeHaplotypeCallerGVCFVCF(ShellTask):
+          FetchDbsnpVCF, FetchEvaluationIntervalList, CreateSequenceDictionary)
+class GenotypeHaplotypeCallerGVCF(ShellTask):
     cf = luigi.DictParameter()
     priority = 60
 
@@ -247,8 +247,9 @@ class GenotypeHaplotypeCallerGVCFVCF(ShellTask):
         )
 
 
-@requires(GenotypeHaplotypeCallerGVCFVCF, CallVariantsWithHaplotypeCaller,
-          FetchReferenceFASTA, FetchEvaluationIntervalList)
+@requires(GenotypeHaplotypeCallerGVCF, CallVariantsWithHaplotypeCaller,
+          FetchReferenceFASTA, FetchEvaluationIntervalList,
+          CreateSequenceDictionary)
 class CNNScoreVariants(ShellTask):
     cf = luigi.DictParameter()
     priority = 60

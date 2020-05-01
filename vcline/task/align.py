@@ -87,7 +87,7 @@ class AlignReads(ShellTask):
         )
 
 
-@requires(AlignReads, FetchReferenceFASTA)
+@requires(AlignReads, FetchReferenceFASTA, CreateSequenceDictionary)
 class MarkDuplicates(ShellTask):
     cf = luigi.DictParameter()
     priority = 70

@@ -10,8 +10,9 @@ from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
 from .haplotypecaller import PrepareEvaluationIntervals
-from .ref import (CreateGnomadBiallelicSnpVCF, FetchEvaluationIntervalList,
-                  FetchGnomadVCF, FetchReferenceFASTA)
+from .ref import (CreateGnomadBiallelicSnpVCF, CreateSequenceDictionary,
+                  FetchEvaluationIntervalList, FetchGnomadVCF,
+                  FetchReferenceFASTA)
 from .samtools import MergeSAMsIntoSortedSAM
 
 
@@ -63,7 +64,8 @@ class GetPileupSummaries(ShellTask):
 
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFASTA,
-          FetchEvaluationIntervalList, CreateGnomadBiallelicSnpVCF)
+          FetchEvaluationIntervalList, CreateGnomadBiallelicSnpVCF,
+          CreateSequenceDictionary)
 class CalculateContamination(ShellTask):
     cf = luigi.DictParameter()
     priority = 50
@@ -117,7 +119,8 @@ class CalculateContamination(ShellTask):
 
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFASTA,
-          PrepareEvaluationIntervals, FetchGnomadVCF)
+          PrepareEvaluationIntervals, FetchGnomadVCF,
+          CreateSequenceDictionary)
 class CallVariantsWithMutect2(ShellTask):
     sample_names = luigi.ListParameter()
     cf = luigi.DictParameter()
@@ -252,19 +255,19 @@ class CallVariantsWithMutect2(ShellTask):
                 input_files_or_dirs=tmp_vcf_paths,
                 output_files_or_dirs=raw_vcf_path
             )
-            if self.cf['remove_if_failed']:
-                self.run_shell(
-                    args=(
-                        'rm -f '
-                        + ' '.join(tmp_stats_paths),
-                        + ''.join([f' {p} {p}.tbi' for p in tmp_vcf_paths])
-                    ),
-                    input_files_or_dirs=[*tmp_stats_paths, *tmp_vcf_paths]
-                )
+            self.run_shell(
+                args=(
+                    'rm -f '
+                    + ' '.join(tmp_stats_paths),
+                    + ''.join([f' {p} {p}.tbi' for p in tmp_vcf_paths])
+                ),
+                input_files_or_dirs=[*tmp_stats_paths, *tmp_vcf_paths]
+            )
 
 
 @requires(CallVariantsWithMutect2, FetchReferenceFASTA,
-          FetchEvaluationIntervalList, CalculateContamination)
+          FetchEvaluationIntervalList, CalculateContamination,
+          CreateSequenceDictionary)
 class FilterMutectCalls(ShellTask):
     cf = luigi.DictParameter()
     priority = 50

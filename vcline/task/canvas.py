@@ -8,7 +8,7 @@ from luigi.util import requires
 from ..cli.util import create_matched_id
 from .align import PrepareBAMNormal, PrepareBAMTumor
 from .base import ShellTask
-from .haplotypecaller import GenotypeHaplotypeCallerGVCFVCF
+from .haplotypecaller import GenotypeHaplotypeCallerGVCF
 from .mutect2 import CallVariantsWithMutect2
 from .ref import (FetchReferenceFASTA, FetchResourceFASTA, FetchResourceFile,
                   UncompressCnvBlackListBED)
@@ -76,7 +76,7 @@ class CreateCanvasGenomeSymlinks(ShellTask):
 
 
 @requires(PrepareBAMTumor, PrepareBAMNormal, CreateCanvasGenomeSymlinks,
-          UncompressCnvBlackListBED, GenotypeHaplotypeCallerGVCFVCF,
+          UncompressCnvBlackListBED, GenotypeHaplotypeCallerGVCF,
           CallVariantsWithMutect2)
 class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
     sample_names = luigi.ListParameter()

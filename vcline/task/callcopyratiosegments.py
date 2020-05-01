@@ -8,12 +8,12 @@ from luigi.util import requires
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import BaseTask, ShellTask
-from .haplotypecaller import GenotypeHaplotypeCallerGVCFVCF
+from .haplotypecaller import GenotypeHaplotypeCallerGVCF
 from .ref import (CreateSequenceDictionary, FetchReferenceFASTA,
                   PreprocessIntervals)
 
 
-@requires(GenotypeHaplotypeCallerGVCFVCF)
+@requires(GenotypeHaplotypeCallerGVCF)
 class CreateGermlineSnpIntervalList(ShellTask):
     cf = luigi.DictParameter()
     priority = 10
@@ -95,7 +95,8 @@ class CollectAllelicCounts(ShellTask):
         )
 
 
-@requires(PrepareCRAMTumor, CreateGermlineSnpIntervalList, FetchReferenceFASTA)
+@requires(PrepareCRAMTumor, CreateGermlineSnpIntervalList, FetchReferenceFASTA,
+          CreateSequenceDictionary)
 class CollectAllelicCountsTumor(BaseTask):
     cf = luigi.DictParameter()
     priority = 10
@@ -118,7 +119,7 @@ class CollectAllelicCountsTumor(BaseTask):
 
 
 @requires(PrepareCRAMNormal, CreateGermlineSnpIntervalList,
-          FetchReferenceFASTA)
+          FetchReferenceFASTA, CreateSequenceDictionary)
 class CollectAllelicCountsNormal(BaseTask):
     cf = luigi.DictParameter()
     priority = 10

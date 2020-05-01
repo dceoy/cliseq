@@ -175,17 +175,19 @@ class RunVariantCaller(BaseTask):
             raise ValueError(f'invalid caller mode: {self.caller_mode}')
 
     def output(self):
-        output_iter = chain.from_iterable([
-            [
-                Path(self.cf[f'postproc_{k}_dir_path']).joinpath(
-                    (Path(p).name + f'.{k}.tsv') if p.endswith('.seg')
-                    else (Path(Path(p).stem).stem + f'.norm.{k}.vcf.gz')
-                ) for p in v
-            ] for k, v in self._find_annotation_targets().items()
-        ])
+        output_pos = list(
+            chain.from_iterable([
+                [
+                    Path(self.cf[f'postproc_{k}_dir_path']).joinpath(
+                        (Path(p).name + f'.{k}.tsv') if p.endswith('.seg')
+                        else (Path(Path(p).stem).stem + f'.norm.{k}.vcf.gz')
+                    ) for p in v
+                ] for k, v in self._find_annotation_targets().items()
+            ])
+        )
         return (
-            [luigi.LocalTarget(str(o)) for o in output_iter]
-            if len(output_iter) else self.input()
+            [luigi.LocalTarget(str(o)) for o in output_pos]
+            if output_pos else self.input()
         )
 
     def _find_annotation_targets(self):
@@ -502,12 +504,6 @@ class RunAnalyticalPipeline(BaseTask):
         for k in ['references', 'runs']:
             assert config.get(k)
         assert isinstance(config['references'], dict)
-        assert {
-            'ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
-            'hapmap_vcf', 'gnomad_vcf', 'evaluation_interval',
-            'funcotator_germline_tar', 'funcotator_somatic_tar',
-            'snpeff_config', 'exome_manifest'
-        }.issubset(set(config['references'].keys()))
         for k in ['ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
                   'hapmap_vcf', 'gnomad_vcf', 'evaluation_interval',
                   'funcotator_germline_tar', 'funcotator_somatic_tar',

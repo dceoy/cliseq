@@ -97,7 +97,7 @@ class SnpEff(ShellTask):
                 str(
                     Path(self.dest_dir_path).joinpath(
                         re.sub(
-                            r'\.vcf$', f'.snpeff.vcf.gz{s}',
+                            r'\.vcf$', f'.snpeff.{s}',
                             Path(
                                 self.input()[0].path if self.normalize_vcf
                                 else self.input_vcf_path
@@ -105,7 +105,7 @@ class SnpEff(ShellTask):
                         )
                     )
                 )
-            ) for s in ['', '.tbi']
+            ) for s in ['vcf.gz', 'vcf.gz.tbi', 'genes.txt', 'summary.html']
         ]
 
     def run(self):
@@ -116,7 +116,12 @@ class SnpEff(ShellTask):
             self.input()[0].path if self.normalize_vcf else self.input_vcf_path
         )
         config_path = str(Path(self.snpeff_config_path).resolve())
-        tmp_vcf_path = re.sub(r'\.gz$', '', output_vcf_path)
+        output_prefix = Path(Path(input_vcf_path).stem).stem
+        tmp_dir_path = str(Path(self.dest_dir_path).joinpath(output_prefix))
+        tmp_file_paths = [
+            str(Path(tmp_dir_path).joinpath(n))
+            for n in ['snpeff.vcf', 'snpEff_genes.txt', 'snpEff_summary.html']
+        ]
         genome_version = [
             o.name for o in Path(config_path).parent.joinpath('data').iterdir()
             if (
@@ -132,21 +137,37 @@ class SnpEff(ShellTask):
             quiet=bool(self.log_dir_path)
         )
         self.run_shell(
-            args=[
-                (
-                    f'set -e && {self.snpeff}'
-                    + f' -verbose -config {config_path}'
-                    + f' {genome_version} {input_vcf_path} > {tmp_vcf_path}'
-                )
-            ],
-            input_files_or_dirs=input_vcf_path,
-            output_files_or_dirs=tmp_vcf_path
+            args=f'mkdir {tmp_dir_path}', output_files_or_dirs=tmp_dir_path
+        )
+        self.run_shell(
+            args=(
+                f'set -e && cd {tmp_dir_path} && '
+                + f'{self.snpeff} -verbose -config {config_path}'
+                + f' {genome_version} {input_vcf_path} > {tmp_file_paths[0]}'
+            ),
+            input_files_or_dirs=[input_vcf_path, tmp_dir_path],
+            output_files_or_dirs=[*tmp_file_paths, tmp_dir_path]
         )
         yield SortVCF(
-            input_vcf_path=tmp_vcf_path, output_vcf_path=output_vcf_path,
+            input_vcf_path=tmp_file_paths[0], output_vcf_path=output_vcf_path,
             bcftools=self.bcftools, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
-            index_vcf=True, remove_input=True, log_dir_path=self.log_dir_path,
-            remove_if_failed=self.remove_if_failed,
+            index_vcf=False, remove_input=True, log_dir_path=self.log_dir_path,
+            remove_if_failed=self.remove_if_failed
+        )
+        for p in tmp_file_paths[1:]:
+            dest_path = str(
+                Path(self.dest_dir_path).joinpath(
+                    re.sub(
+                        r'^snpEff_', f'{output_prefix}.snpeff.', Path(p).name
+                    )
+                )
+            )
+            self.run_shell(
+                args=f'cp {p} {dest_path}',
+                input_files_or_dirs=p, output_files_or_dirs=dest_path
+            )
+        self.run_shell(
+            args=f'rm -rf {tmp_dir_path}', input_files_or_dirs=tmp_dir_path
         )
 
 
