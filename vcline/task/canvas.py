@@ -10,8 +10,8 @@ from .align import PrepareBAMNormal, PrepareBAMTumor
 from .base import ShellTask
 from .haplotypecaller import GenotypeHaplotypeCallerGVCF
 from .mutect2 import CallVariantsWithMutect2
-from .ref import (FetchReferenceFASTA, FetchResourceFASTA, FetchResourceFile,
-                  UncompressCnvBlackListBED)
+from .ref import (CreateCnvBlackListBED, FetchReferenceFASTA,
+                  FetchResourceFASTA, FetchResourceFile, UncompressBgzipFiles)
 
 
 class CreateCanvasGenomeSymlinks(ShellTask):
@@ -20,7 +20,7 @@ class CreateCanvasGenomeSymlinks(ShellTask):
     kmer_fa_path = luigi.Parameter()
     exome_manifest_path = luigi.Parameter(default='')
     cf = luigi.DictParameter()
-    priority = 60
+    priority = 50
 
     def requires(self):
         return [
@@ -73,6 +73,25 @@ class CreateCanvasGenomeSymlinks(ShellTask):
         )
         for s, d in symlinks.items():
             self.run_shell(args=f'ln -s {s} {d}', output_files_or_dirs=d)
+
+
+@requires(CreateCnvBlackListBED)
+class UncompressCnvBlackListBED(ShellTask):
+    cf = luigi.DictParameter()
+    priority = 50
+
+    def output(self):
+        return luigi.LocalTarget(
+            Path(self.cf['ref_dir_path']).joinpath(
+                'canvas/{}'.format(Path(self.input()[0].path).stem)
+            )
+        )
+
+    def run(self):
+        yield UncompressBgzipFiles(
+            bgz_paths=[self.input()[0].path],
+            dest_dir_path=str(Path(self.output().path).parent), cf=self.cf
+        )
 
 
 @requires(PrepareBAMTumor, PrepareBAMNormal, CreateCanvasGenomeSymlinks,

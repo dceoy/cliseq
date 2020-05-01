@@ -8,7 +8,8 @@ from luigi.util import requires
 from ..cli.util import create_matched_id
 from .align import PrepareBAMNormal, PrepareBAMTumor
 from .base import ShellTask
-from .ref import CreateEvaluationIntervalListBED, FetchReferenceFASTA
+from .ref import (CreateEvaluationIntervalListBED, FetchReferenceFASTA,
+                  UncompressBgzipFiles)
 
 
 @requires(FetchReferenceFASTA)
@@ -46,8 +47,27 @@ class ScanMicrosatellites(ShellTask):
         )
 
 
+@requires(CreateEvaluationIntervalListBED)
+class UncompressEvaluationIntervalListBED(ShellTask):
+    cf = luigi.DictParameter()
+    priority = 50
+
+    def output(self):
+        return luigi.LocalTarget(
+            Path(self.cf['somatic_msi_msisensor_dir_path']).joinpath(
+                Path(self.input()[0].path).stem
+            )
+        )
+
+    def run(self):
+        yield UncompressBgzipFiles(
+            bgz_paths=[self.input()[0].path],
+            dest_dir_path=self.cf['somatic_msi_msisensor_dir_path'], cf=self.cf
+        )
+
+
 @requires(PrepareBAMTumor, PrepareBAMNormal, ScanMicrosatellites,
-          CreateEvaluationIntervalListBED)
+          UncompressEvaluationIntervalListBED)
 class ScoreMSIWithMSIsensor(ShellTask):
     cf = luigi.DictParameter()
     priority = 10
@@ -67,7 +87,7 @@ class ScoreMSIWithMSIsensor(ShellTask):
 
     def run(self):
         output_file_paths = [o.path for o in self.output()]
-        run_id = Path(output_file_paths).name
+        run_id = Path(output_file_paths[0]).name
         self.print_log(f'Score MSI with MSIsensor:\t{run_id}')
         msisensor = self.cf['msisensor']
         tumor_bam_path = self.input()[0][0].path

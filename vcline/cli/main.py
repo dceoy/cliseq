@@ -21,6 +21,9 @@ Usage:
     vcline funcotator [--debug|--info] [--cpus=<int>] [--ref-ver=<str>]
         [--normalize-vcf] [--output-format=<str>] [--dest-dir=<path>]
         <data_dir_path> <fa_path> <vcf_path>...
+    vcline snpeff [--debug|--info] [--cpus=<int>] [--ref-ver=<str>]
+        [--snpeff-genome=<ver>] [--normalize-vcf] [--dest-dir=<path>]
+        <snpeff_config_path> <fa_path> <vcf_path>...
     vcline -h|--help
     vcline --version
 
@@ -35,6 +38,8 @@ Commands:
                             Download gnomAD VCF and process it into AF-only VCF
     write-af-only-vcf       Extract and write only AF from VCF INFO
     create-interval-list    Create an interval_list from BED
+    funcotator              Create annotated VCFs using Funcotator
+    snpeff                  Create annotated VCFs using SnpEff
 
 Options:
     -h, --help              Print help and exit
@@ -51,6 +56,8 @@ Options:
     --src-url=<url>         Specify a source URL
     --src-path=<path>       Specify a source path
     --ref-ver=<str>         Specify a reference version [default: hg38]
+    --snpeff-genome=<ver>   Specify a SnpEff genome version
+                            (overriding --ref-ver)
     --normalize-vcf         Normalize VCF files
     --output-format=<str>   Specify output file format [default: VCF]
 
@@ -60,6 +67,7 @@ Args:
     <bed_path>              Path to a BED file
     <data_dir_path>         Path to a Funcotator data source directory
     <vcf_path>              Path to a VCF file
+    <snpeff_config_path>    Path to a SnpEff config file
 """
 
 import logging
@@ -79,6 +87,7 @@ from ..task.resource import (CreateIntervalListWithBED,
                              DownloadFuncotatorDataSources,
                              DownloadResourceFile, DownloadSnpEffDataSource,
                              WritePassingAfOnlyVCF)
+from ..task.snpeff import SnpEff
 from .util import (build_luigi_tasks, convert_url_to_dest_file_path,
                    fetch_executable, load_default_url_dict, print_log,
                    render_template, write_config_yml)
@@ -220,29 +229,51 @@ def main():
                 ],
                 log_level=log_level
             )
-        elif args['funcotator']:
+        elif args['funcotator'] or args['snpeff']:
             n_vcf = len(args['<vcf_path>'])
-            n_worker = min(n_cpu, n_vcf)
-            kwargs = {
-                'data_src_dir_path':
-                str(Path(args['<data_dir_path>']).resolve()),
+            n_worker = min(n_vcf)
+            common_kwargs = {
                 'fa_path': str(Path(args['<fa_path>']).resolve()),
                 'ref_version': args['--ref-ver'],
                 'dest_dir_path': dest_dir_path,
                 'normalize_vcf': args['--normalize-vcf'],
                 'n_cpu': (floor(n_cpu / n_vcf) if n_cpu > n_vcf else 1),
                 'memory_mb':
-                int(virtual_memory().total / 1024 / 1024 / n_worker),
-                'output_file_format': args['--output-format'],
-                **{c: fetch_executable(c) for c in ['gatk', 'bcftools']}
+                int(virtual_memory().total / 1024 / 1024 / n_worker)
             }
-            build_luigi_tasks(
-                tasks=[
-                    Funcotator(input_vcf_path=str(Path(p).resolve()), **kwargs)
-                    for p in args['<vcf_path>']
-                ],
-                workers=n_worker, log_level=log_level
-            )
+            if args['funcotator']:
+                kwargs = {
+                    'data_src_dir_path':
+                    str(Path(args['<data_dir_path>']).resolve()),
+                    'output_file_format': args['--output-format'],
+                    **{c: fetch_executable(c) for c in ['gatk', 'bcftools']},
+                    **common_kwargs
+                }
+                build_luigi_tasks(
+                    tasks=[
+                        Funcotator(
+                            input_vcf_path=str(Path(p).resolve()), **kwargs
+                        ) for p in args['<vcf_path>']
+                    ],
+                    workers=n_worker, log_level=log_level
+                )
+            else:
+                kwargs = {
+                    'snpeff_config_path':
+                    str(Path(args['<snpeff_config_path>']).resolve()),
+                    'snpeff_genome_version': args['--snpeff-genome'],
+                    **{
+                        c: fetch_executable(c)
+                        for c in ['snpeff', 'bcftools', 'bgzip']
+                    }
+                }
+                build_luigi_tasks(
+                    tasks=[
+                        SnpEff(input_vcf_path=str(Path(p).resolve()), **kwargs)
+                        for p in args['<vcf_path>']
+                    ],
+                    workers=n_worker, log_level=log_level
+                )
 
 
 def _run_analytical_pipeline(config_yml_path, dest_dir_path='.',

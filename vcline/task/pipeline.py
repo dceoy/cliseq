@@ -500,41 +500,42 @@ class RunAnalyticalPipeline(BaseTask):
 
     def _read_config_yml(self, config_yml_path):
         config = read_yml(path=str(Path(config_yml_path).resolve()))
-        assert isinstance(config, dict)
+        assert isinstance(config, dict), config
         for k in ['references', 'runs']:
-            assert config.get(k)
-        assert isinstance(config['references'], dict)
+            assert config.get(k), k
+        assert isinstance(config['references'], dict), config['references']
         for k in ['ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
                   'hapmap_vcf', 'gnomad_vcf', 'evaluation_interval',
                   'funcotator_germline_tar', 'funcotator_somatic_tar',
                   'snpeff_config', 'exome_manifest']:
             v = config['references'].get(k)
-            if k == 'ref_fa' and isinstance(v, list):
-                assert self._has_unique_elements(v)
+            if k == 'ref_fa' and isinstance(v, list) and v:
+                assert self._has_unique_elements(v), k
                 for s in v:
-                    assert isinstance(s, str)
-            else:
-                assert isinstance(v, str)
-        assert isinstance(config['runs'], list)
+                    assert isinstance(s, str), k
+            elif v:
+                assert isinstance(v, str), k
+        assert isinstance(config['runs'], list), config['runs']
         for r in config['runs']:
-            assert isinstance(r, dict)
-            assert set(r.keys()).intersection({'tumor', 'normal'})
+            assert isinstance(r, dict), r
+            assert set(r.keys()).intersection({'tumor', 'normal'}), r
             for t in ['tumor', 'normal']:
-                assert isinstance(r[t], dict)
-                assert r[t].get('fq') or r[t].get('cram')
-                if r[t].get('fq'):
-                    assert isinstance(r[t]['fq'], list)
-                    assert self._has_unique_elements(r[t]['fq'])
-                    assert len(r[t]['fq']) <= 2
+                s = r[t]
+                assert isinstance(s, dict), s
+                assert (s.get('fq') or s.get('cram')), s
+                if s.get('fq'):
+                    assert isinstance(s['fq'], list), s
+                    assert self._has_unique_elements(s['fq']), s
+                    assert (len(s['fq']) <= 2), s
                 else:
-                    assert isinstance(r[t]['cram'], str)
-                if r[t].get('read_group'):
-                    assert isinstance(r[k]['read_group'], dict)
-                    for k, v in r[t]['read_group'].items():
-                        assert re.fullmatch(r'[A-Z]{2}', k)
-                        assert type(v) not in [list, dict]
-                if r[t].get('sample_name'):
-                    assert isinstance(r[k]['sample_name'], str)
+                    assert isinstance(s['cram'], str), s
+                if s.get('read_group'):
+                    assert isinstance(s['read_group'], dict), s
+                    for k, v in s['read_group'].items():
+                        assert re.fullmatch(r'[A-Z]{2}', k), k
+                        assert isinstance(v, str), k
+                if s.get('sample_name'):
+                    assert isinstance(s['sample_name'], str), s
         return config
 
     @staticmethod
@@ -548,7 +549,6 @@ class RunAnalyticalPipeline(BaseTask):
         return str(p)
 
     def _resolve_input_file_paths(self, path_list=None, path_dict=None):
-        assert bool(path_list or path_dict)
         if path_list:
             return [self._resolve_file_path(s) for s in path_list]
         elif path_dict:
@@ -556,7 +556,7 @@ class RunAnalyticalPipeline(BaseTask):
             for k, v in path_dict.items():
                 if isinstance(v, str):
                     new_dict[f'{k}_path'] = self._resolve_file_path(v)
-                else:
+                elif v:
                     new_dict[f'{k}_paths'] = [
                         self._resolve_file_path(s) for s in v
                     ]
@@ -567,9 +567,6 @@ class RunAnalyticalPipeline(BaseTask):
         cram_paths = [d.get('cram') for d in tn]
         if all(cram_paths):
             cram_list = self._resolve_input_file_paths(path_list=cram_paths)
-            self._resolve_input_file_paths(
-                path_list=[f'{p}.crai' for p in cram_list]
-            )
             return {
                 'fq_list': list(), 'read_groups': list(),
                 'cram_list': cram_list,

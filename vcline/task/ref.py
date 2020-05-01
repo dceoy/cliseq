@@ -626,38 +626,34 @@ class PreprocessIntervals(ShellTask):
         )
 
 
-@requires(CreateCnvBlackListBED)
-class UncompressCnvBlackListBED(ShellTask):
+class UncompressBgzipFiles(ShellTask):
+    bgz_paths = luigi.ListParameter()
+    dest_dir_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 70
+    priority = 60
 
     def output(self):
-        return luigi.LocalTarget(
-            Path(self.cf['ref_dir_path']).joinpath(
-                'canvas/{}'.format(Path(self.input()[0].path).stem)
-            )
-        )
+        return [
+            luigi.LocalTarget(
+                str(Path(self.dest_dir_path).joinpath(Path(p).stem))
+            ) for p in self.bgz_paths
+        ]
 
     def run(self):
-        bed_path = self.input()[0].path
-        run_id = Path(Path(bed_path).stem).stem
-        self.print_log(f'Extract a blacklist BED:\t{run_id}')
+        run_id = Path(self.dest_dir_path).name
+        self.print_log(f'Uncompress bgzip files:\t{run_id}')
         bgzip = self.cf['bgzip']
         n_cpu = self.cf['n_cpu_per_worker']
-        uncompressed_bed_path = self.output().path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=bgzip, cwd=str(Path(uncompressed_bed_path).parent),
+            commands=bgzip, cwd=self.dest_dir_path,
             remove_if_failed=self.cf['remove_if_failed']
         )
-        self.run_shell(
-            args=(
-                f'set -e && {bgzip} -@ {n_cpu} -dc {bed_path}'
-                + f' > {uncompressed_bed_path}',
-            ),
-            input_files_or_dirs=bed_path,
-            output_files_or_dirs=uncompressed_bed_path
-        )
+        for p, o in zip(self.bgz_paths, self.output()):
+            self.run_shell(
+                args=f'set -e && {bgzip} -@ {n_cpu} -dc {p} > {o.path}',
+                input_files_or_dirs=p, output_files_or_dirs=o.path
+            )
 
 
 class CreateSymlinks(ShellTask):
@@ -674,7 +670,7 @@ class CreateSymlinks(ShellTask):
         ]
 
     def run(self):
-        run_id = Path(self.dest_dir_path).stem
+        run_id = Path(self.dest_dir_path).name
         self.print_log(f'Create a symlink:\t{run_id}')
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],

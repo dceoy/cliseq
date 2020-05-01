@@ -109,12 +109,12 @@ class MarkDuplicates(ShellTask):
         self.print_log(f'Mark duplicates:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        fa_path = self.input()[1][0].path
         output_cram_path = self.output()[0].path
         markdup_metrics_txt_path = self.output()[2].path
-        fa_path = self.input()[1][0].path
         tmp_bam_paths = [
             re.sub(r'\.cram$', f'.{s}.bam', output_cram_path)
-            for s in ['unfixed.unsorted', 'unfixed']
+            for s in ['unsorted.unfixed', 'unfixed']
         ]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
@@ -134,76 +134,81 @@ class MarkDuplicates(ShellTask):
             input_files_or_dirs=[input_cram_path, fa_path],
             output_files_or_dirs=tmp_bam_paths[0]
         )
-        yield SortSAM(
-            input_sam_path=tmp_bam_paths[0],
-            output_sam_path=tmp_bam_paths[1], fa_path=fa_path,
-            samtools=self.cf['samtools'], n_cpu=self.cf['n_cpu_per_worker'],
-            memory_per_thread=self.cf['samtools_memory_per_thread'],
-            remove_input=True, index_sam=False,
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
-        )
         yield SetNmMdAndUqTags(
-            input_bam_path=tmp_bam_paths[1], fa_path=fa_path,
-            output_cram_path=output_cram_path, gatk=gatk, gatk_opts=gatk_opts,
-            samtools=self.cf['samtools'], n_cpu=self.cf['n_cpu_per_worker'],
-            memory_per_thread=self.cf['samtools_memory_per_thread'],
-            remove_input=True, log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            input_sam_path=tmp_bam_paths[0], fa_path=fa_path,
+            sorted_bam_path=tmp_bam_paths[1],
+            output_cram_path=output_cram_path, cf=self.cf, remove_input=True
         )
 
 
 class SetNmMdAndUqTags(ShellTask):
-    input_bam_path = luigi.Parameter()
+    input_sam_path = luigi.Parameter()
     fa_path = luigi.Parameter()
+    sorted_bam_path = luigi.Parameter()
     output_cram_path = luigi.Parameter()
-    gatk = luigi.Parameter()
-    gatk_opts = luigi.Parameter()
-    samtools = luigi.Parameter()
-    n_cpu = luigi.IntParameter(default=1)
-    memory_per_thread = luigi.Parameter(default='768M')
+    cf = luigi.DictParameter()
     remove_input = luigi.BoolParameter(default=True)
-    log_dir_path = luigi.Parameter(default='')
-    remove_if_failed = luigi.BoolParameter(default=True)
     priority = 70
+
+    def requires(self):
+        return SortSAM(
+            input_sam_path=self.input_sam_path,
+            output_sam_path=self.sorted_bam_path, fa_path=self.fa_path,
+            samtools=self.cf['samtools'], n_cpu=self.cf['n_cpu_per_worker'],
+            memory_per_thread=self.cf['samtools_memory_per_thread'],
+            remove_input=self.remove_input, index_sam=False,
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
+        )
 
     def output(self):
         return [
-            luigi.LocalTarget(self.output_cram_path + s) for s in ['', '.crai']
+            luigi.LocalTarget(self.output_cram_path + s)
+            for s in ['', '.crai']
         ]
 
     def run(self):
-        run_id = Path(self.input_bam_path).stem
-        self.print_log(f'Calculatesthe NM, MD, and UQ tags:\t{run_id}')
-        tmp_bam_path = re.sub(r'\.cram$', '.bam', self.output_cram_path)
+        sorted_bam_path = self.input()[0].path
+        run_id = Path(sorted_bam_path).stem
+        self.print_log(f'Calculate NM, MD, and UQ tags:\t{run_id}')
+        gatk = self.cf['gatk']
+        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        output_cram_path = self.output()[0].path
+        fixed_bam_path = re.sub(r'\.cram$', '.bam', output_cram_path)
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.log_dir_path,
-            commands=self.gatk, cwd=str(Path(tmp_bam_path).parent),
-            remove_if_failed=self.remove_if_failed,
-            env={'REF_CACHE': '.ref_cache'}
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=gatk, cwd=self.cf['align_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
-                f'set -e && {self.gatk}{self.gatk_opts} SetNmMdAndUqTags'
-                + f' --INPUT {self.input_bam_path}'
-                + f' --OUTPUT {tmp_bam_path}'
+                f'set -e && {gatk}{gatk_opts} SetNmMdAndUqTags'
+                + f' --INPUT {sorted_bam_path}'
+                + f' --OUTPUT {fixed_bam_path}'
                 + f' --REFERENCE_SEQUENCE {self.fa_path}'
             ),
-            input_files_or_dirs=[self.input_bam_path, self.fa_path],
-            output_files_or_dirs=tmp_bam_path
+            input_files_or_dirs=[sorted_bam_path, self.fa_path],
+            output_files_or_dirs=fixed_bam_path
         )
         yield SamtoolsView(
-            input_sam_path=tmp_bam_path,
-            output_sam_path=self.output_cram_path,
-            fa_path=self.fa_path, samtools=self.samtools, n_cpu=self.n_cpu,
-            remove_input=self.remove_input, log_dir_path=self.log_dir_path,
-            remove_if_failed=self.remove_if_failed
+            input_sam_path=fixed_bam_path,
+            output_sam_path=output_cram_path,
+            fa_path=self.fa_path, samtools=self.cf['samtools'],
+            n_cpu=self.cf['n_cpu_per_worker'], remove_input=True,
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
         yield SamtoolsIndex(
-            sam_path=self.output_cram_path, samtools=self.samtools,
-            n_cpu=self.n_cpu, log_dir_path=self.log_dir_path,
-            remove_if_failed=self.remove_if_failed
+            sam_path=output_cram_path, samtools=self.cf['samtools'],
+            n_cpu=self.cf['n_cpu_per_worker'],
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
+        if self.remove_input:
+            self.run_shell(
+                args=f'rm -f {sorted_bam_path}',
+                input_files_or_dirs=sorted_bam_path
+            )
 
 
 @requires(MarkDuplicates, FetchReferenceFASTA, CreateSequenceDictionary,
@@ -300,10 +305,10 @@ class RemoveDuplicates(BaseTask):
             luigi.LocalTarget(
                 str(
                     Path(self.cf['align_dir_path']).joinpath(
-                        Path(self.input()[0][0].path).stem + f'.dedup.{s}'
+                        Path(self.input()[0][0].path).stem + f'.dedup.cram{s}'
                     )
                 )
-            ) for s in ['cram', 'cram.crai']
+            ) for s in ['', '.crai']
         ]
 
     def run(self):
@@ -324,7 +329,7 @@ class RemoveDuplicates(BaseTask):
         )
 
 
-class PrepareCRAMTumor(luigi.WrapperTask):
+class PrepareCRAMTumor(BaseTask):
     ref_fa_path = luigi.Parameter()
     fq_list = luigi.ListParameter()
     cram_list = luigi.ListParameter()
@@ -356,8 +361,17 @@ class PrepareCRAMTumor(luigi.WrapperTask):
         else:
             return self.input()
 
+    def run(self):
+        if self.cram_list:
+            yield SamtoolsIndex(
+                sam_path=self.cram_list[0], samtools=self.cf['samtools'],
+                n_cpu=self.cf['n_cpu_per_worker'],
+                log_dir_path=self.cf['log_dir_path'],
+                remove_if_failed=self.cf['remove_if_failed']
+            )
 
-class PrepareCRAMNormal(luigi.WrapperTask):
+
+class PrepareCRAMNormal(BaseTask):
     ref_fa_path = luigi.Parameter()
     fq_list = luigi.ListParameter()
     cram_list = luigi.ListParameter()
@@ -389,6 +403,15 @@ class PrepareCRAMNormal(luigi.WrapperTask):
         else:
             return self.input()
 
+    def run(self):
+        if self.cram_list:
+            yield SamtoolsIndex(
+                sam_path=self.cram_list[1], samtools=self.cf['samtools'],
+                n_cpu=self.cf['n_cpu_per_worker'],
+                log_dir_path=self.cf['log_dir_path'],
+                remove_if_failed=self.cf['remove_if_failed']
+            )
+
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal)
 class PrepareCRAMsMatched(luigi.WrapperTask):
@@ -415,20 +438,9 @@ class PrepareBAMTumor(BaseTask):
         ]
 
     def run(self):
-        cram_path = self.input()[0][0].path
-        bam_path = self.output()[0].path
-        yield SamtoolsView(
-            input_sam_path=cram_path, output_sam_path=bam_path,
-            fa_path=self.input()[1][0].path, samtools=self.cf['samtools'],
-            n_cpu=self.cf['n_cpu_per_worker'], message='Convert CRAM to BAM',
-            remove_input=False, log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
-        )
-        yield SamtoolsIndex(
-            sam_path=bam_path, samtools=self.cf['samtools'],
-            n_cpu=self.cf['n_cpu_per_worker'],
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+        yield CreateBAMFromCRAM(
+            cram_path=self.input()[0][0].path, bam_path=self.output()[0].path,
+            fa_path=self.input()[1][0].path, cf=self.cf
         )
 
 
@@ -445,21 +457,36 @@ class PrepareBAMNormal(BaseTask):
                         Path(self.input()[0][0].path).stem + f'.bam{s}'
                     )
                 )
-            ) for s in ['', 'bai']
+            ) for s in ['', '.bai']
         ]
 
     def run(self):
-        cram_path = self.input()[0][0].path
-        bam_path = self.output()[0].path
+        yield CreateBAMFromCRAM(
+            cram_path=self.input()[0][0].path, bam_path=self.output()[0].path,
+            fa_path=self.input()[1][0].path, cf=self.cf
+        )
+
+
+class CreateBAMFromCRAM(BaseTask):
+    cram_path = luigi.Parameter()
+    bam_path = luigi.Parameter()
+    fa_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 10
+
+    def output(self):
+        return [luigi.LocalTarget(self.bam_path + s) for s in ['', '.bai']]
+
+    def run(self):
         yield SamtoolsView(
-            input_sam_path=cram_path, output_sam_path=bam_path,
-            fa_path=self.input()[1][0].path, samtools=self.cf['samtools'],
-            n_cpu=self.cf['n_cpu_per_worker'], message='Convert CRAM to BAM',
+            input_sam_path=self.cram_path, output_sam_path=self.bam_path,
+            fa_path=self.fa_path, samtools=self.cf['samtools'],
+            n_cpu=self.cf['n_cpu_per_worker'], message='Create BAM from CRAM',
             remove_input=False, log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
         )
         yield SamtoolsIndex(
-            sam_path=bam_path, samtools=self.cf['samtools'],
+            sam_path=self.bam_path, samtools=self.cf['samtools'],
             n_cpu=self.cf['n_cpu_per_worker'],
             log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']

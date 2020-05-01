@@ -63,9 +63,9 @@ class FuncotateVariants(BaseTask):
             dest_dir_path=self.cf['postproc_funcotator_dir_path'],
             normalize_vcf=self.normalize_vcf,
             norm_dir_path=self.cf['postproc_bcftools_dir_path'],
-            gatk=self.cf['gatk'],
+            bcftools=self.cf['bcftools'], gatk=self.cf['gatk'],
             gatk_java_options=self.cf['gatk_java_options'],
-            bcftools=self.cf['bcftools'], n_cpu=self.cf['n_cpu_per_worker'],
+            n_cpu=self.cf['n_cpu_per_worker'],
             memory_mb=self.cf['memory_mb_per_worker'],
             log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
@@ -82,9 +82,9 @@ class Funcotator(ShellTask):
     dest_dir_path = luigi.Parameter(default='.')
     normalize_vcf = luigi.BoolParameter(default=False)
     norm_dir_path = luigi.Parameter(default='')
+    bcftools = luigi.Parameter()
     gatk = luigi.Parameter()
     gatk_java_options = luigi.Parameter(default='')
-    bcftools = luigi.Parameter()
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.IntParameter(default=(4 * 1024))
     log_dir_path = luigi.Parameter(default='')
