@@ -82,7 +82,7 @@ class ScoreMSIWithMSIsensor(ShellTask):
                         ) + s
                     )
                 )
-            ) for s in ['', '_dis_tab', '_germline', '_somatic']
+            ) for s in ['', '_dis', '_germline', '_somatic']
         ]
 
     def run(self):

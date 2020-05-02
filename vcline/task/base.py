@@ -10,6 +10,8 @@ from shoper.shelloperator import ShellOperator
 
 
 class BaseTask(luigi.Task):
+    retry_count = 0
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

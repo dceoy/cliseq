@@ -100,7 +100,7 @@ class MarkDuplicates(ShellTask):
                         Path(self.input()[0][0].path).stem + f'.markdup.{s}'
                     )
                 )
-            ) for s in ['cram', 'cram.crai', 'metrics.txt']
+            ) for s in ['unfixed.bam', 'metrics.txt']
         ]
 
     def run(self):
@@ -110,12 +110,9 @@ class MarkDuplicates(ShellTask):
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         fa_path = self.input()[1][0].path
-        output_cram_path = self.output()[0].path
-        markdup_metrics_txt_path = self.output()[2].path
-        tmp_bam_paths = [
-            re.sub(r'\.cram$', f'.{s}.bam', output_cram_path)
-            for s in ['unsorted.unfixed', 'unfixed']
-        ]
+        output_bam_path = self.output()[0].path
+        markdup_metrics_txt_path = self.output()[1].path
+        tmp_bam_path = re.sub(r'\.bam$', '.unsorted.bam', output_bam_path)
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=gatk, cwd=self.cf['align_dir_path'],
@@ -128,53 +125,49 @@ class MarkDuplicates(ShellTask):
                 + f' --INPUT {input_cram_path}'
                 + f' --REFERENCE_SEQUENCE {fa_path}'
                 + f' --METRICS_FILE {markdup_metrics_txt_path}'
-                + f' --OUTPUT {tmp_bam_paths[0]}'
+                + f' --OUTPUT {tmp_bam_path}'
                 + ' --ASSUME_SORT_ORDER coordinate'
             ),
             input_files_or_dirs=[input_cram_path, fa_path],
-            output_files_or_dirs=tmp_bam_paths[0]
+            output_files_or_dirs=tmp_bam_path
         )
-        yield SetNmMdAndUqTags(
-            input_sam_path=tmp_bam_paths[0], fa_path=fa_path,
-            sorted_bam_path=tmp_bam_paths[1],
-            output_cram_path=output_cram_path, cf=self.cf, remove_input=True
-        )
-
-
-class SetNmMdAndUqTags(ShellTask):
-    input_sam_path = luigi.Parameter()
-    fa_path = luigi.Parameter()
-    sorted_bam_path = luigi.Parameter()
-    output_cram_path = luigi.Parameter()
-    cf = luigi.DictParameter()
-    remove_input = luigi.BoolParameter(default=True)
-    priority = 70
-
-    def requires(self):
-        return SortSAM(
-            input_sam_path=self.input_sam_path,
-            output_sam_path=self.sorted_bam_path, fa_path=self.fa_path,
-            samtools=self.cf['samtools'], n_cpu=self.cf['n_cpu_per_worker'],
+        yield SortSAM(
+            input_sam_path=tmp_bam_path, output_sam_path=output_bam_path,
+            fa_path=fa_path, samtools=self.cf['samtools'],
+            n_cpu=self.cf['n_cpu_per_worker'],
             memory_per_thread=self.cf['samtools_memory_per_thread'],
-            remove_input=self.remove_input, index_sam=False,
+            remove_input=True, index_sam=False,
             log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
 
+
+@requires(MarkDuplicates, FetchReferenceFASTA, CreateSequenceDictionary)
+class SetNmMdAndUqTags(ShellTask):
+    cf = luigi.DictParameter()
+    priority = 70
+
     def output(self):
         return [
-            luigi.LocalTarget(self.output_cram_path + s)
-            for s in ['', '.crai']
+            luigi.LocalTarget(
+                str(
+                    Path(self.cf['align_dir_path']).joinpath(
+                        Path(Path(self.input()[0][0].path).stem).stem
+                        + f'.cram{s}'
+                    )
+                )
+            ) for s in ['', '.crai']
         ]
 
     def run(self):
-        sorted_bam_path = self.input()[0].path
-        run_id = Path(sorted_bam_path).stem
+        input_bam_path = self.input()[0][0].path
+        run_id = Path(input_bam_path).stem
         self.print_log(f'Calculate NM, MD, and UQ tags:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        fa_path = self.input()[1][0].path
         output_cram_path = self.output()[0].path
-        fixed_bam_path = re.sub(r'\.cram$', '.bam', output_cram_path)
+        tmp_bam_path = re.sub(r'\.cram$', '.bam', output_cram_path)
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=gatk, cwd=self.cf['align_dir_path'],
@@ -183,17 +176,16 @@ class SetNmMdAndUqTags(ShellTask):
         self.run_shell(
             args=(
                 f'set -e && {gatk}{gatk_opts} SetNmMdAndUqTags'
-                + f' --INPUT {sorted_bam_path}'
-                + f' --OUTPUT {fixed_bam_path}'
-                + f' --REFERENCE_SEQUENCE {self.fa_path}'
+                + f' --INPUT {input_bam_path}'
+                + f' --OUTPUT {tmp_bam_path}'
+                + f' --REFERENCE_SEQUENCE {fa_path}'
             ),
-            input_files_or_dirs=[sorted_bam_path, self.fa_path],
-            output_files_or_dirs=fixed_bam_path
+            input_files_or_dirs=[input_bam_path, fa_path],
+            output_files_or_dirs=tmp_bam_path
         )
         yield SamtoolsView(
-            input_sam_path=fixed_bam_path,
-            output_sam_path=output_cram_path,
-            fa_path=self.fa_path, samtools=self.cf['samtools'],
+            input_sam_path=tmp_bam_path, output_sam_path=output_cram_path,
+            fa_path=fa_path, samtools=self.cf['samtools'],
             n_cpu=self.cf['n_cpu_per_worker'], remove_input=True,
             log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
@@ -204,11 +196,9 @@ class SetNmMdAndUqTags(ShellTask):
             log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
         )
-        if self.remove_input:
-            self.run_shell(
-                args=f'rm -f {sorted_bam_path}',
-                input_files_or_dirs=sorted_bam_path
-            )
+        self.run_shell(
+            args=f'rm -f {input_bam_path}', input_files_or_dirs=input_bam_path
+        )
 
 
 @requires(MarkDuplicates, FetchReferenceFASTA, CreateSequenceDictionary,

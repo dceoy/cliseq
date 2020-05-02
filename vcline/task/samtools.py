@@ -13,7 +13,7 @@ class SamtoolsFaidx(ShellTask):
     samtools = luigi.Parameter()
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
-    priority = 10
+    priority = 50
 
     def output(self):
         return luigi.LocalTarget(self.fa_path + '.fai')
@@ -40,7 +40,7 @@ class SamtoolsIndex(ShellTask):
     n_cpu = luigi.IntParameter(default=1)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
-    priority = 10
+    priority = 50
 
     def output(self):
         return luigi.LocalTarget(
@@ -77,7 +77,7 @@ class SamtoolsView(ShellTask):
     remove_input = luigi.BoolParameter(default=True)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
-    priority = 10
+    priority = 50
 
     def output(self):
         return luigi.LocalTarget(self.output_sam_path)
@@ -125,7 +125,7 @@ class SortSAM(ShellTask):
     remove_input = luigi.BoolParameter(default=True)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
-    priority = 10
+    priority = 50
 
     def output(self):
         if self.index_sam:
@@ -190,7 +190,7 @@ class MergeSAMsIntoSortedSAM(ShellTask):
     remove_input = luigi.BoolParameter(default=True)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
-    priority = 10
+    priority = 50
 
     def output(self):
         if self.index_sam:
@@ -267,7 +267,7 @@ class Tabix(ShellTask):
     preset = luigi.Parameter(default='bed')
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
-    priority = 10
+    priority = 50
 
     def output(self):
         return luigi.LocalTarget(f'{self.tsv_path}.tbi')

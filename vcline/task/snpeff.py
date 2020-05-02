@@ -99,7 +99,7 @@ class SnpEff(ShellTask):
                 str(
                     Path(self.dest_dir_path).joinpath(
                         re.sub(
-                            r'\.vcf$', f'.snpeff.{s}',
+                            r'\.vcf$', f'.snpeff.vcf.gz{s}',
                             Path(
                                 self.input()[0].path if self.normalize_vcf
                                 else self.input_vcf_path
@@ -107,7 +107,7 @@ class SnpEff(ShellTask):
                         )
                     )
                 )
-            ) for s in ['vcf.gz', 'vcf.gz.tbi', 'genes.txt', 'summary.html']
+            ) for s in ['', '.tbi']
         ]
 
     def run(self):
@@ -152,21 +152,20 @@ class SnpEff(ShellTask):
                 + f' | {self.bgzip} -@ {self.n_cpu} -c > {tmp_file_paths[0]}'
             ),
             input_files_or_dirs=[input_vcf_path, tmp_dir_path],
-            output_files_or_dirs=[*tmp_file_paths, tmp_dir_path]
+            output_files_or_dirs=[tmp_file_paths[0], tmp_dir_path]
         )
+        for p in tmp_file_paths:
+            i = Path(p)
+            if i.is_file():
+                o = Path(self.dest_dir_path).joinpath(
+                    f'{output_prefix}.{i.name}'
+                )
+                self.run_shell(
+                    args=f'mv {i} {o}', input_files_or_dirs=str(i),
+                    output_files_or_dirs=str(o)
+                )
         self.run_shell(
-            args=[
-                *[
-                    'mv {0} {1}'.format(
-                        p,
-                        Path(self.dest_dir_path).joinpath(
-                            f'{output_prefix}.' + Path(p).name
-                        )
-                    ) for p in tmp_file_paths
-                ],
-                f'rm -rf {tmp_dir_path}'
-            ],
-            input_files_or_dirs=tmp_file_paths
+            args=f'rm -rf {tmp_dir_path}', input_files_or_dirs=tmp_dir_path
         )
         yield BcftoolsIndex(
             vcf_path=output_vcf_path, bcftools=self.bcftools,
