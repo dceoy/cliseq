@@ -5,7 +5,7 @@ from pathlib import Path
 
 import luigi
 
-from .base import ShellTask
+from .base import BaseTask, ShellTask
 
 
 class SamtoolsFaidx(ShellTask):
@@ -112,6 +112,53 @@ class SamtoolsView(ShellTask):
                 args=f'rm -f {self.input_sam_path}',
                 input_files_or_dirs=[self.input_sam_path, self.output_sam_path]
             )
+
+
+class SamtoolsViewAndSamtoolsIndex(BaseTask):
+    input_sam_path = luigi.Parameter()
+    output_sam_path = luigi.Parameter()
+    fa_path = luigi.Parameter()
+    samtools = luigi.Parameter()
+    n_cpu = luigi.IntParameter(default=1)
+    add_args = luigi.Parameter(default='')
+    message = luigi.Parameter(default='')
+    remove_input = luigi.BoolParameter(default=True)
+    log_dir_path = luigi.Parameter(default='')
+    remove_if_failed = luigi.BoolParameter(default=True)
+    priority = 50
+
+    def output(self):
+        return [
+            luigi.LocalTarget(self.output_sam_path),
+            luigi.LocalTarget(
+                re.sub(r'\.(cr|b)am$', '.\\1am.\\1ai', self.output_sam_path)
+            )
+        ]
+
+    def run(self):
+        if self.message:
+            message = self.message
+        elif (self.input_sam_path.endswith('.bam')
+              and self.output_sam_path.endswith('.cram')):
+            message = 'Convert BAM to CRAM'
+        elif (self.input_sam_path.endswith('.cram')
+              and self.output_sam_path.endswith('.bam')):
+            message = 'Convert CRAM to BAM'
+        else:
+            message = ''
+        yield SamtoolsView(
+            input_sam_path=self.input_sam_path,
+            output_sam_path=self.output_sam_path, fa_path=self.fa_path,
+            samtools=self.samtools, n_cpu=self.n_cpu, add_args=self.add_args,
+            message=message, remove_input=self.remove_input,
+            log_dir_path=self.log_dir_path,
+            remove_if_failed=self.remove_if_failed,
+        )
+        yield SamtoolsIndex(
+            sam_path=self.output_sam_path, samtools=self.samtools,
+            n_cpu=self.n_cpu, log_dir_path=self.log_dir_path,
+            remove_if_failed=self.remove_if_failed
+        )
 
 
 class SortSAM(ShellTask):
