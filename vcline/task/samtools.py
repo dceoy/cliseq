@@ -146,7 +146,7 @@ class SamtoolsViewAndSamtoolsIndex(BaseTask):
             message = 'Convert CRAM to BAM'
         else:
             message = ''
-        yield SamtoolsView(
+        target = yield SamtoolsView(
             input_sam_path=self.input_sam_path,
             output_sam_path=self.output_sam_path, fa_path=self.fa_path,
             samtools=self.samtools, n_cpu=self.n_cpu, add_args=self.add_args,
@@ -155,8 +155,8 @@ class SamtoolsViewAndSamtoolsIndex(BaseTask):
             remove_if_failed=self.remove_if_failed,
         )
         yield SamtoolsIndex(
-            sam_path=self.output_sam_path, samtools=self.samtools,
-            n_cpu=self.n_cpu, log_dir_path=self.log_dir_path,
+            sam_path=target.path, samtools=self.samtools, n_cpu=self.n_cpu,
+            log_dir_path=self.log_dir_path,
             remove_if_failed=self.remove_if_failed
         )
 

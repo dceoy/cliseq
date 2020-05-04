@@ -330,11 +330,6 @@ class CreateExclusionIntervalListBED(ShellTask):
             ),
             input_files_or_dirs=fai_path, output_files_or_dirs=genome_bed_path
         )
-        yield Tabix(
-            tsv_path=genome_bed_path, tabix=self.cf['tabix'], preset='bed',
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
-        )
         self.run_shell(
             args=(
                 f'set -eo pipefail && {bedtools} subtract'
@@ -344,11 +339,13 @@ class CreateExclusionIntervalListBED(ShellTask):
             input_files_or_dirs=[genome_bed_path, evaluation_bed_path],
             output_files_or_dirs=exclusion_bed_path
         )
-        yield Tabix(
-            tsv_path=exclusion_bed_path, tabix=self.cf['tabix'], preset='bed',
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
-        )
+        yield [
+            Tabix(
+                tsv_path=p, tabix=self.cf['tabix'], preset='bed',
+                log_dir_path=self.cf['log_dir_path'],
+                remove_if_failed=self.cf['remove_if_failed']
+            ) for p in [genome_bed_path, exclusion_bed_path]
+        ]
 
 
 @requires(FetchReferenceFASTA)

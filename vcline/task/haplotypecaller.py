@@ -117,12 +117,12 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         evaluation_interval_paths = [i.path for i in self.input()[3]]
         output_cram_path = self.output()[2].path
         if len(evaluation_interval_paths) == 1:
-            tmp_bam_paths = [re.sub(r'(\.cram)$', '.bam', output_cram_path)]
+            tmp_cram_paths = [output_cram_path]
             tmp_gvcf_paths = [gvcf_path]
         else:
-            tmp_bam_paths = [
+            tmp_cram_paths = [
                 re.sub(
-                    r'(\.cram)$', '.{}.bam'.format(Path(i).stem),
+                    r'(\.cram)$', '.{}.cram'.format(Path(i).stem),
                     output_cram_path
                 ) for i in evaluation_interval_paths
             ]
@@ -162,25 +162,29 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                             f' --gvcf-gq-bands {i}' for i in range(10, 100, 10)
                         ]
                     )
-                    + ' --create-output-bam-index false'
+                    + ' --create-output-bam-index {}'.format(
+                        str(len(evaluation_interval_paths) == 1).lower()
+                    )
                 ) for i, g, b in zip(
-                    evaluation_interval_paths, tmp_gvcf_paths, tmp_bam_paths
+                    evaluation_interval_paths, tmp_gvcf_paths, tmp_cram_paths
                 )
             ],
             input_files_or_dirs=[
                 input_cram_path, fa_path, dbsnp_vcf_path,
                 *evaluation_interval_paths
             ],
-            output_files_or_dirs=[*tmp_gvcf_paths, *tmp_bam_paths],
+            output_files_or_dirs=[*tmp_gvcf_paths, *tmp_cram_paths],
             asynchronous=(len(evaluation_interval_paths) > 1)
         )
-        yield MergeSAMsIntoSortedSAM(
-            input_sam_paths=tmp_bam_paths, output_sam_path=output_cram_path,
-            fa_path=fa_path, samtools=samtools, n_cpu=n_cpu,
-            memory_per_thread=memory_per_thread,
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
-        )
+        if len(evaluation_interval_paths) > 1:
+            yield MergeSAMsIntoSortedSAM(
+                input_sam_paths=tmp_cram_paths,
+                output_sam_path=output_cram_path, fa_path=fa_path,
+                samtools=samtools, n_cpu=n_cpu,
+                memory_per_thread=memory_per_thread,
+                log_dir_path=self.cf['log_dir_path'],
+                remove_if_failed=self.cf['remove_if_failed']
+            )
         if len(tmp_gvcf_paths) > 1:
             self.run_shell(
                 args=(

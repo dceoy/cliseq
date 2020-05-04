@@ -116,7 +116,7 @@ class MarkDuplicates(ShellTask):
         output_cram_path = self.output()[0].path
         tmp_bam_paths = [
             re.sub(r'\.cram', f'{s}.bam', output_cram_path)
-            for s in ['unfixed.unsorted', '']
+            for s in ['.unfixed.unsorted', '']
         ]
         markdup_metrics_txt_path = self.output()[2].path
         self.setup_shell(
@@ -151,21 +151,14 @@ class MarkDuplicates(ShellTask):
             output_files_or_dirs=tmp_bam_paths[1]
         )
         self.run_shell(
-            args=(
-                + f'set -e && {samtools} view -@ {n_cpu} -T {fa_path} -CS'
-                + f' -o {output_cram_path} {tmp_bam_paths[1]}'
-            ),
-            input_files_or_dirs=[tmp_bam_paths[1], fa_path],
-            output_files_or_dirs=output_cram_path
+            args=f'rm -f {tmp_bam_paths[0]}',
+            input_files_or_dirs=tmp_bam_paths[0]
         )
-        yield SamtoolsIndex(
-            sam_path=output_cram_path, samtools=samtools, n_cpu=n_cpu,
-            log_dir_path=self.cf['log_dir_path'],
+        yield SamtoolsViewAndSamtoolsIndex(
+            input_sam_path=tmp_bam_paths[1], output_sam_path=output_cram_path,
+            fa_path=fa_path, samtools=samtools, n_cpu=n_cpu,
+            remove_input=True, log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
-        )
-        self.run_shell(
-            args='rm -f {0} {1}'.format(*tmp_bam_paths),
-            input_files_or_dirs=tmp_bam_paths
         )
 
 
@@ -232,7 +225,6 @@ class ApplyBQSR(ShellTask):
                 + ' --static-quantized-quals 30'
                 + ' --add-output-sam-program-record'
                 + ' --use-original-qualities'
-                + ' --create-output-bam-index false'
             ),
             input_files_or_dirs=[input_cram_path, fa_path, bqsr_csv_path],
             output_files_or_dirs=output_cram_path

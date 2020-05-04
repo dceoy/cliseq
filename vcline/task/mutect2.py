@@ -160,12 +160,12 @@ class CallVariantsWithMutect2(ShellTask):
         output_cram_path = self.output()[3].path
         ob_priors_path = self.output()[5].path
         if len(evaluation_interval_paths) == 1:
-            tmp_bam_paths = [re.sub(r'(\.cram)$', '.bam', output_cram_path)]
+            tmp_cram_paths = [output_cram_path]
             tmp_vcf_paths = [raw_vcf_path]
         else:
-            tmp_bam_paths = [
+            tmp_cram_paths = [
                 re.sub(
-                    r'\.cram$', '.{}.bam'.format(Path(i).stem),
+                    r'\.cram$', '.{}.cram'.format(Path(i).stem),
                     output_cram_path
                 ) for i in evaluation_interval_paths
             ]
@@ -206,9 +206,11 @@ class CallVariantsWithMutect2(ShellTask):
                     + f' --native-pair-hmm-threads {n_cpu}'
                     + f' --disable-bam-index-caching {save_memory}'
                     + ' --max-mnp-distance 0'
-                    + ' --create-output-bam-index false'
+                    + ' --create-output-bam-index {}'.format(
+                        str(len(evaluation_interval_paths) == 1).lower()
+                    )
                 ) for i, v, b, f in zip(
-                    evaluation_interval_paths, tmp_vcf_paths, tmp_bam_paths,
+                    evaluation_interval_paths, tmp_vcf_paths, tmp_cram_paths,
                     f1r2_paths
                 )
             ],
@@ -217,17 +219,19 @@ class CallVariantsWithMutect2(ShellTask):
                 gnomad_vcf_path
             ],
             output_files_or_dirs=[
-                *tmp_vcf_paths, *tmp_bam_paths, *f1r2_paths, *tmp_stats_paths
+                *tmp_vcf_paths, *tmp_cram_paths, *f1r2_paths, *tmp_stats_paths
             ],
             asynchronous=(len(evaluation_interval_paths) > 1)
         )
-        yield MergeSAMsIntoSortedSAM(
-            input_sam_paths=tmp_bam_paths, output_sam_path=output_cram_path,
-            fa_path=fa_path, samtools=samtools, n_cpu=n_cpu,
-            memory_per_thread=memory_per_thread,
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
-        )
+        if len(evaluation_interval_paths) > 1:
+            yield MergeSAMsIntoSortedSAM(
+                input_sam_paths=tmp_cram_paths,
+                output_sam_path=output_cram_path, fa_path=fa_path,
+                samtools=samtools, n_cpu=n_cpu,
+                memory_per_thread=memory_per_thread,
+                log_dir_path=self.cf['log_dir_path'],
+                remove_if_failed=self.cf['remove_if_failed']
+            )
         self.run_shell(
             args=(
                 f'set -e && {gatk}{gatk_opts} LearnReadOrientationModel'

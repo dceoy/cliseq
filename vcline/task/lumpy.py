@@ -10,7 +10,7 @@ from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
 from .ref import CreateExclusionIntervalListBED, FetchReferenceFASTA
-from .samtools import SamtoolsView
+from .samtools import SamtoolsView, SamtoolsViewAndSamtoolsIndex
 
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFASTA,
@@ -69,13 +69,14 @@ class CallStructualVariantsWithLumpy(ShellTask):
             re.sub(r'\.cram$', '.bam', o.path) for o in self.output()[3:5]
         ]
         uncompressed_vcf_path = re.sub(r'\.gz', '', output_vcf_path)
-        for i, o in zip(input_cram_paths, discordants_bam_paths):
-            yield SamtoolsView(
+        yield [
+            SamtoolsView(
                 input_sam_path=i, output_sam_path=o, fa_path=fa_path,
                 samtools=samtools, n_cpu=n_cpu, add_args='-F 1294',
                 remove_input=False, log_dir_path=self.cf['log_dir_path'],
                 remove_if_failed=self.cf['remove_if_failed']
-            )
+            ) for i, o in zip(input_cram_paths, discordants_bam_paths)
+        ]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[
@@ -122,14 +123,15 @@ class CallStructualVariantsWithLumpy(ShellTask):
             input_files_or_dirs=uncompressed_vcf_path,
             output_files_or_dirs=output_vcf_path
         )
-        for p in [*discordants_bam_paths, *splitters_bam_paths]:
-            yield SamtoolsView(
+        yield [
+            SamtoolsViewAndSamtoolsIndex(
                 input_sam_path=p,
                 output_sam_path=re.sub(r'\.cram$', '.bam', p),
                 fa_path=fa_path, samtools=samtools, n_cpu=n_cpu,
                 remove_input=True, log_dir_path=self.cf['log_dir_path'],
                 remove_if_failed=self.cf['remove_if_failed']
-            )
+            ) for p in [*discordants_bam_paths, *splitters_bam_paths]
+        ]
 
 
 if __name__ == '__main__':
