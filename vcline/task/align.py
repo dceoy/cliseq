@@ -23,12 +23,10 @@ class AlignReads(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['align_dir_path']).joinpath(
-                        '{0}.trim.{1}.cram{2}'.format(
-                            parse_fq_id(fq_path=self.input()[0][0].path),
-                            Path(self.input()[1][0].path).stem, s
-                        )
+                Path(self.cf['align_dir_path']).joinpath(
+                    '{0}.trim.{1}.cram{2}'.format(
+                        parse_fq_id(fq_path=self.input()[0][0].path),
+                        Path(self.input()[1][0].path).stem, s
                     )
                 )
             ) for s in ['', '.crai']
@@ -95,10 +93,8 @@ class MarkDuplicates(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['align_dir_path']).joinpath(
-                        Path(self.input()[0][0].path).stem + f'.markdup.{s}'
-                    )
+                Path(self.cf['align_dir_path']).joinpath(
+                    Path(self.input()[0][0].path).stem + f'.markdup.{s}'
                 )
             ) for s in ['cram', 'cram.crai', 'metrics.txt']
         ]
@@ -150,15 +146,15 @@ class MarkDuplicates(ShellTask):
             input_files_or_dirs=[tmp_bam_paths[0], fa_path],
             output_files_or_dirs=tmp_bam_paths[1]
         )
-        self.run_shell(
-            args=f'rm -f {tmp_bam_paths[0]}',
-            input_files_or_dirs=tmp_bam_paths[0]
-        )
         yield SamtoolsViewAndSamtoolsIndex(
             input_sam_path=tmp_bam_paths[1], output_sam_path=output_cram_path,
             fa_path=fa_path, samtools=samtools, n_cpu=n_cpu,
-            remove_input=True, log_dir_path=self.cf['log_dir_path'],
+            remove_input=False, log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed']
+        )
+        self.run_shell(
+            args='rm -f {0} {1}'.format(*tmp_bam_paths),
+            input_files_or_dirs=tmp_bam_paths
         )
 
 
@@ -171,10 +167,8 @@ class ApplyBQSR(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['align_dir_path']).joinpath(
-                        Path(self.input()[0][0].path).stem + f'.bqsr.{s}'
-                    )
+                Path(self.cf['align_dir_path']).joinpath(
+                    Path(self.input()[0][0].path).stem + f'.bqsr.{s}'
                 )
             ) for s in ['cram', 'cram.crai', 'data.csv']
         ]
@@ -239,10 +233,8 @@ class RemoveDuplicates(BaseTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['align_dir_path']).joinpath(
-                        Path(self.input()[0][0].path).stem + f'.dedup.cram{s}'
-                    )
+                Path(self.cf['align_dir_path']).joinpath(
+                    Path(self.input()[0][0].path).stem + f'.dedup.cram{s}'
                 )
             ) for s in ['', '.crai']
         ]
@@ -359,10 +351,8 @@ class PrepareBAMTumor(BaseTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['align_dir_path']).joinpath(
-                        Path(self.input()[0][0].path).stem + f'.bam{s}'
-                    )
+                Path(self.cf['align_dir_path']).joinpath(
+                    Path(self.input()[0][0].path).stem + f'.bam{s}'
                 )
             ) for s in ['', '.bai']
         ]
@@ -386,10 +376,8 @@ class PrepareBAMNormal(BaseTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['align_dir_path']).joinpath(
-                        Path(self.input()[0][0].path).stem + f'.bam{s}'
-                    )
+                Path(self.cf['align_dir_path']).joinpath(
+                    Path(self.input()[0][0].path).stem + f'.bam{s}'
                 )
             ) for s in ['', '.bai']
         ]

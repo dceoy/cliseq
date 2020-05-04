@@ -22,11 +22,12 @@ class NormalizeVCF(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.dest_dir_path).joinpath(
-                        re.sub(r'\.vcf$', '', Path(self.input_vcf_path).stem)
+                Path(self.dest_dir_path).joinpath(
+                    re.sub(
+                        r'\.vcf$', f'.norm.vcf.gz{s}',
+                        Path(self.input_vcf_path).stem
                     )
-                ) + f'.norm.vcf.gz{s}'
+                )
             ) for s in ['', '.tbi']
         ]
 

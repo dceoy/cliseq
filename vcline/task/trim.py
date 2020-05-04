@@ -17,10 +17,10 @@ class TrimAdapters(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['trim_dir_path']).joinpath(
-                        re.sub(r'\.(fastq|fq)\.(gz|bz2)$', '', Path(p).name)
-                        + f'_val_{i + 1}.fq.gz'
+                Path(self.cf['trim_dir_path']).joinpath(
+                    re.sub(
+                        r'\.(fastq|fq)\.(gz|bz2)$', f'_val_{i + 1}.fq.gz',
+                        Path(p).name
                     )
                 )
             ) for i, p in enumerate(self.fq_paths)

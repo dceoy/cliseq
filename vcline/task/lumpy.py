@@ -22,7 +22,7 @@ class CallStructualVariantsWithLumpy(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(Path(self.cf['somatic_sv_lumpy_dir_path']).joinpath(n))
+                Path(self.cf['somatic_sv_lumpy_dir_path']).joinpath(n)
             ) for n in [
                 (
                     create_matched_id(*[i[0].path for i in self.input()[0:2]])

@@ -186,7 +186,7 @@ class RunVariantCaller(BaseTask):
             ])
         )
         return (
-            [luigi.LocalTarget(str(o)) for o in output_pos]
+            [luigi.LocalTarget(o) for o in output_pos]
             if output_pos else self.input()
         )
 

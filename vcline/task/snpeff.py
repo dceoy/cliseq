@@ -31,15 +31,13 @@ class AnnotateVariantsWithSnpEff(BaseTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['postproc_snpeff_dir_path']).joinpath(
-                        re.sub(
-                            r'\.vcf$',
-                            '{0}.snpeff.vcf.gz{1}'.format(
-                                ('.norm' if self.normalize_vcf else ''), s
-                            ),
-                            Path(self.input_vcf_path).stem
-                        )
+                Path(self.cf['postproc_snpeff_dir_path']).joinpath(
+                    re.sub(
+                        r'\.vcf$',
+                        '{0}.snpeff.vcf.gz{1}'.format(
+                            ('.norm' if self.normalize_vcf else ''), s
+                        ),
+                        Path(self.input_vcf_path).stem
                     )
                 )
             ) for s in ['', '.tbi']
@@ -96,15 +94,13 @@ class SnpEff(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.dest_dir_path).joinpath(
-                        re.sub(
-                            r'\.vcf$', f'.snpeff.vcf.gz{s}',
-                            Path(
-                                self.input()[0].path if self.normalize_vcf
-                                else self.input_vcf_path
-                            ).stem
-                        )
+                Path(self.dest_dir_path).joinpath(
+                    re.sub(
+                        r'\.vcf$', f'.snpeff.vcf.gz{s}',
+                        Path(
+                            self.input()[0].path if self.normalize_vcf
+                            else self.input_vcf_path
+                        ).stem
                     )
                 )
             ) for s in ['', '.tbi']

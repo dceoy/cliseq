@@ -185,11 +185,8 @@ class DownloadAndConvertVCFsIntoPassingAfOnlyVCF(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.dest_dir_path).joinpath(
-                    Path(Path(self.input().path).stem).stem
-                    + '.af-only.vcf.gz'
-                )
+            Path(self.dest_dir_path).joinpath(
+                Path(Path(self.input().path).stem).stem + '.af-only.vcf.gz'
             )
         )
 
@@ -210,11 +207,9 @@ class WritePassingAfOnlyVCF(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.dest_dir_path).joinpath(
-                    Path(Path(self.src_path or self.src_url).stem).stem
-                    + '.af-only.vcf.gz'
-                )
+            Path(self.dest_dir_path).joinpath(
+                Path(Path(self.src_path or self.src_url).stem).stem
+                + '.af-only.vcf.gz'
             )
         )
 
@@ -260,9 +255,7 @@ class CreateIntervalListWithBED(ShellTask):
 
     def output(self):
         return [
-            luigi.LocalTarget(
-                str(Path(self.dest_dir_path).joinpath(n))
-            ) for n in [
+            luigi.LocalTarget(Path(self.dest_dir_path).joinpath(n)) for n in [
                 (Path(self.bed_path).stem + '.interval_list'),
                 (Path(self.fa_path).stem + '.dict')
             ]

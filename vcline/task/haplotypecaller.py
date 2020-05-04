@@ -22,10 +22,8 @@ class SplitEvaluationIntervals(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['germline_snv_indel_gatk_dir_path']).joinpath(
-                        f'{i:04d}-scattered.interval_list'
-                    )
+                Path(self.cf['germline_snv_indel_gatk_dir_path']).joinpath(
+                    f'{i:04d}-scattered.interval_list'
                 )
             ) for i in range(self.cf['n_cpu_per_worker'])
         ]
@@ -89,11 +87,9 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['germline_snv_indel_gatk_dir_path']).joinpath(
-                        Path(self.input()[0][0].path).stem
-                        + f'.haplotypecaller.{s}'
-                    )
+                Path(self.cf['germline_snv_indel_gatk_dir_path']).joinpath(
+                    Path(self.input()[0][0].path).stem
+                    + f'.haplotypecaller.{s}'
                 )
             )
             for s in ['g.vcf.gz', 'g.vcf.gz.tbi', 'cram', 'cram.crai']

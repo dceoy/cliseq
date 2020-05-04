@@ -31,12 +31,9 @@ class CallStructualVariantsWithManta(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['somatic_sv_manta_dir_path']).joinpath(
-                        create_matched_id(
-                            *[i[0].path for i in self.input()[0:2]]
-                        ) + f'.manta.{n}'
-                    )
+                Path(self.cf['somatic_sv_manta_dir_path']).joinpath(
+                    create_matched_id(*[i[0].path for i in self.input()[0:2]])
+                    + f'.manta.{n}'
                 )
             ) for n in self.result_file_names
         ]

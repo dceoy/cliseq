@@ -19,10 +19,8 @@ class ScanMicrosatellites(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['ref_dir_path']).joinpath(
-                    Path(self.input()[0].path).stem + '.microsatellites.list'
-                )
+            Path(self.cf['ref_dir_path']).joinpath('msisensor').joinpath(
+                Path(self.input()[0].path).stem + '.microsatellites.list'
             )
         )
 
@@ -34,7 +32,8 @@ class ScanMicrosatellites(ShellTask):
         microsatellites_list_path = self.output().path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=msisensor, cwd=self.cf['ref_dir_path'],
+            commands=msisensor,
+            cwd=str(Path(microsatellites_list_path).parent),
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
@@ -54,7 +53,7 @@ class UncompressEvaluationIntervalListBED(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            Path(self.cf['somatic_msi_msisensor_dir_path']).joinpath(
+            Path(self.cf['ref_dir_path']).joinpath('msisensor').joinpath(
                 Path(self.input()[0].path).stem
             )
         )
@@ -62,7 +61,7 @@ class UncompressEvaluationIntervalListBED(ShellTask):
     def run(self):
         yield UncompressBgzipFiles(
             bgz_paths=[self.input()[0].path],
-            dest_dir_path=self.cf['somatic_msi_msisensor_dir_path'], cf=self.cf
+            dest_dir_path=str(Path(self.output().path).parent), cf=self.cf
         )
 
 
@@ -75,12 +74,9 @@ class ScoreMSIWithMSIsensor(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['somatic_msi_msisensor_dir_path']).joinpath(
-                        create_matched_id(
-                            *[i[0].path for i in self.input()[0:2]]
-                        ) + s
-                    )
+                Path(self.cf['somatic_msi_msisensor_dir_path']).joinpath(
+                    create_matched_id(*[i[0].path for i in self.input()[0:2]])
+                    + s
                 )
             ) for s in ['', '_dis', '_germline', '_somatic']
         ]

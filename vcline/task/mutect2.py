@@ -26,10 +26,8 @@ class GetPileupSummaries(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
-                    Path(self.cram_path).stem + '.pileup.table'
-                )
+            Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
+                Path(self.cram_path).stem + '.pileup.table'
             )
         )
 
@@ -73,12 +71,9 @@ class CalculateContamination(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
-                        create_matched_id(
-                            *[i[0].path for i in self.input()[0:2]]
-                        ) + s
-                    )
+                Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
+                    create_matched_id(*[i[0].path for i in self.input()[0:2]])
+                    + s
                 )
             ) for s in ['.contamination.table', '.segment.table']
         ]
@@ -129,12 +124,9 @@ class CallVariantsWithMutect2(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
-                        create_matched_id(
-                            *[i[0].path for i in self.input()[0:2]]
-                        ) + f'.mutect2.{s}'
-                    )
+                Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
+                    create_matched_id(*[i[0].path for i in self.input()[0:2]])
+                    + f'.mutect2.{s}'
                 )
             ) for s in [
                 'vcf.gz', 'vcf.gz.tbi', 'vcf.gz.stats', 'cram', 'cram.crai',

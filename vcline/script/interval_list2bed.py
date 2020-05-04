@@ -15,7 +15,6 @@ def main():
                 '{0}\t{1}\t{2}'.format(v[0], (int(v[1]) - 1), int(v[2]))
                 + os.linesep
             )
-            sys.stdout.flush()
 
 
 if __name__ == '__main__':

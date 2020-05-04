@@ -46,10 +46,8 @@ class FuncotateVariants(BaseTask):
         ]
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['postproc_funcotator_dir_path']).joinpath(
-                        re.sub(r'\.vcf$', s, Path(self.input_vcf_path).stem)
-                    )
+                Path(self.cf['postproc_funcotator_dir_path']).joinpath(
+                    re.sub(r'\.vcf$', s, Path(self.input_vcf_path).stem)
                 )
             ) for s in suffixes
         ]
@@ -121,15 +119,13 @@ class Funcotator(ShellTask):
         ]
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.dest_dir_path).joinpath(
-                        re.sub(
-                            r'\.vcf$', s,
-                            Path(
-                                self.input()[0].path if self.normalize_vcf
-                                else self.input_vcf_path
-                            ).stem
-                        )
+                Path(self.dest_dir_path).joinpath(
+                    re.sub(
+                        r'\.vcf$', s,
+                        Path(
+                            self.input()[0].path if self.normalize_vcf
+                            else self.input_vcf_path
+                        ).stem
                     )
                 )
             ) for s in suffixes
@@ -193,10 +189,8 @@ class FuncotateSegments(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['postproc_funcotator_dir_path']).joinpath(
-                    Path(self.input_seg_path).name + '.funcotator.tsv'
-                )
+            Path(self.cf['postproc_funcotator_dir_path']).joinpath(
+                Path(self.input_seg_path).name + '.funcotator.tsv'
             )
         )
 

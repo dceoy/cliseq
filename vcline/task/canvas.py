@@ -43,7 +43,7 @@ class CreateCanvasGenomeSymlinks(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(Path(self.cf['ref_dir_path']).joinpath(f'canvas/{n}'))
+                Path(self.cf['ref_dir_path']).joinpath(f'canvas/{n}')
             ) for n in [
                 'genome.fa', 'genome.fa.fai', 'GenomeSize.xml',
                 'kmer.fa', 'kmer.fa.fai',
@@ -105,12 +105,8 @@ class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['somatic_cnv_canvas_dir_path']).joinpath(
-                        create_matched_id(
-                            *[i[0].path for i in self.input()[0:2]]
-                        )
-                    )
+                Path(self.cf['somatic_cnv_canvas_dir_path']).joinpath(
+                    create_matched_id(*[i[0].path for i in self.input()[0:2]])
                 )
             )
         ]

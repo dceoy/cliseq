@@ -32,12 +32,8 @@ class FetchResourceFile(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['ref_dir_path']).joinpath(
-                    re.sub(
-                        r'\.(gz|bz2)$', '', Path(self.resource_file_path).name
-                    )
-                )
+            Path(self.cf['ref_dir_path']).joinpath(
+                re.sub(r'\.(gz|bz2)$', '', Path(self.resource_file_path).name)
             )
         )
 
@@ -92,12 +88,10 @@ class FetchResourceVCF(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['ref_dir_path']).joinpath(
-                        re.sub(
-                            r'\.(gz|bgz)$', f'.{s}',
-                            Path(self.resource_vcf_path).name
-                        )
+                Path(self.cf['ref_dir_path']).joinpath(
+                    re.sub(
+                        r'\.(gz|bgz)$', f'.{s}',
+                        Path(self.resource_vcf_path).name
                     )
                 )
             ) for s in ['gz', 'gz.tbi']
@@ -355,10 +349,8 @@ class CreateSequenceDictionary(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['ref_dir_path']).joinpath(
-                    Path(self.input()[0].path).stem + '.dict'
-                )
+            Path(self.cf['ref_dir_path']).joinpath(
+                Path(self.input()[0].path).stem + '.dict'
             )
         )
 
@@ -422,11 +414,9 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['ref_dir_path']).joinpath(
-                        Path(Path(self.input()[0][0].path).stem).stem
-                        + f'.biallelic_snp.vcf.{s}'
-                    )
+                Path(self.cf['ref_dir_path']).joinpath(
+                    Path(Path(self.input()[0][0].path).stem).stem
+                    + f'.biallelic_snp.vcf.{s}'
                 )
             ) for s in ['gz', 'gz.tbi']
         ]
@@ -476,11 +466,9 @@ class ExtractTarFile(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['ref_dir_path']).joinpath(
-                    re.sub(
-                        r'\.tar\.(gz|bz2)$', '', Path(self.tar_path).name
-                    )
+            Path(self.cf['ref_dir_path']).joinpath(
+                re.sub(
+                    r'\.tar\.(gz|bz2)$', '', Path(self.tar_path).name
                 )
             )
         )
@@ -575,12 +563,10 @@ class PreprocessIntervals(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['ref_dir_path']).joinpath(
-                    '{0}.preprocessed.w{1}s.interval_list'.format(
-                        Path(self.input()[0].path).stem,
-                        ('e' if self.cf['exome'] else 'g')
-                    )
+            Path(self.cf['ref_dir_path']).joinpath(
+                '{0}.preprocessed.w{1}s.interval_list'.format(
+                    Path(self.input()[0].path).stem,
+                    ('e' if self.cf['exome'] else 'g')
                 )
             )
         )
@@ -631,9 +617,8 @@ class UncompressBgzipFiles(ShellTask):
 
     def output(self):
         return [
-            luigi.LocalTarget(
-                str(Path(self.dest_dir_path).joinpath(Path(p).stem))
-            ) for p in self.bgz_paths
+            luigi.LocalTarget(Path(self.dest_dir_path).joinpath(Path(p).stem))
+            for p in self.bgz_paths
         ]
 
     def run(self):
@@ -661,9 +646,8 @@ class CreateSymlinks(ShellTask):
 
     def output(self):
         return [
-            luigi.LocalTarget(
-                str(Path(self.dest_dir_path).joinpath(Path(p).name))
-            ) for p in self.src_paths
+            luigi.LocalTarget(Path(self.dest_dir_path).joinpath(Path(p).name))
+            for p in self.src_paths
         ]
 
     def run(self):

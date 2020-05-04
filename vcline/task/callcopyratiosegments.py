@@ -20,10 +20,8 @@ class CreateGermlineSnpIntervalList(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                    Path(self.input()[0].path).stem + '.interval_list'
-                )
+            Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                Path(self.input()[0].path).stem + '.interval_list'
             )
         )
 
@@ -60,10 +58,8 @@ class CollectAllelicCounts(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                    Path(self.cram_path).stem + '.allelic_counts.tsv'
-                )
+            Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                Path(self.cram_path).stem + '.allelic_counts.tsv'
             )
         )
 
@@ -103,10 +99,8 @@ class CollectAllelicCountsTumor(BaseTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                    Path(self.input()[0][0].path).stem + '.allelic_counts.tsv'
-                )
+            Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                Path(self.input()[0][0].path).stem + '.allelic_counts.tsv'
             )
         )
 
@@ -126,10 +120,8 @@ class CollectAllelicCountsNormal(BaseTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                    Path(self.input()[0][0].path).stem + '.allelic_counts.tsv'
-                )
+            Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                Path(self.input()[0][0].path).stem + '.allelic_counts.tsv'
             )
         )
 
@@ -150,10 +142,8 @@ class CollectReadCounts(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                    Path(self.cram_path).stem + '.counts.hdf5'
-                )
+            Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                Path(self.cram_path).stem + '.counts.hdf5'
             )
         )
 
@@ -197,11 +187,8 @@ class DenoiseReadCounts(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                        Path(Path(self.input().path).stem).stem
-                        + f'.{s}.tsv'
-                    )
+                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                    Path(Path(self.input().path).stem).stem + f'.{s}.tsv'
                 )
             ) for s in ['denoised_cr', 'standardized_cr']
         ]
@@ -271,16 +258,14 @@ class ModelSegments(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                str(
-                    Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                        Path(
-                            create_matched_id(
-                                self.case_allelic_counts_tsv_path,
-                                self.normal_allelic_counts_tsv_path
-                            ) if self.case_allelic_counts_tsv_path else
-                            Path(self.normal_allelic_counts_tsv_path).stem
-                        ).stem + f'.{s}'
-                    )
+                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                    Path(
+                        create_matched_id(
+                            self.case_allelic_counts_tsv_path,
+                            self.normal_allelic_counts_tsv_path
+                        ) if self.case_allelic_counts_tsv_path else
+                        Path(self.normal_allelic_counts_tsv_path).stem
+                    ).stem + f'.{s}'
                 )
             ) for s in ['cr.seg', 'hets.tsv', 'modelFinal.seg']
         ]
@@ -367,10 +352,8 @@ class CallCopyRatioSegments(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                    Path(self.input()[0].path).stem + '.called.seg'
-                )
+            Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                Path(self.input()[0].path).stem + '.called.seg'
             )
         )
 
@@ -406,12 +389,10 @@ class CallCopyRatioSegmentsTumor(BaseTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                    create_matched_id(
-                        *[Path(i.path).stem for i in self.input()[4:6]]
-                    ) + f'.cr.called.seg'
-                )
+            Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                create_matched_id(
+                    *[Path(i.path).stem for i in self.input()[4:6]]
+                ) + f'.cr.called.seg'
             )
         )
 
@@ -434,11 +415,8 @@ class CallCopyRatioSegmentsNormal(BaseTask):
 
     def output(self):
         return luigi.LocalTarget(
-            str(
-                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                    Path(Path(self.input()[4].path).stem).stem
-                    + f'.cr.called.seg'
-                )
+            Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                Path(Path(self.input()[4].path).stem).stem + f'.cr.called.seg'
             )
         )
 
