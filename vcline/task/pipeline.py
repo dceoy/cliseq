@@ -14,7 +14,7 @@ from luigi.tools import deps_tree
 
 from ..cli.util import (create_matched_id, fetch_executable, parse_cram_id,
                         parse_fq_id, read_yml)
-from .align import PrepareCRAMsMatched
+from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import BaseTask, ShellTask
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
 from .canvas import CallSomaticCopyNumberVariantsWithCanvas
@@ -269,16 +269,19 @@ class CallVariants(ShellTask):
     priority = luigi.IntParameter(default=100)
 
     def requires(self):
-        if self.caller_modes:
-            return [
+        common_kwargs = {
+            'fq_list': self.fq_list, 'read_groups': self.read_groups,
+            'cram_list': self.cram_list, 'sample_names': self.sample_names,
+            'ref_fa_path': self.ref_fa_path,
+            'dbsnp_vcf_path': self.dbsnp_vcf_path,
+            'mills_indel_vcf_path': self.mills_indel_vcf_path,
+            'known_indel_vcf_path': self.known_indel_vcf_path, 'cf': self.cf
+        }
+        return [
+            PrepareCRAMTumor(**common_kwargs),
+            PrepareCRAMNormal(**common_kwargs),
+            *[
                 RunVariantCaller(
-                    fq_list=self.fq_list, cram_list=self.cram_list,
-                    read_groups=self.read_groups,
-                    sample_names=self.sample_names,
-                    ref_fa_path=self.ref_fa_path,
-                    dbsnp_vcf_path=self.dbsnp_vcf_path,
-                    mills_indel_vcf_path=self.mills_indel_vcf_path,
-                    known_indel_vcf_path=self.known_indel_vcf_path,
                     hapmap_vcf_path=self.hapmap_vcf_path,
                     gnomad_vcf_path=self.gnomad_vcf_path,
                     evaluation_interval_path=self.evaluation_interval_path,
@@ -291,33 +294,23 @@ class CallVariants(ShellTask):
                         if m.startswith('.germline') else
                         self.funcotator_somatic_tar_path
                     ),
-                    snpeff_config_path=self.snpeff_config_path,
-                    cf=self.cf, caller_mode=m,
+                    snpeff_config_path=self.snpeff_config_path, caller_mode=m,
                     annotators=self.annotators,
-                    normalize_vcf=self.normalize_vcf
+                    normalize_vcf=self.normalize_vcf, **common_kwargs
                 ) for m in self.caller_modes
             ]
-        else:
-            return super().requires()
+        ]
 
     def output(self):
         return self.input()
 
     def run(self):
-        cram_targets = yield PrepareCRAMsMatched(
-            fq_list=self.fq_list, read_groups=self.read_groups,
-            sample_names=self.sample_names,
-            ref_fa_path=self.ref_fa_path,
-            dbsnp_vcf_path=self.dbsnp_vcf_path,
-            mills_indel_vcf_path=self.mills_indel_vcf_path,
-            known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf
-        )
         bam_paths = [
             str(
                 Path(self.cf['align_dir_path']).joinpath(
-                    Path(t[0].path).stem + '.bam'
+                    Path(i[0].path).stem + '.bam'
                 )
-            ) for t in cram_targets
+            ) for i in self.input()[:2]
         ]
         if any([Path(p).is_file() for p in bam_paths]):
             run_id = create_matched_id(*bam_paths)

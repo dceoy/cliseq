@@ -335,14 +335,6 @@ class PrepareCRAMNormal(BaseTask):
             )
 
 
-@requires(PrepareCRAMTumor, PrepareCRAMNormal)
-class PrepareCRAMsMatched(luigi.WrapperTask):
-    priority = 100
-
-    def output(self):
-        return self.input()
-
-
 @requires(PrepareCRAMTumor, FetchReferenceFASTA)
 class PrepareBAMTumor(BaseTask):
     cf = luigi.DictParameter()
