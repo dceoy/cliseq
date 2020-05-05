@@ -11,53 +11,54 @@ from .base import ShellTask
 from .ref import (CreateSequenceDictionary, FetchDbsnpVCF,
                   FetchEvaluationIntervalList, FetchHapmapVCF,
                   FetchMillsIndelVCF, FetchReferenceFASTA)
-from .samtools import MergeSAMsIntoSortedSAM
+from .samtools import MergeSAMsIntoSortedSAM, SamtoolsViewAndSamtoolsIndex
 
 
 @requires(FetchEvaluationIntervalList, FetchReferenceFASTA)
 class SplitEvaluationIntervals(ShellTask):
+    scatter_count = luigi.IntParameter(default=2)
     cf = luigi.DictParameter()
     priority = 50
 
     def output(self):
         return [
             luigi.LocalTarget(
-                Path(self.cf['germline_snv_indel_gatk_dir_path']).joinpath(
-                    f'{i:04d}-scattered.interval_list'
+                Path(self.cf['ref_dir_path']).joinpath(
+                    f'gatk/{i:04d}-scattered.interval_list'
                 )
-            ) for i in range(self.cf['n_cpu_per_worker'])
+            ) for i in range(self.scatter_count)
         ]
 
     def run(self):
-        interval_path = self.input()[0].path
-        run_id = Path(interval_path).stem
+        input_interval_path = self.input()[0].path
+        run_id = Path(input_interval_path).stem
         self.print_log(f'Split an evaluation interval list:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         fa_path = self.input()[1][0].path
-        scatter_count = self.cf['n_cpu_per_worker']
+        output_interval_paths = [o.path for o in self.output()]
+        output_dir = Path(output_interval_paths[0]).parent
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['germline_snv_indel_gatk_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            cwd=output_dir, remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
                 'set -e && '
                 + f'{gatk}{gatk_opts} SplitIntervals'
                 + f' --reference {fa_path}'
-                + f' --intervals {interval_path}'
-                + f' --scatter-count {scatter_count}'
-                + ' --output'
-                + ' {}'.format(self.cf['germline_snv_indel_gatk_dir_path'])
+                + f' --intervals {input_interval_path}'
+                + f' --scatter-count {self.scatter_count}'
+                + f' --output {output_dir}'
             ),
-            input_files_or_dirs=[interval_path, fa_path],
-            output_files_or_dirs=[o.path for o in self.output()]
+            input_files_or_dirs=[input_interval_path, fa_path],
+            output_files_or_dirs=output_interval_paths
         )
 
 
 class PrepareEvaluationIntervals(luigi.WrapperTask):
     evaluation_interval_path = luigi.Parameter()
+    ref_fa_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 50
 
@@ -65,8 +66,9 @@ class PrepareEvaluationIntervals(luigi.WrapperTask):
         return (
             SplitEvaluationIntervals(
                 evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
-            ) if self.cf['n_cpu_per_worker'] > 1 else [
+                ref_fa_path=self.ref_fa_path,
+                scatter_count=self.cf['n_worker'], cf=self.cf
+            ) if self.cf['n_worker'] > 1 else [
                 FetchEvaluationIntervalList(
                     evaluation_interval_path=self.evaluation_interval_path,
                     cf=self.cf
@@ -107,7 +109,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         dbsnp_vcf_path = self.input()[2][0].path
         evaluation_interval_paths = [i.path for i in self.input()[3]]
         output_cram_path = self.output()[2].path
-        output_path_prefix = output_gvcf_path.split('.')[:-3]
+        output_path_prefix = '.'.join(output_gvcf_path.split('.')[:-3])
         if len(evaluation_interval_paths) == 1:
             tmp_prefixes = [output_path_prefix]
         else:
@@ -122,7 +124,16 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                 output_path_prefix=s, cf=self.cf, run_id=run_id
             ) for i, s in zip(evaluation_interval_paths, tmp_prefixes)
         ]
-        if len(evaluation_interval_paths) > 1:
+        if len(evaluation_interval_paths) == 1:
+            yield SamtoolsViewAndSamtoolsIndex(
+                input_sam_path=f'{tmp_prefixes[0]}.bam',
+                output_sam_path=output_cram_path, fa_path=fa_path,
+                samtools=self.cf['samtools'],
+                n_cpu=self.cf['n_cpu_per_worker'], remove_input=True,
+                log_dir_path=self.cf['log_dir_path'],
+                remove_if_failed=self.cf['remove_if_failed']
+            )
+        else:
             self.setup_shell(
                 run_id=run_id, log_dir_path=self.cf['log_dir_path'],
                 commands=gatk, cwd=self.cf['germline_snv_indel_gatk_dir_path'],
@@ -143,7 +154,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                 ]
             )
             yield MergeSAMsIntoSortedSAM(
-                input_sam_paths=[f'{s}.cram' for s in tmp_prefixes],
+                input_sam_paths=[f'{s}.bam' for s in tmp_prefixes],
                 output_sam_path=output_cram_path, fa_path=fa_path,
                 samtools=self.cf['samtools'],
                 n_cpu=self.cf['n_cpu_per_worker'],
@@ -174,7 +185,7 @@ class HaplotypeCaller(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(f'{self.output_path_prefix}.{s}')
-            for s in ['g.vcf.gz', 'g.vcf.gz.tbi', 'cram', 'cram.crai']
+            for s in ['g.vcf.gz', 'g.vcf.gz.tbi', 'bam']
         ]
 
     def run(self):
@@ -202,7 +213,6 @@ class HaplotypeCaller(ShellTask):
                 + f' --bam-output {output_file_paths[2]}'
                 + ' --pair-hmm-implementation AVX_LOGLESS_CACHING_OMP'
                 + f' --native-pair-hmm-threads {n_cpu}'
-                + f' --disable-bam-index-caching {save_memory}'
                 + ' --emit-ref-confidence GVCF'
                 + ''.join(
                     [
@@ -212,6 +222,8 @@ class HaplotypeCaller(ShellTask):
                         ]
                     ] + [f' --gvcf-gq-bands {i}' for i in range(10, 100, 10)]
                 )
+                + ' --create-output-bam-index false'
+                + f' --disable-bam-index-caching {save_memory}'
             ),
             input_files_or_dirs=[
                 self.input_cram_path, self.fa_path, self.dbsnp_vcf_path,

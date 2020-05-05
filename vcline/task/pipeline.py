@@ -5,12 +5,14 @@ import os
 import re
 import sys
 from itertools import chain
+from math import floor
 from pathlib import Path
 from pprint import pformat
 
 import luigi
 import yaml
 from luigi.tools import deps_tree
+from psutil import cpu_count, virtual_memory
 
 from ..cli.util import (create_matched_id, fetch_executable, parse_cram_id,
                         parse_fq_id, read_yml)
@@ -349,13 +351,19 @@ class RunAnalyticalPipeline(BaseTask):
     dest_dir_path = luigi.Parameter(default='.')
     log_dir_path = luigi.Parameter(default='log')
     ref_dir_path = luigi.Parameter(default='')
-    n_cpu_per_worker = luigi.IntParameter(default=1)
-    memory_mb_per_worker = luigi.IntParameter(default=(16 * 1024))
+    n_worker = luigi.IntParameter(default=2)
+    max_n_cpu = luigi.IntParameter(default=cpu_count())
     skip_cleaning = luigi.BoolParameter(default=False)
     log_level = luigi.Parameter(default='WARNING')
 
     def requires(self):
         logger = logging.getLogger(__name__)
+        n_cpu_per_worker = max(
+            1, floor((self.max_n_cpu or cpu_count()) / self.n_worker)
+        )
+        memory_mb_per_worker = int(
+            virtual_memory().total / 1024 / 1024 / self.n_worker
+        )
         config = self._read_config_yml(config_yml_path=self.config_yml_path)
         caller_modes = list()
         if 'callers' in config:
@@ -364,8 +372,8 @@ class RunAnalyticalPipeline(BaseTask):
                     if b:
                         caller_modes.append(f'{k}.{t}')
         if ({m for m in caller_modes if m.endswith('.canvas')}
-                and self.n_cpu_per_worker >= 8
-                and self.memory_mb_per_worker >= 25 * 1024):
+                and n_cpu_per_worker >= 8
+                and memory_mb_per_worker >= 25 * 1024):
             logger.warning('Canvas requires 8 CPUs and 25 GB RAM.')
         annotators = (
             {k for k, v in config['annotators'].items() if v}
@@ -374,22 +382,21 @@ class RunAnalyticalPipeline(BaseTask):
         common_config = {
             'ref_version': (config.get('reference_version') or 'hg38'),
             'exome': bool(config.get('exome')),
-            'memory_mb_per_worker': self.memory_mb_per_worker,
-            'n_cpu_per_worker': self.n_cpu_per_worker,
+            'n_worker': self.n_worker,
+            'memory_mb_per_worker': memory_mb_per_worker,
+            'n_cpu_per_worker': n_cpu_per_worker,
             'gatk_java_options': ' '.join([
                 '-Dsamjdk.compression_level=5',
                 '-Dsamjdk.use_async_io_read_samtools=true',
                 '-Dsamjdk.use_async_io_write_samtools=true',
                 '-Dsamjdk.use_async_io_write_tribble=false',
-                f'-Xmx{self.memory_mb_per_worker:d}m',
+                f'-Xmx{memory_mb_per_worker:d}m',
                 '-XX:+UseParallelGC',
-                f'-XX:ParallelGCThreads={self.n_cpu_per_worker}'
+                f'-XX:ParallelGCThreads={n_cpu_per_worker}'
             ]),
             'samtools_memory_per_thread':
-            '{:d}M'.format(
-                int(self.memory_mb_per_worker / self.n_cpu_per_worker / 20)
-            ),
-            'save_memory': (self.memory_mb_per_worker < 8 * 1024),
+            '{:d}M'.format(int(memory_mb_per_worker / n_cpu_per_worker / 20)),
+            'save_memory': (memory_mb_per_worker < 8 * 1024),
             'remove_if_failed': (not self.skip_cleaning),
             **{
                 c: fetch_executable(c) for c in {

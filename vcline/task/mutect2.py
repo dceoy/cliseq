@@ -13,7 +13,7 @@ from .haplotypecaller import PrepareEvaluationIntervals
 from .ref import (CreateGnomadBiallelicSnpVCF, CreateSequenceDictionary,
                   FetchEvaluationIntervalList, FetchGnomadVCF,
                   FetchReferenceFASTA)
-from .samtools import MergeSAMsIntoSortedSAM
+from .samtools import MergeSAMsIntoSortedSAM, SamtoolsViewAndSamtoolsIndex
 
 
 class GetPileupSummaries(ShellTask):
@@ -147,7 +147,7 @@ class CallVariantsWithMutect2(ShellTask):
         output_stats_path = self.output()[2].path
         output_cram_path = self.output()[3].path
         ob_priors_path = self.output()[5].path
-        output_path_prefix = output_vcf_path.split('.')[:-2]
+        output_path_prefix = '.'.join(output_vcf_path.split('.')[:-2])
         if len(evaluation_interval_paths) == 1:
             tmp_prefixes = [output_path_prefix]
         else:
@@ -178,7 +178,16 @@ class CallVariantsWithMutect2(ShellTask):
             ),
             input_files_or_dirs=f1r2_paths, output_files_or_dirs=ob_priors_path
         )
-        if len(evaluation_interval_paths) > 1:
+        if len(evaluation_interval_paths) == 1:
+            yield SamtoolsViewAndSamtoolsIndex(
+                input_sam_path=f'{tmp_prefixes[0]}.bam',
+                output_sam_path=output_cram_path, fa_path=fa_path,
+                samtools=self.cf['samtools'],
+                n_cpu=self.cf['n_cpu_per_worker'], remove_input=True,
+                log_dir_path=self.cf['log_dir_path'],
+                remove_if_failed=self.cf['remove_if_failed']
+            )
+        else:
             tmp_vcf_paths = [f'{s}.vcf.gz' for s in tmp_prefixes]
             self.run_shell(
                 args=(
@@ -200,7 +209,7 @@ class CallVariantsWithMutect2(ShellTask):
                 output_files_or_dirs=output_stats_path
             )
             yield MergeSAMsIntoSortedSAM(
-                input_sam_paths=[f'{s}.cram' for s in tmp_prefixes],
+                input_sam_paths=[f'{s}.bam' for s in tmp_prefixes],
                 output_sam_path=output_cram_path, fa_path=fa_path,
                 samtools=self.cf['samtools'],
                 n_cpu=self.cf['n_cpu_per_worker'],
@@ -218,7 +227,7 @@ class CallVariantsWithMutect2(ShellTask):
 
 
 class Mutect2(ShellTask):
-    input_cram_path = luigi.ListParameter()
+    input_cram_paths = luigi.ListParameter()
     fa_path = luigi.Parameter()
     gnomad_vcf_path = luigi.Parameter()
     evaluation_interval_path = luigi.Parameter()
@@ -232,8 +241,7 @@ class Mutect2(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(f'{self.output_path_prefix}.{s}') for s in [
-                'vcf.gz', 'vcf.gz.tbi', 'vcf.gz.stats', 'cram', 'cram.crai',
-                'f1r2.tar.gz'
+                'vcf.gz', 'vcf.gz.tbi', 'vcf.gz.stats', 'bam', 'f1r2.tar.gz'
             ]
         ]
 
@@ -263,12 +271,13 @@ class Mutect2(ShellTask):
                 + f' --germline-resource {self.gnomad_vcf_path}'
                 + f' --output {output_file_paths[0]}'
                 + f' --bam-output {output_file_paths[3]}'
-                + f' --f1r2-tar-gz {output_file_paths[5]}'
+                + f' --f1r2-tar-gz {output_file_paths[4]}'
                 + f' --normal-sample {self.normal_name}'
                 + ' --pair-hmm-implementation AVX_LOGLESS_CACHING_OMP'
                 + f' --native-pair-hmm-threads {n_cpu}'
-                + f' --disable-bam-index-caching {save_memory}'
                 + ' --max-mnp-distance 0'
+                + ' --create-output-bam-index false'
+                + f' --disable-bam-index-caching {save_memory}'
             ),
             input_files_or_dirs=[
                 *self.input_cram_paths, self.fa_path,

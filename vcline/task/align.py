@@ -179,16 +179,17 @@ class ApplyBQSR(ShellTask):
         self.print_log(f'Apply Base Quality Score Recalibration:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        save_memory = str(self.cf['save_memory']).lower()
         output_cram_path = self.output()[0].path
         fa_path = self.input()[1][0].path
         fa_dict_path = self.input()[2].path
         known_site_vcf_gz_paths = [i[0].path for i in self.input()[3:6]]
         bqsr_csv_path = self.output()[2].path
+        tmp_bam_path = re.sub(r'\.cram', '.bam', output_cram_path)
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=gatk, cwd=self.cf['align_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
-            env={'REF_CACHE': '.ref_cache'}
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
@@ -213,15 +214,24 @@ class ApplyBQSR(ShellTask):
                 + f' --input {input_cram_path}'
                 + f' --reference {fa_path}'
                 + f' --bqsr-recal-file {bqsr_csv_path}'
-                + f' --output {output_cram_path}'
+                + f' --output {tmp_bam_path}'
                 + ' --static-quantized-quals 10'
                 + ' --static-quantized-quals 20'
                 + ' --static-quantized-quals 30'
                 + ' --add-output-sam-program-record'
                 + ' --use-original-qualities'
+                + ' --create-output-bam-index false'
+                + f' --disable-bam-index-caching {save_memory}'
             ),
             input_files_or_dirs=[input_cram_path, fa_path, bqsr_csv_path],
-            output_files_or_dirs=output_cram_path
+            output_files_or_dirs=tmp_bam_path
+        )
+        yield SamtoolsViewAndSamtoolsIndex(
+            input_sam_path=tmp_bam_path, output_sam_path=output_cram_path,
+            fa_path=fa_path, samtools=self.cf['samtools'],
+            n_cpu=self.cf['n_cpu_per_worker'], remove_input=True,
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
         )
 
 

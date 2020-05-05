@@ -313,14 +313,8 @@ def _run_analytical_pipeline(config_yml_path, dest_dir_path='.',
                     Path(ref_dir_path).resolve() if ref_dir_path
                     else dest_dir.joinpath('ref')
                 ),
-                n_cpu_per_worker=max(
-                    1, floor((max_n_cpu or cpu_count()) / n_worker)
-                ),
-                memory_mb_per_worker=int(
-                    virtual_memory().total / 1024 / 1024 / n_worker
-                ),
-                skip_cleaning=skip_cleaning,
-                log_level=log_level
+                n_worker=n_worker, max_n_cpu=max_n_cpu,
+                skip_cleaning=skip_cleaning, log_level=log_level
             )
         ],
         workers=n_worker, log_level=log_level, logging_conf_file=log_cfg_path

@@ -275,7 +275,7 @@ class MergeSAMsIntoSortedSAM(ShellTask):
             self.run_shell(
                 args=(
                     'set -eo pipefail && '
-                    + f'{self.samtools} merge -@ {self.n_cpu} -rh - '
+                    + f'{self.samtools} merge -@ {self.n_cpu} -r - '
                     + ' '.join(self.input_sam_paths)
                     + f' | {self.samtools} sort -@ {self.n_cpu}'
                     + f' -m {self.memory_per_thread} -O bam -l 0'
