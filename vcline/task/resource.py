@@ -51,8 +51,7 @@ class DownloadResourceFile(ShellTask):
         else:
             raise ValueError(f'invalid dest_file_path: {dest_file_path}')
         self.setup_shell(
-            commands=commands, cwd=str(Path(dest_file_path).parent),
-            quiet=False
+            commands=commands, cwd=Path(dest_file_path).parent, quiet=False
         )
         self.run_shell(
             args=f'set -e && {self.wget} -qSL {self.src_url} -O {tmp_path}',

@@ -89,7 +89,7 @@ class ConcatenateVCFsIntoSortedVCF(ShellTask):
         )
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=self.bcftools, cwd=str(Path(self.output_vcf_path).parent),
+            commands=self.bcftools, cwd=Path(self.output_vcf_path).parent,
             remove_if_failed=self.remove_if_failed,
             quiet=bool(self.log_dir_path)
         )
@@ -147,7 +147,7 @@ class BcftoolsIndex(ShellTask):
         self.print_log(f'Index VCF/BCF:\t{run_id}')
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=self.bcftools, cwd=str(Path(self.vcf_path).parent),
+            commands=self.bcftools, cwd=Path(self.vcf_path).parent,
             remove_if_failed=self.remove_if_failed,
             quiet=bool(self.log_dir_path)
         )
@@ -185,8 +185,7 @@ class SortVCF(ShellTask):
         self.print_log(f'Sort VCF:\t{run_id}')
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=self.bcftools,
-            cwd=str(Path(self.output_vcf_path).parent),
+            commands=self.bcftools, cwd=Path(self.output_vcf_path).parent,
             remove_if_failed=self.remove_if_failed,
             quiet=bool(self.log_dir_path)
         )

@@ -33,7 +33,7 @@ class ScanMicrosatellites(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=msisensor,
-            cwd=str(Path(microsatellites_list_path).parent),
+            cwd=Path(microsatellites_list_path).parent,
             remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(

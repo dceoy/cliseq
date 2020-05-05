@@ -68,7 +68,7 @@ class CreateCanvasGenomeSymlinks(ShellTask):
         }
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=str(Path(list(symlinks.values())[0]).parent),
+            cwd=Path(list(symlinks.values())[0]).parent,
             remove_if_failed=self.cf['remove_if_failed']
         )
         for s, d in symlinks.items():
@@ -90,7 +90,7 @@ class UncompressCnvBlackListBED(ShellTask):
     def run(self):
         yield UncompressBgzipFiles(
             bgz_paths=[self.input()[0].path],
-            dest_dir_path=str(Path(self.output().path).parent), cf=self.cf
+            dest_dir_path=Path(self.output().path).parent, cf=self.cf
         )
 
 

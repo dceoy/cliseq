@@ -23,7 +23,7 @@ class SamtoolsFaidx(ShellTask):
         self.print_log(f'Index FASTA:\t{run_id}')
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=self.samtools, cwd=str(Path(self.fa_path).parent),
+            commands=self.samtools, cwd=Path(self.fa_path).parent,
             remove_if_failed=self.remove_if_failed,
             quiet=bool(self.log_dir_path)
         )
@@ -52,7 +52,7 @@ class SamtoolsIndex(ShellTask):
         self.print_log(f'Index CRAM/BAM:\t{run_id}')
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=self.samtools, cwd=str(Path(self.sam_path).parent),
+            commands=self.samtools, cwd=Path(self.sam_path).parent,
             remove_if_failed=self.remove_if_failed,
             quiet=bool(self.log_dir_path)
         )
@@ -88,7 +88,7 @@ class SamtoolsView(ShellTask):
             self.print_log(f'{self.message}:\t{run_id}')
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=self.samtools, cwd=str(Path(self.output_sam_path).parent),
+            commands=self.samtools, cwd=Path(self.output_sam_path).parent,
             remove_if_failed=self.remove_if_failed,
             quiet=bool(self.log_dir_path), env={'REF_CACHE': '.ref_cache'}
         )
@@ -192,7 +192,7 @@ class SortSAM(ShellTask):
         self.print_log(f'Sort SAM:\t{run_id}')
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=self.samtools, cwd=str(Path(self.output_sam_path).parent),
+            commands=self.samtools, cwd=Path(self.output_sam_path).parent,
             remove_if_failed=self.remove_if_failed,
             quiet=bool(self.log_dir_path), env={'REF_CACHE': '.ref_cache'}
         )
@@ -268,8 +268,7 @@ class MergeSAMsIntoSortedSAM(ShellTask):
             self.print_log(f'Merge SAMs:\t{run_id}')
             self.setup_shell(
                 run_id=run_id, log_dir_path=(self.log_dir_path or None),
-                commands=self.samtools,
-                cwd=str(Path(self.output_sam_path).parent),
+                commands=self.samtools, cwd=Path(self.output_sam_path).parent,
                 remove_if_failed=self.remove_if_failed,
                 quiet=bool(self.log_dir_path), env={'REF_CACHE': '.ref_cache'}
             )
@@ -324,7 +323,7 @@ class Tabix(ShellTask):
         self.print_log(f'Index a TAB-delimited position file:\t{run_id}')
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=self.tabix, cwd=str(Path(self.tsv_path).parent),
+            commands=self.tabix, cwd=Path(self.tsv_path).parent,
             remove_if_failed=self.remove_if_failed,
             quiet=bool(self.log_dir_path)
         )

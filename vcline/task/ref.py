@@ -258,7 +258,7 @@ class IntervalList2BED(ShellTask):
         )
         self.setup_shell(
             run_id=run_id, log_dir_path=self.log_dir_path, commands=self.bgzip,
-            cwd=str(Path(interval_bed_path).parent),
+            cwd=Path(interval_bed_path).parent,
             remove_if_failed=self.remove_if_failed
         )
         self.run_shell(
