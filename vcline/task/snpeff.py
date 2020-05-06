@@ -5,12 +5,12 @@ from pathlib import Path
 
 import luigi
 
-from .base import BaseTask, ShellTask
+from .base import ShellTask
 from .bcftools import BcftoolsIndex, NormalizeVCF
 from .ref import CreateSequenceDictionary, CreateSymlinks, FetchReferenceFASTA
 
 
-class AnnotateVariantsWithSnpEff(BaseTask):
+class AnnotateVariantsWithSnpEff(luigi.Task):
     input_vcf_path = luigi.Parameter()
     ref_fa_path = luigi.Parameter()
     snpeff_config_path = luigi.Parameter()

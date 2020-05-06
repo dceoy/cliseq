@@ -7,7 +7,7 @@ from luigi.util import requires
 
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
-from .base import BaseTask, ShellTask
+from .base import ShellTask
 from .haplotypecaller import GenotypeHaplotypeCallerGVCF
 from .ref import (CreateSequenceDictionary, FetchReferenceFASTA,
                   PreprocessIntervals)
@@ -93,7 +93,7 @@ class CollectAllelicCounts(ShellTask):
 
 @requires(PrepareCRAMTumor, CreateGermlineSnpIntervalList, FetchReferenceFASTA,
           CreateSequenceDictionary)
-class CollectAllelicCountsTumor(BaseTask):
+class CollectAllelicCountsTumor(luigi.Task):
     cf = luigi.DictParameter()
     priority = 10
 
@@ -114,7 +114,7 @@ class CollectAllelicCountsTumor(BaseTask):
 
 @requires(PrepareCRAMNormal, CreateGermlineSnpIntervalList,
           FetchReferenceFASTA, CreateSequenceDictionary)
-class CollectAllelicCountsNormal(BaseTask):
+class CollectAllelicCountsNormal(luigi.Task):
     cf = luigi.DictParameter()
     priority = 10
 
@@ -383,7 +383,7 @@ class CallCopyRatioSegments(ShellTask):
 @requires(PrepareCRAMTumor, PreprocessIntervals, FetchReferenceFASTA,
           CreateSequenceDictionary, CollectAllelicCountsTumor,
           CollectAllelicCountsNormal)
-class CallCopyRatioSegmentsTumor(BaseTask):
+class CallCopyRatioSegmentsTumor(luigi.Task):
     cf = luigi.DictParameter()
     priority = 10
 
@@ -409,7 +409,7 @@ class CallCopyRatioSegmentsTumor(BaseTask):
 
 @requires(PrepareCRAMNormal, PreprocessIntervals, FetchReferenceFASTA,
           CreateSequenceDictionary, CollectAllelicCountsNormal)
-class CallCopyRatioSegmentsNormal(BaseTask):
+class CallCopyRatioSegmentsNormal(luigi.Task):
     cf = luigi.DictParameter()
     priority = 10
 

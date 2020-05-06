@@ -5,7 +5,7 @@ from pathlib import Path
 
 import luigi
 
-from .base import BaseTask, ShellTask
+from .base import ShellTask
 
 
 class SamtoolsFaidx(ShellTask):
@@ -114,7 +114,7 @@ class SamtoolsView(ShellTask):
             )
 
 
-class SamtoolsViewAndSamtoolsIndex(BaseTask):
+class SamtoolsViewAndSamtoolsIndex(luigi.Task):
     input_sam_path = luigi.Parameter()
     output_sam_path = luigi.Parameter()
     fa_path = luigi.Parameter()

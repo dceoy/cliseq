@@ -5,12 +5,12 @@ from pathlib import Path
 
 import luigi
 
-from .base import BaseTask, ShellTask
+from .base import ShellTask
 from .bcftools import NormalizeVCF
 from .ref import CreateSequenceDictionary, ExtractTarFile, FetchReferenceFASTA
 
 
-class FuncotateVariants(BaseTask):
+class FuncotateVariants(luigi.Task):
     input_vcf_path = luigi.Parameter()
     data_src_tar_path = luigi.Parameter()
     ref_fa_path = luigi.Parameter()

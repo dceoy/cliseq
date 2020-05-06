@@ -17,7 +17,7 @@ from psutil import cpu_count, virtual_memory
 from ..cli.util import (create_matched_id, fetch_executable, parse_cram_id,
                         parse_fq_id, read_yml)
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
-from .base import BaseTask, ShellTask
+from .base import ShellTask
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
 from .canvas import CallSomaticCopyNumberVariantsWithCanvas
 from .delly import CallStructualVariantsWithDelly
@@ -32,7 +32,7 @@ from .strelka import (CallGermlineVariantsWithStrelka,
                       CallSomaticVariantsWithStrelka)
 
 
-class RunVariantCaller(BaseTask):
+class RunVariantCaller(luigi.Task):
     ref_fa_path = luigi.Parameter()
     fq_list = luigi.ListParameter()
     cram_list = luigi.ListParameter()
@@ -346,7 +346,7 @@ class PrintEnvVersions(ShellTask):
         return True
 
 
-class RunAnalyticalPipeline(BaseTask):
+class RunAnalyticalPipeline(luigi.Task):
     config_yml_path = luigi.Parameter()
     dest_dir_path = luigi.Parameter(default='.')
     log_dir_path = luigi.Parameter(default='log')
@@ -358,12 +358,12 @@ class RunAnalyticalPipeline(BaseTask):
 
     def requires(self):
         logger = logging.getLogger(__name__)
+        n_cpu = cpu_count()
         n_cpu_per_worker = max(
-            1, floor((self.max_n_cpu or cpu_count()) / self.n_worker)
+            1, floor((self.max_n_cpu or n_cpu) / self.n_worker)
         )
-        memory_mb_per_worker = int(
-            virtual_memory().total / 1024 / 1024 / self.n_worker
-        )
+        memory_mb = virtual_memory().total / 1024 / 1024
+        memory_mb_per_worker = int(memory_mb / self.n_worker)
         config = self._read_config_yml(config_yml_path=self.config_yml_path)
         caller_modes = list()
         if 'callers' in config:
@@ -371,9 +371,8 @@ class RunAnalyticalPipeline(BaseTask):
                 for t, b in v.items():
                     if b:
                         caller_modes.append(f'{k}.{t}')
-        if ({m for m in caller_modes if m.endswith('.canvas')}
-                and n_cpu_per_worker >= 8
-                and memory_mb_per_worker >= 25 * 1024):
+        if not ({m for m in caller_modes if m.endswith('.canvas')}
+                and n_cpu >= 8 and memory_mb >= 25 * 1024):
             logger.warning('Canvas requires 8 CPUs and 25 GB RAM.')
         annotators = (
             {k for k, v in config['annotators'].items() if v}

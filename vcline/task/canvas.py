@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import sys
 from pathlib import Path
 
 import luigi
@@ -18,7 +19,6 @@ class CreateCanvasGenomeSymlinks(ShellTask):
     ref_fa_path = luigi.Parameter()
     genomesize_xml_path = luigi.Parameter()
     kmer_fa_path = luigi.Parameter()
-    exome_manifest_path = luigi.Parameter(default='')
     cf = luigi.DictParameter()
     priority = 50
 
@@ -30,13 +30,6 @@ class CreateCanvasGenomeSymlinks(ShellTask):
             ),
             FetchResourceFASTA(
                 resource_file_path=self.kmer_fa_path, cf=self.cf
-            ),
-            *(
-                [
-                    FetchResourceFile(
-                        resource_file_path=self.exome_manifest_path, cf=self.cf
-                    )
-                ] if self.exome_manifest_path else list()
             )
         ]
 
@@ -46,19 +39,14 @@ class CreateCanvasGenomeSymlinks(ShellTask):
                 Path(self.cf['ref_dir_path']).joinpath(f'canvas/{n}')
             ) for n in [
                 'genome.fa', 'genome.fa.fai', 'GenomeSize.xml',
-                'kmer.fa', 'kmer.fa.fai',
-                *(
-                    ['exome.manifest.txt'] if self.exome_manifest_path
-                    else list()
-                )
+                'kmer.fa', 'kmer.fa.fai'
             ]
         ]
 
     def run(self):
         src_paths = [
             *[i.path for i in self.input()[0]], self.input()[1].path,
-            *[i.path for i in self.input()[2]],
-            *([self.input()[3].path] if self.exome_manifest_path else list())
+            *[i.path for i in self.input()[2]]
         ]
         run_id = Path(src_paths[0]).stem
         self.print_log(f'Prepare Canvas genome folder:\t{run_id}')
@@ -76,7 +64,7 @@ class CreateCanvasGenomeSymlinks(ShellTask):
 
 
 @requires(CreateCnvBlackListBED)
-class UncompressCnvBlackListBED(ShellTask):
+class UncompressCnvBlackListBED(luigi.Task):
     cf = luigi.DictParameter()
     priority = 50
 
@@ -94,12 +82,57 @@ class UncompressCnvBlackListBED(ShellTask):
         )
 
 
+class CreateUniqueRegionManifest(ShellTask):
+    exome_manifest_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 10
+
+    def requires(self):
+        return FetchResourceFile(
+            resource_file_path=self.exome_manifest_path, cf=self.cf
+        )
+
+    def output(self):
+        return luigi.LocalTarget(
+            Path(self.cf['somatic_cnv_canvas_dir_path']).joinpath(
+                Path(self.input().path).stem + '.uniq.txt'
+            )
+        )
+
+    def run(self):
+        output_manifest_path = self.output().path
+        run_id = Path(output_manifest_path).name
+        self.print_log(f'Create a unique region maifest:\t{run_id}')
+        input_manifest_path = self.input().path
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            cwd=self.cf['somatic_cnv_canvas_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed']
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {sys.executable}'
+                + ' -c \'{}\''.format(
+                    'from fileinput import input; '
+                    'import sys; '
+                    '[sys.stdout.write('
+                    '"{0}_{1}\t{1}\t{2}".format(*s.split("\t", maxsplit=2))'
+                    ' if i > 1 else s)'
+                    ' for i, s in enumerate(input())];'
+                ) + f' {input_manifest_path} > {output_manifest_path}'
+            ),
+            input_files_or_dirs=input_manifest_path,
+            output_files_or_dirs=output_manifest_path
+        )
+
+
 @requires(PrepareBAMTumor, PrepareBAMNormal, CreateCanvasGenomeSymlinks,
           UncompressCnvBlackListBED, GenotypeHaplotypeCallerGVCF,
           CallVariantsWithMutect2)
 class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
     sample_names = luigi.ListParameter()
     cf = luigi.DictParameter()
+    exome_manifest_path = luigi.Parameter(default='')
     priority = 10
 
     def output(self):
@@ -129,26 +162,26 @@ class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
             remove_if_failed=self.cf['remove_if_failed']
         )
         if self.cf['exome']:
-            normal_bam_path = self.input()[1][0].path
-            exome_manifest_path = self.input()[2][5].path
+            target = yield CreateUniqueRegionManifest(
+                exome_manifest_path=self.exome_manifest_path, cf=self.cf
+            )
+            manifest_path = target.path
             self.run_shell(
                 args=(
-                    f'set -e && {canvas} Tumor-normal-enrichment'
+                    f'set -e && {canvas} Somatic-Enrichment'
                     + f' --bam={tumor_bam_path}'
-                    + f' --normal-bam={normal_bam_path}'
-                    + f' --somatic-vcf={somatic_vcf_path}'
+                    + f' --manifest={manifest_path}'
                     + f' --sample-b-allele-vcf {germline_b_allele_vcf_path}'
                     + f' --sample-name {sample_name}'
-                    + f' --manifest={exome_manifest_path}'
                     + f' --reference {kmer_fa_path}'
                     + f' --genome-folder {canvas_genome_dir_path}'
                     + f' --filter-bed {filter_bed_path}'
                     + f' --output {output_dir_path}'
                 ),
                 input_files_or_dirs=[
-                    tumor_bam_path, normal_bam_path, somatic_vcf_path,
-                    germline_b_allele_vcf_path, exome_manifest_path,
-                    kmer_fa_path, canvas_genome_dir_path, filter_bed_path
+                    tumor_bam_path, somatic_vcf_path,
+                    germline_b_allele_vcf_path, manifest_path, kmer_fa_path,
+                    canvas_genome_dir_path, filter_bed_path
                 ],
                 output_files_or_dirs=output_dir_path
             )

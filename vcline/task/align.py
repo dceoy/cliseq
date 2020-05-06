@@ -7,7 +7,7 @@ import luigi
 from luigi.util import requires
 
 from ..cli.util import parse_fq_id
-from .base import BaseTask, ShellTask
+from .base import ShellTask
 from .ref import (CreateBWAIndices, CreateSequenceDictionary, FetchDbsnpVCF,
                   FetchKnownIndelVCF, FetchMillsIndelVCF, FetchReferenceFASTA)
 from .samtools import SamtoolsIndex, SamtoolsViewAndSamtoolsIndex
@@ -236,7 +236,7 @@ class ApplyBQSR(ShellTask):
 
 
 @requires(ApplyBQSR, FetchReferenceFASTA)
-class RemoveDuplicates(BaseTask):
+class RemoveDuplicates(luigi.Task):
     cf = luigi.DictParameter()
     priority = 90
 
@@ -261,7 +261,7 @@ class RemoveDuplicates(BaseTask):
         )
 
 
-class PrepareCRAMTumor(BaseTask):
+class PrepareCRAMTumor(luigi.Task):
     ref_fa_path = luigi.Parameter()
     fq_list = luigi.ListParameter()
     cram_list = luigi.ListParameter()
@@ -303,7 +303,7 @@ class PrepareCRAMTumor(BaseTask):
             )
 
 
-class PrepareCRAMNormal(BaseTask):
+class PrepareCRAMNormal(luigi.Task):
     ref_fa_path = luigi.Parameter()
     fq_list = luigi.ListParameter()
     cram_list = luigi.ListParameter()
@@ -346,7 +346,7 @@ class PrepareCRAMNormal(BaseTask):
 
 
 @requires(PrepareCRAMTumor, FetchReferenceFASTA)
-class PrepareBAMTumor(BaseTask):
+class PrepareBAMTumor(luigi.Task):
     cf = luigi.DictParameter()
     priority = 10
 
@@ -371,7 +371,7 @@ class PrepareBAMTumor(BaseTask):
 
 
 @requires(PrepareCRAMNormal, FetchReferenceFASTA)
-class PrepareBAMNormal(BaseTask):
+class PrepareBAMNormal(luigi.Task):
     cf = luigi.DictParameter()
     priority = 10
 

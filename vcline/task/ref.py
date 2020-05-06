@@ -7,7 +7,7 @@ from pathlib import Path
 import luigi
 from luigi.util import requires
 
-from .base import BaseTask, ShellTask
+from .base import ShellTask
 from .samtools import SamtoolsFaidx, Tabix
 
 
@@ -63,7 +63,7 @@ class FetchResourceFile(ShellTask):
 
 
 @requires(FetchResourceFile)
-class FetchResourceFASTA(BaseTask):
+class FetchResourceFASTA(luigi.Task):
     resource_file_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 70
@@ -213,7 +213,7 @@ class FetchEvaluationIntervalList(luigi.WrapperTask):
 
 
 @requires(FetchEvaluationIntervalList)
-class CreateEvaluationIntervalListBED(BaseTask):
+class CreateEvaluationIntervalListBED(luigi.Task):
     cf = luigi.DictParameter()
     priority = 70
 
@@ -316,7 +316,7 @@ class CreateExclusionIntervalListBED(ShellTask):
             args=(
                 f'set -eo pipefail && {sys.executable}'
                 + ' -c \'{}\''.format(
-                    'from fileinput import input;'
+                    'from fileinput import input; '
                     '[print("{0}\\t0\\t{1}".format(*s.split()[:2]))'
                     ' for s in input()];'
                 ) + f' {fai_path}'

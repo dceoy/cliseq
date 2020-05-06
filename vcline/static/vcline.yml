@@ -40,8 +40,8 @@ references:   # These files can be downloaded with vcline download-resources.
   # https://canvas-cnv-public.s3.amazonaws.com/GRCh38/WholeGenomeFasta/GenomeSize.xml
   kmer_fa: /path/to/canvas-cnv-public.GRCh38.kmer.fa.bz2
   # https://canvas-cnv-public.s3.amazonaws.com/GRCh38/kmer.fa
-  # exome_manifest: /path/to/xgen-exome-research-panel-v2-probes-manifest-hg38.txt.bz2
-  # https://sfvideo.blob.core.windows.net/sitefinity/docs/default-source/supplementary-product-info/xgen-exome-research-panel-v2-probes-manifest-hg38.txt
+  # exome_manifest: /path/to/xgen-exome-research-panel-v2-targets-manifest-hg38.txt.bz2
+  # https://sfvideo.blob.core.windows.net/sitefinity/docs/default-source/supplementary-product-info/xgen-exome-research-panel-v2-targets-manifest-hg38.txt
   funcotator_germline_tar: /path/to/funcotator_dataSources.v1.6.20190124g.tar.gz
   funcotator_somatic_tar: /path/to/funcotator_dataSources.v1.6.20190124s.tar.gz
   snpeff_config: /path/to/snpEff.config

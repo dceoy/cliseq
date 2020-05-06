@@ -44,6 +44,9 @@ RUN set -e \
       && rm -rf /var/lib/apt/lists/*
 
 RUN set -eo pipefail \
+      && /usr/bin/python2 /tmp/get-pip.py \
+      && /usr/bin/python2 -m pip install -U --no-cache-dir \
+        numpy pip pysam \
       && /usr/bin/python3.8 /tmp/get-pip.py \
       && grep -ne '- pip:' /opt/gatk/gatkcondaenv.yml \
         | cut -d : -f 1 \
@@ -53,10 +56,7 @@ RUN set -eo pipefail \
         | cut -d = -f 1 \
         | tr -d '\n' \
         | xargs /usr/bin/python3.8 -m pip install -U --no-cache-dir \
-          cutadapt pip /tmp/vcline \
-      && /usr/bin/python2 /tmp/get-pip.py \
-      && /usr/bin/python2 -m pip install -U --no-cache-dir \
-        numpy pip pysam \
+          cutadapt pip tensorflow /tmp/vcline \
       && rm -f /tmp/get-pip.py
 
 RUN set -e \
