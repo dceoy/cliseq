@@ -23,7 +23,6 @@ from .canvas import CallSomaticCopyNumberVariantsWithCanvas
 from .delly import CallStructualVariantsWithDelly
 from .funcotator import FuncotateSegments, FuncotateVariants
 from .haplotypecaller import FilterVariantTranches
-from .lumpy import CallStructualVariantsWithLumpy
 from .manta import CallStructualVariantsWithManta
 from .msisensor import ScoreMSIWithMSIsensor
 from .mutect2 import FilterMutectCalls
@@ -116,17 +115,6 @@ class RunVariantCaller(luigi.Task):
             )
         elif 'somatic_structual_variant.delly' == self.caller_mode:
             return CallStructualVariantsWithDelly(
-                fq_list=self.fq_list, cram_list=self.cram_list,
-                read_groups=self.read_groups, sample_names=self.sample_names,
-                ref_fa_path=self.ref_fa_path,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path,
-                evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
-            )
-        elif 'somatic_structual_variant.lumpy' == self.caller_mode:
-            return CallStructualVariantsWithLumpy(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
                 ref_fa_path=self.ref_fa_path,
@@ -428,13 +416,6 @@ class RunAnalyticalPipeline(luigi.Task):
                         else set()
                     ),
                     *(
-                        {
-                            'python', 'lumpy', 'lumpyexpress', 'sambamba',
-                            'samblaster'
-                        } if 'somatic_structual_variant.lumpy' in caller_modes
-                        else set()
-                    ),
-                    *(
                         {'R'} if (
                             'somatic_copy_number_variation.gatk'
                             in caller_modes
@@ -461,9 +442,8 @@ class RunAnalyticalPipeline(luigi.Task):
                     'postproc/funcotator', 'postproc/snpeff',
                     'somatic_snv_indel/gatk', 'somatic_snv_indel/strelka',
                     'germline_snv_indel/gatk', 'germline_snv_indel/strelka',
-                    'somatic_sv/manta', 'somatic_sv/delly', 'somatic_sv/lumpy',
-                    'somatic_cnv/gatk', 'somatic_cnv/canvas',
-                    'somatic_msi/msisensor'
+                    'somatic_sv/manta', 'somatic_sv/delly', 'somatic_cnv/gatk',
+                    'somatic_cnv/canvas', 'somatic_msi/msisensor'
                 }
             },
             'ref_dir_path': str(Path(self.ref_dir_path).resolve()),

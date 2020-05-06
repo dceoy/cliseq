@@ -14,11 +14,9 @@ COPY --from=dceoy/strelka:latest /opt/strelka /opt/strelka
 COPY --from=dceoy/delly:latest /usr/local/bin/delly /usr/local/bin/delly
 COPY --from=dceoy/canvas:latest /opt/canvas /opt/canvas
 COPY --from=dceoy/msisensor:latest /usr/local/bin/msisensor /usr/local/bin/msisensor
-COPY --from=dceoy/lumpy:latest /opt/lumpy-sv /opt/lumpy-sv
-COPY --from=dceoy/lumpy:latest /usr/local/src/samblaster /usr/local/src/samblaster
-COPY --from=dceoy/lumpy:latest /usr/local/bin/sambamba /usr/local/bin/sambamba
 COPY --from=dceoy/snpeff:latest /opt/snpEff /opt/snpEff
 ADD https://bootstrap.pypa.io/get-pip.py /tmp/get-pip.py
+ADD https://raw.githubusercontent.com/dceoy/print-github-tags/master/print-github-tags /usr/local/bin/print-github-tags
 ADD . /tmp/vcline
 
 RUN set -e \
@@ -35,7 +33,7 @@ RUN set -e \
       && apt-get -y update \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
-        g++ gcc libbz2-dev libc-dev libcurl4-gnutls-dev libfreetype6-dev \
+        curl g++ gcc libbz2-dev libc-dev libcurl4-gnutls-dev libfreetype6-dev \
         libgsl-dev liblzma-dev libncurses5-dev libperl-dev libpng-dev \
         libssl-dev libz-dev make pkg-config python python3.8-dev \
         python3.8-distutils r-base \
@@ -44,9 +42,6 @@ RUN set -e \
       && rm -rf /var/lib/apt/lists/*
 
 RUN set -eo pipefail \
-      && /usr/bin/python2 /tmp/get-pip.py \
-      && /usr/bin/python2 -m pip install -U --no-cache-dir \
-        numpy pip pysam \
       && /usr/bin/python3.8 /tmp/get-pip.py \
       && grep -ne '- pip:' /opt/gatk/gatkcondaenv.yml \
         | cut -d : -f 1 \
@@ -57,16 +52,29 @@ RUN set -eo pipefail \
         | tr -d '\n' \
         | xargs /usr/bin/python3.8 -m pip install -U --no-cache-dir \
           cutadapt pip tensorflow /tmp/vcline \
+      && sed -ne 's/^- anaconda::\([^=]\+\).*$/\1/p' \
+        /opt/gatk/gatkcondaenv.yml \
+        | tr '\n' ' ' \
+        | xargs /usr/bin/python3.8 -m pip install -U --no-cache-dir \
       && rm -f /tmp/get-pip.py
+
+RUN set -eo pipefail \
+      && chmod +x /usr/local/bin/print-github-tags \
+      && print-github-tags --release --tar tensorflow/tensorflow \
+        | grep 'archive\/v1\.' \
+        | head -1 \
+        | xargs -i curl -SL {} -o /tmp/tensorflow.tar.gz \
+      && tar xvf /tmp/tensorflow.tar.gz -C /tmp --remove-files \
+      && mv /tmp/tensorflow-* /tmp/tensorflow \
+      && /usr/bin/python3.8 -m pip install -U --no-cache-dir \
+        /tmp/tensorflow/tensorflow/lite/tools/pip_package \
+      && rm -rf /tmp/tensorflow
 
 RUN set -e \
       && Rscript /opt/gatk/install_R_packages.R
 
 RUN set -e \
       && cd /usr/local/src/bwa \
-      && make clean \
-      && make \
-      && cd /usr/local/src/samblaster \
       && make clean \
       && make \
       && cd /usr/local/src/samtools/htslib-* \
@@ -94,7 +102,6 @@ RUN set -e \
       && make install \
       && find \
         /usr/local/src/bwa /usr/local/src/FastQC /usr/local/src/TrimGalore \
-        /usr/local/src/samblaster \
         -maxdepth 1 -type f -executable -exec ln -s {} /usr/local/bin \;
 
 FROM ubuntu:18.04
@@ -127,9 +134,8 @@ RUN set -e \
       && apt-get -y update \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
-        bsdmainutils dotnet-runtime-2.1 gawk libcurl3-gnutls libgsl23 \
-        libncurses5 openjdk-8-jre pbzip2 perl pigz python python3.8 \
-        python3.8-distutils r-base wget \
+        dotnet-runtime-2.1 libcurl3-gnutls libgsl23 libncurses5 openjdk-8-jre \
+        pbzip2 perl pigz python python3.8 python3.8-distutils r-base wget \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
@@ -139,7 +145,7 @@ RUN set -e \
       && ln -sf python3.8 /usr/bin/python3
 
 ENV PYTHONPATH /opt/manta/lib/python:/opt/strelka/lib/python:${PYTHONPATH}
-ENV PATH /opt/gatk/bin:/opt/manta/bin:/opt/strelka/bin:/opt/canvas/bin:/opt/lumpy-sv/bin:/opt/snpEff/bin:${PATH}
+ENV PATH /opt/gatk/bin:/opt/manta/bin:/opt/strelka/bin:/opt/canvas/bin:/opt/snpEff/bin:${PATH}
 ENV BCFTOOLS_PLUGINS /usr/local/src/bcftools/plugins
 
-ENTRYPOINT ["/opt/conda/bin/vcline"]
+ENTRYPOINT ["/usr/local/bin/vcline"]
