@@ -22,7 +22,7 @@ class GetPileupSummaries(ShellTask):
     evaluation_interval_path = luigi.Parameter()
     gnomad_common_biallelic_vcf_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 40
+    priority = 50
 
     def output(self):
         return luigi.LocalTarget(
@@ -66,7 +66,7 @@ class GetPileupSummaries(ShellTask):
           CreateSequenceDictionary)
 class CalculateContamination(ShellTask):
     cf = luigi.DictParameter()
-    priority = 40
+    priority = 50
 
     def output(self):
         return [
@@ -119,7 +119,7 @@ class CalculateContamination(ShellTask):
 class CallVariantsWithMutect2(ShellTask):
     sample_names = luigi.ListParameter()
     cf = luigi.DictParameter()
-    priority = 40
+    priority = 50
 
     def output(self):
         return [
@@ -160,15 +160,14 @@ class CallVariantsWithMutect2(ShellTask):
                 input_cram_paths=input_cram_paths, fa_path=fa_path,
                 gnomad_vcf_path=gnomad_vcf_path, evaluation_interval_path=i,
                 normal_name=self.sample_names[1], output_path_prefix=s,
-                cf=self.cf, run_id=run_id
+                cf=self.cf
             ) for i, s in zip(evaluation_interval_paths, tmp_prefixes)
         ]
         f1r2_paths = [f'{s}.f1r2.tar.gz' for s in tmp_prefixes]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['somatic_snv_indel_gatk_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
-            env={'REF_CACHE': '.ref_cache'}
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
@@ -235,8 +234,7 @@ class Mutect2(ShellTask):
     output_path_prefix = luigi.Parameter()
     cf = luigi.DictParameter()
     message = luigi.Parameter(default='')
-    run_id = luigi.Parameter(default='')
-    priority = 40
+    priority = 50
 
     def output(self):
         return [
@@ -248,19 +246,16 @@ class Mutect2(ShellTask):
     def run(self):
         if self.message:
             self.print_log(self.message)
-        raw_vcf_path = self.output()[0].path
-        run_id = '.'.join(Path(raw_vcf_path).name.split('.')[:-3])
-        self.print_log(f'Call somatic variants with Mutect2:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         save_memory = str(self.cf['save_memory']).lower()
         n_cpu = self.cf['n_cpu_per_worker']
         output_file_paths = [o.path for o in self.output()]
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=gatk, cwd=Path(output_file_paths[0]).parent,
-            remove_if_failed=self.cf['remove_if_failed'],
-            env={'REF_CACHE': '.ref_cache'}
+            run_id='.'.join(Path(output_file_paths[0]).name.split('.')[:-2]),
+            log_dir_path=self.cf['log_dir_path'], commands=gatk,
+            cwd=Path(output_file_paths[0]).parent,
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(
@@ -292,7 +287,7 @@ class Mutect2(ShellTask):
           CreateSequenceDictionary)
 class FilterMutectCalls(ShellTask):
     cf = luigi.DictParameter()
-    priority = 40
+    priority = 50
 
     def output(self):
         return [

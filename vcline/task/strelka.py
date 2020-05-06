@@ -23,41 +23,41 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         (v + s) for v, s in
         product(['somatic.snvs.vcf.gz', 'somatic.indels.vcf.gz'], ['', '.tbi'])
     ]
-    priority = 10
+    priority = 30
 
     def output(self):
         return [
             luigi.LocalTarget(
                 Path(self.cf['somatic_snv_indel_strelka_dir_path']).joinpath(
                     create_matched_id(*[i[0].path for i in self.input()[0:2]])
-                    + f'.strelka.somatic.vcf.gz{s}'
+                    + s
                 )
-            ) for s in ['', '.tbi']
+            ) for s
+            in ['', '.strelka.somatic.vcf.gz', '.strelka.somatic.vcf.gz.tbi']
         ]
 
     def run(self):
-        output_vcf_path = self.output()[0].path
-        run_id = '.'.join(Path(output_vcf_path).name.split('.')[:-4])
+        run_dir_path = self.output()[0].path
+        run_id = Path(run_dir_path).name
         self.print_log(f'Call somatic variants with Strelka:\t{run_id}')
         config_script = self.cf['configureStrelkaSomaticWorkflow.py']
         root_dir_path = self.cf['somatic_snv_indel_strelka_dir_path']
-        run_dir_path = str(Path(root_dir_path).joinpath(run_id))
         run_script = str(Path(run_dir_path).joinpath('runWorkflow.py'))
+        pythonpath = Path(config_script).parent.parent.joinpath('lib/python')
         python2 = self.cf['python2']
         n_cpu = self.cf['n_cpu_per_worker']
         memory_gb = max(floor(self.cf['memory_mb_per_worker'] / 1024), 1)
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
         fa_path = self.input()[2][0].path
         bed_path = self.input()[3][0].path
-        manta_indel_vcf_path = [
-            i.path for i in self.input()[4]
-            if i.path.endswith('candidateSmallIndels.vcf.gz')
-        ][0]
-        pythonpath = Path(config_script).parent.parent.joinpath('lib/python')
+        manta_indel_vcf_path = Path(self.input()[4][0].path).joinpath(
+            'results/variants/candidateSmallIndels.vcf.gz'
+        )
         result_file_paths = [
             str(Path(run_dir_path).joinpath(f'results/variants/{n}'))
             for n in self.result_file_names
         ]
+        output_vcf_path = self.output()[1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[python2, config_script], cwd=root_dir_path,
@@ -110,38 +110,40 @@ class CallGermlineVariantsWithStrelka(ShellTask):
     cf = luigi.DictParameter()
     result_file_names = [
         (v + s) for v, s
-        in product(['genome.vcf.gz', 'variants.vcf.gz'], ['', '.tbi'])
+        in product(['variants.vcf.gz', 'genome.vcf.gz'], ['', '.tbi'])
     ]
-    priority = 10
+    priority = 30
 
     def output(self):
         return [
             luigi.LocalTarget(
                 Path(self.cf['germline_snv_indel_strelka_dir_path']).joinpath(
-                    Path(self.input()[0][0].path).stem
-                    + f'.strelka.germline.{n}'
+                    Path(self.input()[0][0].path).stem + s
                 )
-            ) for n in self.result_file_names
+            ) for s in [
+                '', '.strelka.germline.variants.vcf.gz',
+                '.strelka.germline.variants.vcf.gz.tbi'
+            ]
         ]
 
     def run(self):
-        output_link_paths = [o.path for o in self.output()]
-        run_id = '.'.join(Path(output_link_paths[0]).name.split('.')[:-5])
+        run_dir_path = self.output()[0].path
+        run_id = Path(run_dir_path).name
         self.print_log(f'Call germline variants with Strelka:\t{run_id}')
         config_script = self.cf['configureStrelkaGermlineWorkflow.py']
         root_dir_path = self.cf['germline_snv_indel_strelka_dir_path']
-        run_dir_path = str(Path(root_dir_path).joinpath(run_id))
         run_script = str(Path(run_dir_path).joinpath('runWorkflow.py'))
+        pythonpath = Path(config_script).parent.parent.joinpath('lib/python')
         n_cpu = self.cf['n_cpu_per_worker']
         memory_gb = max(floor(self.cf['memory_mb_per_worker'] / 1024), 1)
         input_cram_path = self.input()[0][0].path
         fa_path = self.input()[1][0].path
         bed_path = self.input()[2][0].path
-        pythonpath = Path(config_script).parent.parent.joinpath('lib/python')
         result_file_paths = [
             str(Path(run_dir_path).joinpath(f'results/variants/{n}'))
             for n in self.result_file_names
         ]
+        output_link_paths = [o.path for o in self.output()[1:]]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=config_script, cwd=root_dir_path,
@@ -171,14 +173,11 @@ class CallGermlineVariantsWithStrelka(ShellTask):
             ],
             output_files_or_dirs=[*result_file_paths, run_dir_path]
         )
-        self.run_shell(
-            args=[
-                'ln -s {0} {1}'.format(Path(i).relative_to(root_dir_path), o)
-                for i, o in zip(result_file_paths, output_link_paths)
-            ],
-            input_files_or_dirs=result_file_paths,
-            output_files_or_dirs=output_link_paths
-        )
+        for l in output_link_paths:
+            f = Path(run_dir_path).joinpath('results/variants').joinpath(
+                Path(l).name.split('.strelka.germline.')[-1]
+            ).relative_to(root_dir_path)
+            self.run_shell(args=f'ln -s {f} {l}', output_files_or_dirs=l)
 
 
 if __name__ == '__main__':

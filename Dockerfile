@@ -15,7 +15,7 @@ COPY --from=dceoy/delly:latest /usr/local/bin/delly /usr/local/bin/delly
 COPY --from=dceoy/canvas:latest /opt/canvas /opt/canvas
 COPY --from=dceoy/msisensor:latest /usr/local/bin/msisensor /usr/local/bin/msisensor
 COPY --from=dceoy/snpeff:latest /opt/snpEff /opt/snpEff
-ADD https://bootstrap.pypa.io/get-pip.py /tmp/get-pip.py
+ADD https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh /tmp/miniconda.sh
 ADD https://raw.githubusercontent.com/dceoy/print-github-tags/master/print-github-tags /usr/local/bin/print-github-tags
 ADD . /tmp/vcline
 
@@ -35,40 +35,32 @@ RUN set -e \
       && apt-get -y install --no-install-recommends --no-install-suggests \
         curl g++ gcc libbz2-dev libc-dev libcurl4-gnutls-dev libfreetype6-dev \
         libgsl-dev liblzma-dev libncurses5-dev libperl-dev libpng-dev \
-        libssl-dev libz-dev make pkg-config python python3.8-dev \
-        python3.8-distutils r-base \
+        libssl-dev libz-dev make pkg-config python r-base \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
 
-RUN set -eo pipefail \
-      && /usr/bin/python3.8 /tmp/get-pip.py \
-      && grep -ne '- pip:' /opt/gatk/gatkcondaenv.yml \
-        | cut -d : -f 1 \
-        | xargs -i sed -e '1,{}d' /opt/gatk/gatkcondaenv.yml \
-        | cut -d - -f 2- \
-        | sed -e 's/\(gatk.*.zip\)/\/opt\/gatk\/\1/' \
-        | cut -d = -f 1 \
-        | tr -d '\n' \
-        | xargs /usr/bin/python3.8 -m pip install -U --no-cache-dir \
-          cutadapt pip tensorflow /tmp/vcline \
-      && sed -ne 's/^- anaconda::\([^=]\+\).*$/\1/p' \
-        /opt/gatk/gatkcondaenv.yml \
-        | tr '\n' ' ' \
-        | xargs /usr/bin/python3.8 -m pip install -U --no-cache-dir \
-      && rm -f /tmp/get-pip.py
+RUN set -e \
+      && /bin/bash /tmp/miniconda.sh -b -p /opt/conda \
+      && /opt/conda/bin/conda update -n base -c defaults conda \
+      && /opt/conda/bin/conda clean -ya \
+      && ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh \
+      && echo '. /opt/conda/etc/profile.d/conda.sh' >> ~/.bashrc \
+      && echo 'conda activate base' >> ~/.bashrc \
+      && rm -f /tmp/miniconda.sh
 
 RUN set -eo pipefail \
-      && chmod +x /usr/local/bin/print-github-tags \
-      && print-github-tags --release --tar tensorflow/tensorflow \
-        | grep 'archive\/v1\.' \
-        | head -1 \
-        | xargs -i curl -SL {} -o /tmp/tensorflow.tar.gz \
-      && tar xvf /tmp/tensorflow.tar.gz -C /tmp --remove-files \
-      && mv /tmp/tensorflow-* /tmp/tensorflow \
-      && /usr/bin/python3.8 -m pip install -U --no-cache-dir \
-        /tmp/tensorflow/tensorflow/lite/tools/pip_package \
-      && rm -rf /tmp/tensorflow
+      && sed \
+        -e 's/\(openssl\|pip\|python\|setuptools\|certifi\|wheel\|tk\|xz\|readline\|zlib\|sqlite\)=.*/\1/' \
+        -e 's/\(gatk.*.zip\)/\/opt\/gatk\/\1/' \
+        /opt/gatk/gatkcondaenv.yml > /tmp/gatkcondaenv.yml \
+      && /opt/conda/bin/conda env create -n gatk -f /tmp/gatkcondaenv.yml \
+      && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
+          cutadapt pip /tmp/vcline \
+      && /opt/conda/bin/conda clean -yaf \
+      && find /opt/conda -follow -type f -name '*.a' -delete \
+      && find /opt/conda -follow -type f -name '*.pyc' -delete \
+      && rm -rf /root/.cache/pip
 
 RUN set -e \
       && Rscript /opt/gatk/install_R_packages.R
@@ -135,17 +127,13 @@ RUN set -e \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
         dotnet-runtime-2.1 libcurl3-gnutls libgsl23 libncurses5 openjdk-8-jre \
-        pbzip2 perl pigz python python3.8 python3.8-distutils r-base wget \
+        pbzip2 perl pigz python r-base wget \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
 
-RUN set -e \
-      && ln -sf python3 /usr/bin/python \
-      && ln -sf python3.8 /usr/bin/python3
-
 ENV PYTHONPATH /opt/manta/lib/python:/opt/strelka/lib/python:${PYTHONPATH}
-ENV PATH /opt/gatk/bin:/opt/manta/bin:/opt/strelka/bin:/opt/canvas/bin:/opt/snpEff/bin:${PATH}
+ENV PATH /opt/gatk/bin:/opt/manta/bin:/opt/strelka/bin:/opt/canvas/bin:/opt/snpEff/bin:/opt/conda/envs/gatk/bin:/opt/conda/bin:${PATH}
 ENV BCFTOOLS_PLUGINS /usr/local/src/bcftools/plugins
 
-ENTRYPOINT ["/usr/local/bin/vcline"]
+ENTRYPOINT ["/opt/conda/bin/vcline"]

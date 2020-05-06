@@ -8,7 +8,6 @@ from pathlib import Path
 from pprint import pformat
 from urllib.parse import urlsplit
 
-import luigi
 import yaml
 from jinja2 import Environment, FileSystemLoader
 
@@ -37,14 +36,6 @@ def print_log(message):
     logger = logging.getLogger(__name__)
     logger.debug(message)
     print(f'>>\t{message}', flush=True)
-
-
-def build_luigi_tasks(*args, **kwargs):
-    print_log(
-        'Task execution summary:' + os.linesep + luigi.build(
-            *args, **kwargs, local_scheduler=True, detailed_summary=True
-        ).summary_text
-    )
 
 
 def parse_fq_id(fq_path):

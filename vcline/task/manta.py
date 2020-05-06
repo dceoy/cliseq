@@ -26,37 +26,40 @@ class CallStructualVariantsWithManta(ShellTask):
             ['', '.tbi']
         )
     ]
-    priority = 10
+    priority = 40
 
     def output(self):
         return [
             luigi.LocalTarget(
                 Path(self.cf['somatic_sv_manta_dir_path']).joinpath(
                     create_matched_id(*[i[0].path for i in self.input()[0:2]])
-                    + f'.manta.{n}'
+                    + s
                 )
-            ) for n in self.result_file_names
+            ) for s in [
+                '', '.manta.somaticSV.vcf.gz', '.manta.somaticSV.vcf.gz.tbi',
+                '.manta.diploidSV.vcf.gz', '.manta.diploidSV.vcf.gz.tbi'
+            ]
         ]
 
     def run(self):
-        output_link_paths = [o.path for o in self.output()]
-        run_id = '.'.join(Path(output_link_paths[0]).name.split('.')[:-4])
+        run_dir_path = self.output()[0].path
+        run_id = Path(run_dir_path).name
         self.print_log(f'Call somatic SVs with Manta:\t{run_id}')
         config_script = self.cf['configManta.py']
         root_dir_path = self.cf['somatic_sv_manta_dir_path']
-        run_dir_path = str(Path(root_dir_path).joinpath(run_id))
         run_script = str(Path(run_dir_path).joinpath('runWorkflow.py'))
+        pythonpath = Path(config_script).parent.parent.joinpath('lib/python')
         python2 = self.cf['python2']
         n_cpu = self.cf['n_cpu_per_worker']
         memory_gb = max(floor(self.cf['memory_mb_per_worker'] / 1024), 1)
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
         fa_path = self.input()[2][0].path
         bed_path = self.input()[3][0].path
-        pythonpath = Path(config_script).parent.parent.joinpath('lib/python')
         result_file_paths = [
             str(Path(run_dir_path).joinpath(f'results/variants/{n}'))
             for n in self.result_file_names
         ]
+        output_link_paths = [o.path for o in self.output()[1:]]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[python2, config_script], cwd=root_dir_path,
@@ -87,14 +90,11 @@ class CallStructualVariantsWithManta(ShellTask):
             ],
             output_files_or_dirs=[*result_file_paths, run_dir_path]
         )
-        self.run_shell(
-            args=[
-                'ln -s {0} {1}'.format(Path(i).relative_to(root_dir_path), o)
-                for i, o in zip(result_file_paths, output_link_paths)
-            ],
-            input_files_or_dirs=result_file_paths,
-            output_files_or_dirs=output_link_paths
-        )
+        for l in output_link_paths:
+            f = Path(run_dir_path).joinpath('results/variants').joinpath(
+                Path(l).name.split('.manta.')[-1]
+            ).relative_to(root_dir_path)
+            self.run_shell(args=f'ln -s {f} {l}', output_files_or_dirs=l)
 
 
 if __name__ == '__main__':

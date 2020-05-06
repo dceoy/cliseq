@@ -121,7 +121,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
             HaplotypeCaller(
                 input_cram_path=input_cram_path, fa_path=fa_path,
                 dbsnp_vcf_path=dbsnp_vcf_path, evaluation_interval_path=i,
-                output_path_prefix=s, cf=self.cf, run_id=run_id
+                output_path_prefix=s, cf=self.cf
             ) for i, s in zip(evaluation_interval_paths, tmp_prefixes)
         ]
         if len(evaluation_interval_paths) == 1:
@@ -137,8 +137,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
             self.setup_shell(
                 run_id=run_id, log_dir_path=self.cf['log_dir_path'],
                 commands=gatk, cwd=self.cf['germline_snv_indel_gatk_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed'],
-                env={'REF_CACHE': '.ref_cache'}
+                remove_if_failed=self.cf['remove_if_failed']
             )
             tmp_gvcf_paths = [f'{s}.g.vcf.gz' for s in tmp_prefixes]
             self.run_shell(
@@ -179,7 +178,6 @@ class HaplotypeCaller(ShellTask):
     output_path_prefix = luigi.Parameter()
     cf = luigi.DictParameter()
     message = luigi.Parameter(default='')
-    run_id = luigi.Parameter(default='')
     priority = 50
 
     def output(self):
@@ -197,10 +195,10 @@ class HaplotypeCaller(ShellTask):
         n_cpu = self.cf['n_cpu_per_worker']
         output_file_paths = [o.path for o in self.output()]
         self.setup_shell(
-            run_id=self.run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=gatk, cwd=Path(output_file_paths[0]).parent,
-            remove_if_failed=self.cf['remove_if_failed'],
-            env={'REF_CACHE': '.ref_cache'}
+            run_id='.'.join(Path(output_file_paths[0]).name.split('.')[:-3]),
+            log_dir_path=self.cf['log_dir_path'], commands=gatk,
+            cwd=Path(output_file_paths[0]).parent,
+            remove_if_failed=self.cf['remove_if_failed']
         )
         self.run_shell(
             args=(

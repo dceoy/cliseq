@@ -10,8 +10,6 @@ from shoper.shelloperator import ShellOperator
 
 
 class BaseTask(luigi.Task):
-    retry_count = 0
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -25,6 +23,12 @@ class BaseTask(luigi.Task):
         logger.info(message)
         print(message, flush=True)
 
+    @classmethod
+    def print_log(cls, message, new_line=True):
+        logger = logging.getLogger(cls.__name__)
+        logger.info(message)
+        print((os.linesep if new_line else '') + f'>>\t{message}', flush=True)
+
 
 class ShellTask(BaseTask):
     def __init__(self, *args, **kwargs):
@@ -32,12 +36,6 @@ class ShellTask(BaseTask):
         self.__log_txt_path = None
         self.__sh = None
         self.__run_kwargs = None
-
-    @classmethod
-    def print_log(cls, message, new_line=True):
-        logger = logging.getLogger(cls.__name__)
-        logger.info(message)
-        print((os.linesep if new_line else '') + f'>>\t{message}', flush=True)
 
     @classmethod
     def setup_shell(cls, run_id=None, log_dir_path=None, commands=None,

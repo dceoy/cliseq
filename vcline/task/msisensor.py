@@ -49,7 +49,7 @@ class ScanMicrosatellites(ShellTask):
 @requires(CreateEvaluationIntervalListBED)
 class UncompressEvaluationIntervalListBED(ShellTask):
     cf = luigi.DictParameter()
-    priority = 50
+    priority = 60
 
     def output(self):
         return luigi.LocalTarget(
@@ -69,7 +69,7 @@ class UncompressEvaluationIntervalListBED(ShellTask):
           UncompressEvaluationIntervalListBED)
 class ScoreMSIWithMSIsensor(ShellTask):
     cf = luigi.DictParameter()
-    priority = 10
+    priority = 20
 
     def output(self):
         return [

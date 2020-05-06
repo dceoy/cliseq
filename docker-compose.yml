@@ -14,4 +14,4 @@ services:
       - .:/wd
     working_dir: /wd
     entrypoint:
-      - /opt/conda/bin/vcline
+      - vcline

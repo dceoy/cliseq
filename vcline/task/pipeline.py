@@ -2,20 +2,14 @@
 
 import logging
 import os
-import re
 import sys
 from itertools import chain
-from math import floor
 from pathlib import Path
-from pprint import pformat
 
 import luigi
-import yaml
 from luigi.tools import deps_tree
-from psutil import cpu_count, virtual_memory
 
-from ..cli.util import (create_matched_id, fetch_executable, parse_cram_id,
-                        parse_fq_id, read_yml)
+from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
@@ -47,16 +41,17 @@ class RunVariantCaller(luigi.Task):
     genomesize_xml_path = luigi.Parameter()
     kmer_fa_path = luigi.Parameter()
     exome_manifest_path = luigi.Parameter(default='')
-    funcotator_data_src_tar_path = luigi.Parameter()
-    snpeff_config_path = luigi.Parameter()
+    funcotator_somatic_tar_path = luigi.Parameter(default='')
+    funcotator_germline_tar_path = luigi.Parameter(default='')
+    snpeff_config_path = luigi.Parameter(default='')
     cf = luigi.DictParameter()
-    caller_mode = luigi.ListParameter()
-    annotators = luigi.ListParameter()
+    caller = luigi.Parameter()
+    annotators = luigi.ListParameter(default=list())
     normalize_vcf = luigi.BoolParameter(default=True)
-    priority = 10
+    priority = luigi.IntParameter(default=1000)
 
     def requires(self):
-        if 'germline_short_variant.gatk' == self.caller_mode:
+        if 'germline_short_variant.gatk' == self.caller:
             return FilterVariantTranches(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -68,7 +63,7 @@ class RunVariantCaller(luigi.Task):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'somatic_short_variant.gatk' == self.caller_mode:
+        elif 'somatic_short_variant.gatk' == self.caller:
             return FilterMutectCalls(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -80,7 +75,7 @@ class RunVariantCaller(luigi.Task):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'somatic_structual_variant.manta' == self.caller_mode:
+        elif 'somatic_structual_variant.manta' == self.caller:
             return CallStructualVariantsWithManta(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -91,7 +86,7 @@ class RunVariantCaller(luigi.Task):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'somatic_short_variant.strelka' == self.caller_mode:
+        elif 'somatic_short_variant.strelka' == self.caller:
             return CallSomaticVariantsWithStrelka(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -102,7 +97,7 @@ class RunVariantCaller(luigi.Task):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'germline_short_variant.strelka' == self.caller_mode:
+        elif 'germline_short_variant.strelka' == self.caller:
             return CallGermlineVariantsWithStrelka(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -113,7 +108,7 @@ class RunVariantCaller(luigi.Task):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'somatic_structual_variant.delly' == self.caller_mode:
+        elif 'somatic_structual_variant.delly' == self.caller:
             return CallStructualVariantsWithDelly(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -124,7 +119,7 @@ class RunVariantCaller(luigi.Task):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'somatic_copy_number_variation.gatk' == self.caller_mode:
+        elif 'somatic_copy_number_variation.gatk' == self.caller:
             return CallCopyRatioSegmentsMatched(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -135,7 +130,7 @@ class RunVariantCaller(luigi.Task):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cnv_black_list_path=self.cnv_black_list_path, cf=self.cf
             )
-        elif 'somatic_copy_number_variation.canvas' == self.caller_mode:
+        elif 'somatic_copy_number_variation.canvas' == self.caller:
             return CallSomaticCopyNumberVariantsWithCanvas(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -150,7 +145,7 @@ class RunVariantCaller(luigi.Task):
                 kmer_fa_path=self.kmer_fa_path,
                 exome_manifest_path=self.exome_manifest_path, cf=self.cf
             )
-        elif 'somatic_msi.msisensor' == self.caller_mode:
+        elif 'somatic_msi.msisensor' == self.caller:
             return ScoreMSIWithMSIsensor(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -162,7 +157,7 @@ class RunVariantCaller(luigi.Task):
                 cf=self.cf
             )
         else:
-            raise ValueError(f'invalid caller mode: {self.caller_mode}')
+            raise ValueError(f'invalid caller: {self.caller}')
 
     def output(self):
         output_pos = list(
@@ -182,17 +177,11 @@ class RunVariantCaller(luigi.Task):
 
     def _find_annotation_targets(self):
         input_paths = [i.path for i in self.input()]
-        if 'somatic_structual_variant.delly' == self.caller_mode:
+        if 'somatic_structual_variant.delly' == self.caller:
             suffix_dict = {'funcotator': None, 'snpeff': '.vcf.gz'}
-        elif 'somatic_structual_variant.manta' == self.caller_mode:
+        elif 'somatic_structual_variant.manta' == self.caller:
             suffix_dict = {
-                'funcotator': '.manta.somaticSV.vcf.gz',
-                'snpeff': ('.manta.somaticSV.vcf.gz', '.diploidSV.vcf.gz')
-            }
-        elif 'germline_short_variant.strelka' == self.caller_mode:
-            suffix_dict = {
-                k: '.strelka.germline.variants.vcf.gz'
-                for k in ['funcotator', 'snpeff']
+                'funcotator': '.manta.somaticSV.vcf.gz', 'snpeff': '.vcf.gz'
             }
         else:
             suffix_dict = {
@@ -206,19 +195,25 @@ class RunVariantCaller(luigi.Task):
         }
 
     def run(self):
+        logger = logging.getLogger(__name__)
+        logger.debug('Task tree:' + os.linesep + deps_tree.print_tree(self))
+        funcotator_common_kwargs = {
+            'data_src_tar_path': (
+                self.funcotator_germline_tar_path
+                if self.caller.startswith('germline_')
+                else self.funcotator_somatic_tar_path
+            ),
+            'ref_fa_path': self.ref_fa_path, 'cf': self.cf
+        }
         for k, v in self._find_annotation_targets().items():
             if k == 'funcotator':
-                common_kwargs = {
-                    'data_src_tar_path': self.funcotator_data_src_tar_path,
-                    'ref_fa_path': self.ref_fa_path, 'cf': self.cf
-                }
                 yield [
                     (
-                        FuncotateSegments(input_seg_path=p, **common_kwargs)
-                        if p.endswith('.seg')
-                        else FuncotateVariants(
+                        FuncotateSegments(
+                            input_seg_path=p, **funcotator_common_kwargs
+                        ) if p.endswith('.seg') else FuncotateVariants(
                             input_vcf_path=p, normalize_vcf=self.normalize_vcf,
-                            **common_kwargs
+                            **funcotator_common_kwargs
                         )
                     ) for p in v
                 ]
@@ -233,7 +228,33 @@ class RunVariantCaller(luigi.Task):
                 ]
 
 
-class CallVariants(ShellTask):
+class PrintEnvVersions(ShellTask):
+    log_dir_path = luigi.Parameter()
+    command_paths = luigi.ListParameter(default=list())
+    run_id = luigi.Parameter(default='env')
+    priority = luigi.IntParameter(default=sys.maxsize)
+    __is_completed = False
+
+    def complete(self):
+        return self.__is_completed
+
+    def run(self):
+        python = sys.executable
+        self.print_log(f'Print environment versions: {python}')
+        self.setup_shell(
+            run_id=self.run_id, log_dir_path=self.log_dir_path,
+            commands=[python, *self.command_paths], quiet=False
+        )
+        self.run_shell(
+            args=[
+                f'{python} -m pip --version',
+                f'{python} -m pip freeze --no-cache-dir'
+            ]
+        )
+        self.__is_completed = True
+
+
+class RemoveBAMs(ShellTask):
     fq_list = luigi.ListParameter()
     cram_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
@@ -253,57 +274,33 @@ class CallVariants(ShellTask):
     funcotator_germline_tar_path = luigi.Parameter()
     snpeff_config_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    caller_modes = luigi.ListParameter()
+    callers = luigi.ListParameter()
     annotators = luigi.ListParameter()
     normalize_vcf = luigi.BoolParameter(default=True)
-    priority = luigi.IntParameter(default=100)
+    priority = luigi.IntParameter(default=0)
+    __is_completed = False
 
     def requires(self):
-        common_kwargs = {
-            'fq_list': self.fq_list, 'read_groups': self.read_groups,
-            'cram_list': self.cram_list, 'sample_names': self.sample_names,
-            'ref_fa_path': self.ref_fa_path,
-            'dbsnp_vcf_path': self.dbsnp_vcf_path,
-            'mills_indel_vcf_path': self.mills_indel_vcf_path,
-            'known_indel_vcf_path': self.known_indel_vcf_path, 'cf': self.cf
-        }
-        return [
-            PrepareCRAMTumor(**common_kwargs),
-            PrepareCRAMNormal(**common_kwargs),
-            *[
-                RunVariantCaller(
-                    hapmap_vcf_path=self.hapmap_vcf_path,
-                    gnomad_vcf_path=self.gnomad_vcf_path,
-                    evaluation_interval_path=self.evaluation_interval_path,
-                    cnv_black_list_path=self.cnv_black_list_path,
-                    genomesize_xml_path=self.genomesize_xml_path,
-                    kmer_fa_path=self.kmer_fa_path,
-                    exome_manifest_path=self.exome_manifest_path,
-                    funcotator_data_src_tar_path=(
-                        self.funcotator_germline_tar_path
-                        if m.startswith('.germline') else
-                        self.funcotator_somatic_tar_path
-                    ),
-                    snpeff_config_path=self.snpeff_config_path, caller_mode=m,
-                    annotators=self.annotators,
-                    normalize_vcf=self.normalize_vcf, **common_kwargs
-                ) for m in self.caller_modes
+        kwargs = {
+            k: getattr(self, k) for k in [
+                'fq_list', 'read_groups', 'cram_list', 'sample_names',
+                'ref_fa_path', 'dbsnp_vcf_path', 'mills_indel_vcf_path',
+                'known_indel_vcf_path', 'cf'
             ]
-        ]
+        }
+        return [PrepareCRAMTumor(**kwargs), PrepareCRAMNormal(**kwargs)]
 
-    def output(self):
-        return self.input()
+    def complete(self):
+        return self.__is_completed
 
     def run(self):
-        bam_paths = [
-            str(
-                Path(self.cf['align_dir_path']).joinpath(
-                    Path(i[0].path).stem + '.bam'
-                )
-            ) for i in self.input()[:2]
+        align_dir = Path(self.cf['align_dir_path'])
+        bams = [
+            align_dir.joinpath(Path(i[0].path).stem + '.bam')
+            for i in self.input()
         ]
-        if any([Path(p).is_file() for p in bam_paths]):
-            run_id = create_matched_id(*bam_paths)
+        if any([b.is_file() for b in bams]):
+            run_id = create_matched_id(*[b.name for b in bams])
             self.print_log(f'Remove BAM files:\t{run_id}')
             self.setup_shell(
                 run_id=run_id, log_dir_path=self.cf['log_dir_path'],
@@ -311,271 +308,11 @@ class CallVariants(ShellTask):
                 remove_if_failed=self.cf['remove_if_failed']
             )
             self.run_shell(
-                args=('rm -f' + ''.join([f' {p}*' for p in bam_paths]))
+                args=('rm -f' + ''.join([f' {b} {b}.bai' for b in bams]))
             )
-
-
-class PrintEnvVersions(ShellTask):
-    cf = luigi.DictParameter()
-    priority = sys.maxsize
-
-    def run(self):
-        python = sys.executable
-        self.print_log(f'Print environment versions: {python}')
-        self.setup_shell(
-            run_id='env', log_dir_path=self.cf['log_dir_path'],
-            commands=[python, self.cf['java']]
-        )
-        self.run_shell(
-            args=[f'{python} -m pip --version', f'{python} -m pip freeze']
-        )
-
-    def complete(self):
-        return True
-
-
-class RunAnalyticalPipeline(luigi.Task):
-    config_yml_path = luigi.Parameter()
-    dest_dir_path = luigi.Parameter(default='.')
-    log_dir_path = luigi.Parameter(default='log')
-    ref_dir_path = luigi.Parameter(default='')
-    n_worker = luigi.IntParameter(default=2)
-    max_n_cpu = luigi.IntParameter(default=cpu_count())
-    skip_cleaning = luigi.BoolParameter(default=False)
-    log_level = luigi.Parameter(default='WARNING')
-
-    def requires(self):
-        logger = logging.getLogger(__name__)
-        n_cpu = cpu_count()
-        n_cpu_per_worker = max(
-            1, floor((self.max_n_cpu or n_cpu) / self.n_worker)
-        )
-        memory_mb = virtual_memory().total / 1024 / 1024
-        memory_mb_per_worker = int(memory_mb / self.n_worker)
-        config = self._read_config_yml(config_yml_path=self.config_yml_path)
-        caller_modes = list()
-        if 'callers' in config:
-            for k, v in config['callers'].items():
-                for t, b in v.items():
-                    if b:
-                        caller_modes.append(f'{k}.{t}')
-        if not ({m for m in caller_modes if m.endswith('.canvas')}
-                and n_cpu >= 8 and memory_mb >= 25 * 1024):
-            logger.warning('Canvas requires 8 CPUs and 25 GB RAM.')
-        annotators = (
-            {k for k, v in config['annotators'].items() if v}
-            if 'annotators' in config else {'funcotator', 'snpeff'}
-        )
-        common_config = {
-            'ref_version': (config.get('reference_version') or 'hg38'),
-            'exome': bool(config.get('exome')),
-            'n_worker': self.n_worker,
-            'memory_mb_per_worker': memory_mb_per_worker,
-            'n_cpu_per_worker': n_cpu_per_worker,
-            'gatk_java_options': ' '.join([
-                '-Dsamjdk.compression_level=5',
-                '-Dsamjdk.use_async_io_read_samtools=true',
-                '-Dsamjdk.use_async_io_write_samtools=true',
-                '-Dsamjdk.use_async_io_write_tribble=false',
-                f'-Xmx{memory_mb_per_worker:d}m',
-                '-XX:+UseParallelGC',
-                f'-XX:ParallelGCThreads={n_cpu_per_worker}'
-            ]),
-            'samtools_memory_per_thread':
-            '{:d}M'.format(int(memory_mb_per_worker / n_cpu_per_worker / 20)),
-            'save_memory': (memory_mb_per_worker < 8 * 1024),
-            'remove_if_failed': (not self.skip_cleaning),
-            **{
-                c: fetch_executable(c) for c in {
-                    'bcftools', 'bedtools', 'bgzip', 'bwa', 'cutadapt',
-                    'fastqc', 'gawk', 'gatk', 'java', 'pbzip2', 'pigz',
-                    'samtools', 'tabix', 'trim_galore',
-                    *(
-                        {'python2', 'configureStrelkaSomaticWorkflow.py'}
-                        if 'somatic_short_variant.strelka' in caller_modes
-                        else set()
-                    ),
-                    *(
-                        {'python3'}
-                        if 'germline_short_variant.gatk' in caller_modes
-                        else set()
-                    ),
-                    *(
-                        {'python2', 'configureStrelkaGermlineWorkflow.py'}
-                        if 'germline_short_variant.strelka' in caller_modes
-                        else set()
-                    ),
-                    *(
-                        {'python2', 'configManta.py'}
-                        if 'somatic_structual_variant.manta' in caller_modes
-                        else set()
-                    ),
-                    *(
-                        {'delly'}
-                        if 'somatic_structual_variant.delly' in caller_modes
-                        else set()
-                    ),
-                    *(
-                        {'R'} if (
-                            'somatic_copy_number_variation.gatk'
-                            in caller_modes
-                        ) else set()
-                    ),
-                    *(
-                        {'Canvas', 'dotnet'} if (
-                            'somatic_copy_number_variation.canvas'
-                            in caller_modes
-                        ) else set()
-                    ),
-                    *({'snpEff'} if 'snpeff' in annotators else set()),
-                    *(
-                        {'msisensor'}
-                        if 'somatic_msi.msisensor' in caller_modes else set()
-                    )
-                }
-            },
-            **{
-                (k.replace('/', '_') + '_dir_path'): str(
-                    Path(self.dest_dir_path).joinpath(k)
-                ) for k in {
-                    'trim', 'align', 'postproc/bcftools',
-                    'postproc/funcotator', 'postproc/snpeff',
-                    'somatic_snv_indel/gatk', 'somatic_snv_indel/strelka',
-                    'germline_snv_indel/gatk', 'germline_snv_indel/strelka',
-                    'somatic_sv/manta', 'somatic_sv/delly', 'somatic_cnv/gatk',
-                    'somatic_cnv/canvas', 'somatic_msi/msisensor'
-                }
-            },
-            'ref_dir_path': str(Path(self.ref_dir_path).resolve()),
-            'log_dir_path': str(Path(self.log_dir_path).resolve())
-        }
-        reference_file_paths = self._resolve_input_file_paths(
-            path_dict=config['references']
-        )
-        task_kwargs = [
-            {
-                'priority': p, 'cf': common_config,
-                'caller_modes': caller_modes, 'annotators': annotators,
-                **self._determine_input_samples(run_dict=r),
-                **reference_file_paths
-            } for p, r in zip(
-                [i * 1000 for i in range(1, (len(config['runs']) + 1))[::-1]],
-                config['runs']
-            )
-        ]
-        yaml.dump({
-            'SAMPLES': [
-                dict(zip(['TUMOR', 'NORMAL'], d['sample_names']))
-                for d in task_kwargs
-            ]
-        })
-        logger.info('task_kwargs:' + os.linesep + pformat(task_kwargs))
-        return [
-            PrintEnvVersions(cf=common_config),
-            *[CallVariants(**d) for d in task_kwargs]
-        ]
-
-    def _read_config_yml(self, config_yml_path):
-        config = read_yml(path=str(Path(config_yml_path).resolve()))
-        assert isinstance(config, dict), config
-        for k in ['references', 'runs']:
-            assert config.get(k), k
-        assert isinstance(config['references'], dict), config['references']
-        for k in ['ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
-                  'hapmap_vcf', 'gnomad_vcf', 'evaluation_interval',
-                  'funcotator_germline_tar', 'funcotator_somatic_tar',
-                  'snpeff_config', 'exome_manifest']:
-            v = config['references'].get(k)
-            if k == 'ref_fa' and isinstance(v, list) and v:
-                assert self._has_unique_elements(v), k
-                for s in v:
-                    assert isinstance(s, str), k
-            elif v:
-                assert isinstance(v, str), k
-        assert isinstance(config['runs'], list), config['runs']
-        for r in config['runs']:
-            assert isinstance(r, dict), r
-            assert set(r.keys()).intersection({'tumor', 'normal'}), r
-            for t in ['tumor', 'normal']:
-                s = r[t]
-                assert isinstance(s, dict), s
-                assert (s.get('fq') or s.get('cram')), s
-                if s.get('fq'):
-                    assert isinstance(s['fq'], list), s
-                    assert self._has_unique_elements(s['fq']), s
-                    assert (len(s['fq']) <= 2), s
-                else:
-                    assert isinstance(s['cram'], str), s
-                if s.get('read_group'):
-                    assert isinstance(s['read_group'], dict), s
-                    for k, v in s['read_group'].items():
-                        assert re.fullmatch(r'[A-Z]{2}', k), k
-                        assert isinstance(v, str), k
-                if s.get('sample_name'):
-                    assert isinstance(s['sample_name'], str), s
-        return config
-
-    @staticmethod
-    def _has_unique_elements(elements):
-        return len(set(elements)) == len(tuple(elements))
-
-    @staticmethod
-    def _resolve_file_path(path):
-        p = Path(path).resolve()
-        assert p.is_file(), f'file not found: {p}'
-        return str(p)
-
-    def _resolve_input_file_paths(self, path_list=None, path_dict=None):
-        if path_list:
-            return [self._resolve_file_path(s) for s in path_list]
-        elif path_dict:
-            new_dict = dict()
-            for k, v in path_dict.items():
-                if isinstance(v, str):
-                    new_dict[f'{k}_path'] = self._resolve_file_path(v)
-                elif v:
-                    new_dict[f'{k}_paths'] = [
-                        self._resolve_file_path(s) for s in v
-                    ]
-            return new_dict
-
-    def _determine_input_samples(self, run_dict):
-        tn = [run_dict[i] for i in ['tumor', 'normal']]
-        cram_paths = [d.get('cram') for d in tn]
-        if all(cram_paths):
-            cram_list = self._resolve_input_file_paths(path_list=cram_paths)
-            return {
-                'fq_list': list(), 'read_groups': list(),
-                'cram_list': cram_list,
-                'sample_names': [
-                    (
-                        d.get('sample_name')
-                        or parse_cram_id(cram_path=d['cram'])
-                    ) for d in tn
-                ]
-            }
-        else:
-            return {
-                'fq_list': [
-                    list(self._resolve_input_file_paths(path_list=d['fq']))
-                    for d in tn
-                ],
-                'read_groups': [(d.get('read_group') or dict()) for d in tn],
-                'cram_list': list(),
-                'sample_names': [
-                    (
-                        (d.get('read_group') or dict()).get('SM')
-                        or parse_fq_id(fq_path=d['fq'][0])
-                    ) for d in tn
-                ]
-            }
-
-    def output(self):
-        return self.input()
-
-    def run(self):
-        logger = logging.getLogger(__name__)
-        logger.debug('Task tree:' + os.linesep + deps_tree.print_tree(self))
+        if not list(align_dir.iterdir()):
+            align_dir.rmdir()
+        self.__is_completed = True
 
 
 if __name__ == '__main__':

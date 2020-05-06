@@ -20,7 +20,7 @@ class CreateCanvasGenomeSymlinks(ShellTask):
     genomesize_xml_path = luigi.Parameter()
     kmer_fa_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 50
+    priority = 60
 
     def requires(self):
         return [
@@ -66,7 +66,7 @@ class CreateCanvasGenomeSymlinks(ShellTask):
 @requires(CreateCnvBlackListBED)
 class UncompressCnvBlackListBED(luigi.Task):
     cf = luigi.DictParameter()
-    priority = 50
+    priority = 60
 
     def output(self):
         return luigi.LocalTarget(
@@ -78,14 +78,14 @@ class UncompressCnvBlackListBED(luigi.Task):
     def run(self):
         yield UncompressBgzipFiles(
             bgz_paths=[self.input()[0].path],
-            dest_dir_path=Path(self.output().path).parent, cf=self.cf
+            dest_dir_path=str(Path(self.output().path).parent), cf=self.cf
         )
 
 
 class CreateUniqueRegionManifest(ShellTask):
     exome_manifest_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 10
+    priority = 30
 
     def requires(self):
         return FetchResourceFile(
@@ -133,7 +133,7 @@ class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
     sample_names = luigi.ListParameter()
     cf = luigi.DictParameter()
     exome_manifest_path = luigi.Parameter(default='')
-    priority = 10
+    priority = 30
 
     def output(self):
         return [

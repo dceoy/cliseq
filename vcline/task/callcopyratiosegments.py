@@ -16,7 +16,7 @@ from .ref import (CreateSequenceDictionary, FetchReferenceFASTA,
 @requires(GenotypeHaplotypeCallerGVCF)
 class CreateGermlineSnpIntervalList(ShellTask):
     cf = luigi.DictParameter()
-    priority = 10
+    priority = 30
 
     def output(self):
         return luigi.LocalTarget(
@@ -54,7 +54,7 @@ class CollectAllelicCounts(ShellTask):
     common_sites_interval_path = luigi.Parameter()
     fa_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 10
+    priority = 30
 
     def output(self):
         return luigi.LocalTarget(
@@ -95,7 +95,7 @@ class CollectAllelicCounts(ShellTask):
           CreateSequenceDictionary)
 class CollectAllelicCountsTumor(luigi.Task):
     cf = luigi.DictParameter()
-    priority = 10
+    priority = 30
 
     def output(self):
         return luigi.LocalTarget(
@@ -116,7 +116,7 @@ class CollectAllelicCountsTumor(luigi.Task):
           FetchReferenceFASTA, CreateSequenceDictionary)
 class CollectAllelicCountsNormal(luigi.Task):
     cf = luigi.DictParameter()
-    priority = 10
+    priority = 30
 
     def output(self):
         return luigi.LocalTarget(
@@ -138,7 +138,7 @@ class CollectReadCounts(ShellTask):
     preprocessed_interval_path = luigi.Parameter()
     fa_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 10
+    priority = 30
 
     def output(self):
         return luigi.LocalTarget(
@@ -182,7 +182,7 @@ class DenoiseReadCounts(ShellTask):
     seq_dict_path = luigi.Parameter()
     cf = luigi.DictParameter()
     create_plots = luigi.BoolParameter(default=True)
-    priority = 10
+    priority = 30
 
     def output(self):
         return [
@@ -253,7 +253,7 @@ class ModelSegments(ShellTask):
         default={'case': 0, 'normal': 30}
     )
     create_plots = luigi.BoolParameter(default=True)
-    priority = 10
+    priority = 30
 
     def output(self):
         return [
@@ -348,7 +348,7 @@ class ModelSegments(ShellTask):
 @requires(ModelSegments)
 class CallCopyRatioSegments(ShellTask):
     cf = luigi.DictParameter()
-    priority = 10
+    priority = 30
 
     def output(self):
         return luigi.LocalTarget(
@@ -385,7 +385,7 @@ class CallCopyRatioSegments(ShellTask):
           CollectAllelicCountsNormal)
 class CallCopyRatioSegmentsTumor(luigi.Task):
     cf = luigi.DictParameter()
-    priority = 10
+    priority = 30
 
     def output(self):
         return luigi.LocalTarget(
@@ -411,7 +411,7 @@ class CallCopyRatioSegmentsTumor(luigi.Task):
           CreateSequenceDictionary, CollectAllelicCountsNormal)
 class CallCopyRatioSegmentsNormal(luigi.Task):
     cf = luigi.DictParameter()
-    priority = 10
+    priority = 30
 
     def output(self):
         return luigi.LocalTarget(
@@ -432,7 +432,7 @@ class CallCopyRatioSegmentsNormal(luigi.Task):
 
 @requires(CallCopyRatioSegmentsTumor, CallCopyRatioSegmentsNormal)
 class CallCopyRatioSegmentsMatched(luigi.WrapperTask):
-    priority = 10
+    priority = 30
 
     def output(self):
         return self.input()

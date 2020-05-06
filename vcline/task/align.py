@@ -18,7 +18,7 @@ from .trim import TrimAdapters
 class AlignReads(ShellTask):
     read_group = luigi.DictParameter()
     cf = luigi.DictParameter()
-    priority = 60
+    priority = 70
 
     def output(self):
         return [
@@ -88,7 +88,7 @@ class AlignReads(ShellTask):
 @requires(AlignReads, FetchReferenceFASTA, CreateSequenceDictionary)
 class MarkDuplicates(ShellTask):
     cf = luigi.DictParameter()
-    priority = 70
+    priority = 80
 
     def output(self):
         return [
@@ -162,7 +162,7 @@ class MarkDuplicates(ShellTask):
           FetchDbsnpVCF, FetchMillsIndelVCF, FetchKnownIndelVCF)
 class ApplyBQSR(ShellTask):
     cf = luigi.DictParameter()
-    priority = 80
+    priority = 90
 
     def output(self):
         return [
@@ -238,7 +238,7 @@ class ApplyBQSR(ShellTask):
 @requires(ApplyBQSR, FetchReferenceFASTA)
 class RemoveDuplicates(luigi.Task):
     cf = luigi.DictParameter()
-    priority = 90
+    priority = 100
 
     def output(self):
         return [

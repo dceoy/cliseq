@@ -47,7 +47,7 @@ Options:
     --debug, --info         Execute a command with debug|info messages
     --yml=<path>            Specify a config YAML path [default: vcline.yml]
     --cpus=<int>            Limit CPU cores used
-    --workers=<int>         Specify the maximum number of workers [default: 2]
+    --workers=<int>         Specify the maximum number of workers [default: 1]
     --skip-cleaning         Skip incomlete file removal when a task fails
     --ref-dir=<path>        Specify a reference directory path
     --dest-dir=<path>       Specify a destination directory path [default: .]
@@ -71,7 +71,6 @@ Args:
 
 import logging
 import os
-from datetime import datetime
 from math import floor
 from pathlib import Path
 
@@ -80,16 +79,15 @@ from psutil import cpu_count, virtual_memory
 
 from .. import __version__
 from ..task.funcotator import Funcotator
-from ..task.pipeline import RunAnalyticalPipeline
 from ..task.resource import (CreateIntervalListWithBED,
                              DownloadAndConvertVCFsIntoPassingAfOnlyVCF,
                              DownloadFuncotatorDataSources,
                              DownloadResourceFile, DownloadSnpEffDataSource,
                              WritePassingAfOnlyVCF)
 from ..task.snpeff import SnpEff
-from .util import (build_luigi_tasks, convert_url_to_dest_file_path,
-                   fetch_executable, load_default_url_dict, print_log,
-                   render_template, write_config_yml)
+from .builder import build_luigi_tasks, run_analytical_pipeline
+from .util import (convert_url_to_dest_file_path, fetch_executable,
+                   load_default_url_dict, write_config_yml)
 
 
 def main():
@@ -109,11 +107,11 @@ def main():
     if args['init']:
         write_config_yml(path=args['--yml'])
     elif args['run']:
-        _run_analytical_pipeline(
+        run_analytical_pipeline(
             config_yml_path=args['--yml'], ref_dir_path=args['--ref-dir'],
             dest_dir_path=args['--dest-dir'], max_n_cpu=args['--cpus'],
             max_n_worker=args['--workers'],
-            skip_cleaning=args['--skip-cleaning'], log_level=log_level
+            skip_cleaning=args['--skip-cleaning'], console_log_level=log_level
         )
     else:
         dest_dir_path = str(Path(args['--dest-dir']).resolve())
@@ -164,7 +162,7 @@ def main():
                         ]
                     )
                 ],
-                log_level=log_level
+                console_log_level=log_level
             )
         elif args['download-funcotator-data']:
             build_luigi_tasks(
@@ -174,7 +172,7 @@ def main():
                         gatk=fetch_executable('gatk')
                     )
                 ],
-                log_level=log_level
+                console_log_level=log_level
             )
         elif args['download-snpeff-data']:
             build_luigi_tasks(
@@ -184,7 +182,7 @@ def main():
                         snpeff=fetch_executable('snpEff')
                     )
                 ],
-                log_level=log_level
+                console_log_level=log_level
             )
         elif args['download-gnomad-af-only-vcf']:
             build_luigi_tasks(
@@ -195,7 +193,7 @@ def main():
                         **{c: fetch_executable(c) for c in ['wget', 'bgzip']}
                     )
                 ],
-                log_level=log_level
+                console_log_level=log_level
             )
         elif args['write-af-only-vcf']:
             build_luigi_tasks(
@@ -213,7 +211,7 @@ def main():
                         **{c: fetch_executable(c) for c in ['curl', 'bgzip']}
                     )
                 ],
-                log_level=log_level
+                console_log_level=log_level
             )
         elif args['create-interval-list']:
             build_luigi_tasks(
@@ -225,7 +223,7 @@ def main():
                         gatk=fetch_executable('gatk')
                     )
                 ],
-                log_level=log_level
+                console_log_level=log_level
             )
         elif args['funcotator'] or args['snpeff']:
             n_vcf = len(args['<vcf_path>'])
@@ -253,7 +251,7 @@ def main():
                             input_vcf_path=str(Path(p).resolve()), **kwargs
                         ) for p in args['<vcf_path>']
                     ],
-                    workers=n_worker, log_level=log_level
+                    workers=n_worker, console_log_level=log_level
                 )
             else:
                 kwargs = {
@@ -270,52 +268,5 @@ def main():
                         SnpEff(input_vcf_path=str(Path(p).resolve()), **kwargs)
                         for p in args['<vcf_path>']
                     ],
-                    workers=n_worker, log_level=log_level
+                    workers=n_worker, console_log_level=log_level
                 )
-
-
-def _run_analytical_pipeline(config_yml_path, dest_dir_path='.',
-                             ref_dir_path=None, max_n_cpu=None,
-                             max_n_worker=None, skip_cleaning=False,
-                             log_level='WARNING'):
-    dest_dir = Path(dest_dir_path).resolve()
-    assert dest_dir.is_dir()
-    assert Path(config_yml_path).is_file()
-    log_dir = dest_dir.joinpath('log')
-    if not log_dir.is_dir():
-        print_log(f'Make a directory:\t{log_dir}')
-        log_dir.mkdir()
-    file_log_level = 'DEBUG' if log_level in {'DEBUG', 'INFO'} else 'INFO'
-    log_txt_path = str(
-        log_dir.joinpath(
-            'luigi.{0}.{1}.log.txt'.format(
-                datetime.now().strftime('%Y%m%d_%H%M%S'), file_log_level
-            )
-        )
-    )
-    log_cfg_path = str(log_dir.joinpath('luigi.log.cfg'))
-    render_template(
-        template='{}.j2'.format(Path(log_cfg_path).name),
-        data={
-            'console_log_level': log_level, 'file_log_level': file_log_level,
-            'log_txt_path': log_txt_path
-        },
-        output_path=log_cfg_path
-    )
-    n_worker = int(max_n_worker or max_n_cpu or cpu_count())
-    print_log(f'Run the analytical pipeline:\t{dest_dir}')
-    build_luigi_tasks(
-        tasks=[
-            RunAnalyticalPipeline(
-                config_yml_path=config_yml_path, dest_dir_path=str(dest_dir),
-                log_dir_path=str(log_dir),
-                ref_dir_path=str(
-                    Path(ref_dir_path).resolve() if ref_dir_path
-                    else dest_dir.joinpath('ref')
-                ),
-                n_worker=n_worker, max_n_cpu=max_n_cpu,
-                skip_cleaning=skip_cleaning, log_level=log_level
-            )
-        ],
-        workers=n_worker, log_level=log_level, logging_conf_file=log_cfg_path
-    )

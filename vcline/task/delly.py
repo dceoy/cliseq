@@ -16,7 +16,7 @@ from .ref import CreateExclusionIntervalListBED, FetchReferenceFASTA
           CreateExclusionIntervalListBED)
 class CallStructualVariantsWithDelly(ShellTask):
     cf = luigi.DictParameter()
-    priority = 10
+    priority = 30
 
     def output(self):
         return [
