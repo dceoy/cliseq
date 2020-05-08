@@ -48,7 +48,8 @@ class FetchResourceFile(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[pigz, pbzip2], cwd=self.cf['ref_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         if src_path.endswith('.gz'):
             a = f'{pigz} -p {n_cpu} -dc {src_path} > {dest_path}'
@@ -76,7 +77,8 @@ class FetchResourceFASTA(luigi.Task):
         yield SamtoolsFaidx(
             fa_path=self.input().path, samtools=self.cf['samtools'],
             log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
 
 
@@ -106,7 +108,8 @@ class FetchResourceVCF(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=bgzip, cwd=self.cf['ref_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -124,7 +127,8 @@ class FetchResourceVCF(ShellTask):
         yield Tabix(
             tsv_path=dest_vcf_path, tabix=self.cf['tabix'], preset='vcf',
             log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
 
 
@@ -189,7 +193,8 @@ class CreateBWAIndices(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=bwa, cwd=self.cf['ref_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=f'set -e && {bwa} index {fa_path}',
@@ -225,20 +230,13 @@ class CreateEvaluationIntervalListBED(luigi.Task):
 
     def run(self):
         yield IntervalList2BED(
-            interval_list_path=self.input().path, bgzip=self.cf['bgzip'],
-            tabix=self.cf['tabix'], n_cpu=self.cf['n_cpu_per_worker'],
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            interval_list_path=self.input().path, cf=self.cf
         )
 
 
 class IntervalList2BED(ShellTask):
     interval_list_path = luigi.Parameter()
-    bgzip = luigi.Parameter()
-    tabix = luigi.Parameter()
-    n_cpu = luigi.IntParameter(default=1)
-    log_dir_path = luigi.Parameter(default='')
-    remove_if_failed = luigi.BoolParameter(default=True)
+    cf = luigi.DictParameter()
     priority = 70
 
     def output(self):
@@ -250,6 +248,8 @@ class IntervalList2BED(ShellTask):
     def run(self):
         run_id = Path(self.interval_list_path).stem
         self.print_log(f'Create an interval_list BED:\t{run_id}')
+        bgzip = self.cf['bgzip']
+        n_cpu = self.cf['n_cpu_per_worker']
         interval_bed_path = self.output()[0].path
         pyscript_path = str(
             Path(__file__).parent.parent.joinpath(
@@ -257,23 +257,25 @@ class IntervalList2BED(ShellTask):
             ).resolve()
         )
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.log_dir_path, commands=self.bgzip,
-            cwd=Path(interval_bed_path).parent,
-            remove_if_failed=self.remove_if_failed
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=self.cf['bgzip'], cwd=Path(interval_bed_path).parent,
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
                 f'set -eo pipefail && '
                 + f'{sys.executable} {pyscript_path} {self.interval_list_path}'
-                + f' | {self.bgzip} -@ {self.n_cpu} -c > {interval_bed_path}'
+                + f' | {bgzip} -@ {n_cpu} -c > {interval_bed_path}'
             ),
             input_files_or_dirs=self.interval_list_path,
             output_files_or_dirs=interval_bed_path
         )
         yield Tabix(
-            tsv_path=interval_bed_path, tabix=self.tabix, preset='bed',
-            log_dir_path=self.log_dir_path,
-            remove_if_failed=self.remove_if_failed
+            tsv_path=interval_bed_path, tabix=self.cf['tabix'], preset='bed',
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
 
 
@@ -310,7 +312,8 @@ class CreateExclusionIntervalListBED(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=bgzip, cwd=self.cf['ref_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -337,7 +340,8 @@ class CreateExclusionIntervalListBED(ShellTask):
             Tabix(
                 tsv_path=p, tabix=self.cf['tabix'], preset='bed',
                 log_dir_path=self.cf['log_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed']
+                remove_if_failed=self.cf['remove_if_failed'],
+                quiet=self.cf['quiet']
             ) for p in [genome_bed_path, exclusion_bed_path]
         ]
 
@@ -364,7 +368,8 @@ class CreateSequenceDictionary(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=gatk, cwd=self.cf['ref_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -433,7 +438,8 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=gatk, cwd=self.cf['ref_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -454,7 +460,8 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
         yield Tabix(
             tsv_path=biallelic_snp_vcf_path, tabix=self.cf['tabix'],
             preset='vcf', log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
 
 
@@ -531,7 +538,8 @@ class CreateCnvBlackListBED(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=bgzip, cwd=self.cf['ref_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -549,7 +557,8 @@ class CreateCnvBlackListBED(ShellTask):
         yield Tabix(
             tsv_path=bed_path, tabix=self.cf['tabix'], preset='bed',
             log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
 
 
@@ -584,7 +593,8 @@ class PreprocessIntervals(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['ref_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -629,7 +639,8 @@ class UncompressBgzipFiles(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=bgzip, cwd=self.dest_dir_path,
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         for p, o in zip(self.bgz_paths, self.output()):
             self.run_shell(
@@ -656,7 +667,8 @@ class CreateSymlinks(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             cwd=self.dest_dir_path,
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         for p, o in zip(self.src_paths, self.output()):
             self.run_shell(

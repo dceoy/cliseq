@@ -13,6 +13,7 @@ class SamtoolsFaidx(ShellTask):
     samtools = luigi.Parameter()
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
+    quiet = luigi.BoolParameter(default=False)
     priority = 60
 
     def output(self):
@@ -24,8 +25,7 @@ class SamtoolsFaidx(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
             commands=self.samtools, cwd=Path(self.fa_path).parent,
-            remove_if_failed=self.remove_if_failed,
-            quiet=bool(self.log_dir_path)
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet
         )
         self.run_shell(
             args=f'set -e && {self.samtools} faidx {self.fa_path}',
@@ -40,6 +40,7 @@ class SamtoolsIndex(ShellTask):
     n_cpu = luigi.IntParameter(default=1)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
+    quiet = luigi.BoolParameter(default=False)
     priority = 60
 
     def output(self):
@@ -53,8 +54,7 @@ class SamtoolsIndex(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
             commands=self.samtools, cwd=Path(self.sam_path).parent,
-            remove_if_failed=self.remove_if_failed,
-            quiet=bool(self.log_dir_path)
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet
         )
         self.run_shell(
             args=(
@@ -77,6 +77,7 @@ class SamtoolsView(ShellTask):
     remove_input = luigi.BoolParameter(default=True)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
+    quiet = luigi.BoolParameter(default=False)
     priority = 60
 
     def output(self):
@@ -89,8 +90,8 @@ class SamtoolsView(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
             commands=self.samtools, cwd=Path(self.output_sam_path).parent,
-            remove_if_failed=self.remove_if_failed,
-            quiet=bool(self.log_dir_path), env={'REF_CACHE': '.ref_cache'}
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet,
+            env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
             args=(
@@ -125,6 +126,7 @@ class SamtoolsViewAndSamtoolsIndex(luigi.Task):
     remove_input = luigi.BoolParameter(default=True)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
+    quiet = luigi.BoolParameter(default=False)
     priority = 60
 
     def output(self):
@@ -152,12 +154,12 @@ class SamtoolsViewAndSamtoolsIndex(luigi.Task):
             samtools=self.samtools, n_cpu=self.n_cpu, add_args=self.add_args,
             message=message, remove_input=self.remove_input,
             log_dir_path=self.log_dir_path,
-            remove_if_failed=self.remove_if_failed,
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet
         )
         yield SamtoolsIndex(
             sam_path=target.path, samtools=self.samtools, n_cpu=self.n_cpu,
             log_dir_path=self.log_dir_path,
-            remove_if_failed=self.remove_if_failed
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet
         )
 
 
@@ -172,6 +174,7 @@ class SortSAM(ShellTask):
     remove_input = luigi.BoolParameter(default=True)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
+    quiet = luigi.BoolParameter(default=False)
     priority = 60
 
     def output(self):
@@ -193,8 +196,8 @@ class SortSAM(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
             commands=self.samtools, cwd=Path(self.output_sam_path).parent,
-            remove_if_failed=self.remove_if_failed,
-            quiet=bool(self.log_dir_path), env={'REF_CACHE': '.ref_cache'}
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet,
+            env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
             args=(
@@ -217,7 +220,7 @@ class SortSAM(ShellTask):
             yield SamtoolsIndex(
                 sam_path=self.output_sam_path, samtools=self.samtools,
                 n_cpu=self.n_cpu, log_dir_path=self.log_dir_path,
-                remove_if_failed=self.remove_if_failed
+                remove_if_failed=self.remove_if_failed, quiet=self.quiet
             )
         if self.remove_input:
             self.run_shell(
@@ -237,6 +240,7 @@ class MergeSAMsIntoSortedSAM(ShellTask):
     remove_input = luigi.BoolParameter(default=True)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
+    quiet = luigi.BoolParameter(default=False)
     priority = 60
 
     def output(self):
@@ -261,7 +265,7 @@ class MergeSAMsIntoSortedSAM(ShellTask):
                 memory_per_thread=self.memory_per_thread,
                 index_sam=self.index_sam, remove_input=self.remove_input,
                 log_dir_path=self.log_dir_path,
-                remove_if_failed=self.remove_if_failed
+                remove_if_failed=self.remove_if_failed, quiet=self.quiet
             )
         else:
             run_id = Path(self.output_sam_path).stem
@@ -269,8 +273,8 @@ class MergeSAMsIntoSortedSAM(ShellTask):
             self.setup_shell(
                 run_id=run_id, log_dir_path=(self.log_dir_path or None),
                 commands=self.samtools, cwd=Path(self.output_sam_path).parent,
-                remove_if_failed=self.remove_if_failed,
-                quiet=bool(self.log_dir_path), env={'REF_CACHE': '.ref_cache'}
+                remove_if_failed=self.remove_if_failed, quiet=self.quiet,
+                env={'REF_CACHE': '.ref_cache'}
             )
             self.run_shell(
                 args=(
@@ -296,7 +300,7 @@ class MergeSAMsIntoSortedSAM(ShellTask):
                 yield SamtoolsIndex(
                     sam_path=self.output_sam_path, samtools=self.samtools,
                     n_cpu=self.n_cpu, log_dir_path=self.log_dir_path,
-                    remove_if_failed=self.remove_if_failed
+                    remove_if_failed=self.remove_if_failed, quiet=self.quiet
                 )
             if self.remove_input:
                 self.run_shell(
@@ -313,6 +317,7 @@ class Tabix(ShellTask):
     preset = luigi.Parameter(default='bed')
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
+    quiet = luigi.BoolParameter(default=False)
     priority = 60
 
     def output(self):
@@ -324,8 +329,7 @@ class Tabix(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
             commands=self.tabix, cwd=Path(self.tsv_path).parent,
-            remove_if_failed=self.remove_if_failed,
-            quiet=bool(self.log_dir_path)
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet
         )
         self.run_shell(
             args=f'set -e && {self.tabix} -p {self.preset} {self.tsv_path}',

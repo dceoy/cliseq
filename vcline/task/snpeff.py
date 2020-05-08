@@ -56,7 +56,8 @@ class AnnotateVariantsWithSnpEff(luigi.Task):
             bgzip=self.cf['bgzip'], n_cpu=self.cf['n_cpu_per_worker'],
             memory_mb=self.cf['memory_mb_per_worker'],
             log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
 
 
@@ -76,6 +77,7 @@ class SnpEff(ShellTask):
     memory_mb = luigi.IntParameter(default=(4 * 1024))
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
+    quiet = luigi.BoolParameter(default=False)
     priority = 10
 
     def requires(self):
@@ -86,7 +88,7 @@ class SnpEff(ShellTask):
                 n_cpu=self.n_cpu, memory_mb=self.memory_mb,
                 bcftools=self.bcftools,
                 log_dir_path=(self.log_dir_path or None),
-                remove_if_failed=self.remove_if_failed
+                remove_if_failed=self.remove_if_failed, quiet=self.quiet
             )
         else:
             return super().requires()
@@ -135,7 +137,7 @@ class SnpEff(ShellTask):
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
             commands=[self.snpeff, self.bgzip],
             cwd=self.dest_dir_path, remove_if_failed=self.remove_if_failed,
-            quiet=bool(self.log_dir_path)
+            quiet=self.quiet
         )
         self.run_shell(
             args=f'mkdir {tmp_dir_path}', output_files_or_dirs=tmp_dir_path
@@ -166,7 +168,7 @@ class SnpEff(ShellTask):
         yield BcftoolsIndex(
             vcf_path=output_vcf_path, bcftools=self.bcftools,
             n_cpu=self.n_cpu, tbi=True, log_dir_path=self.log_dir_path,
-            remove_if_failed=self.remove_if_failed
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet
         )
 
 

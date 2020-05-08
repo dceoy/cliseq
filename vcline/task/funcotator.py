@@ -66,9 +66,10 @@ class FuncotateVariants(luigi.Task):
             n_cpu=self.cf['n_cpu_per_worker'],
             memory_mb=self.cf['memory_mb_per_worker'],
             log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
             output_file_format=self.output_file_format,
-            disable_vcf_validation=False
+            disable_vcf_validation=False,
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
 
 
@@ -86,9 +87,10 @@ class Funcotator(ShellTask):
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.IntParameter(default=(4 * 1024))
     log_dir_path = luigi.Parameter(default='')
-    remove_if_failed = luigi.BoolParameter(default=True)
     output_file_format = luigi.Parameter(default='VCF')
     disable_vcf_validation = luigi.BoolParameter(default=False)
+    remove_if_failed = luigi.BoolParameter(default=True)
+    quiet = luigi.BoolParameter(default=False)
     priority = 10
 
     def requires(self):
@@ -99,7 +101,7 @@ class Funcotator(ShellTask):
                 n_cpu=self.n_cpu, memory_mb=self.memory_mb,
                 bcftools=self.bcftools,
                 log_dir_path=(self.log_dir_path or None),
-                remove_if_failed=self.remove_if_failed
+                remove_if_failed=self.remove_if_failed, quiet=self.quiet
             )
         else:
             return super().requires()
@@ -141,8 +143,7 @@ class Funcotator(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
             commands=self.gatk, cwd=self.dest_dir_path,
-            remove_if_failed=self.remove_if_failed,
-            quiet=bool(self.log_dir_path)
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet
         )
         self.run_shell(
             args=(
@@ -206,7 +207,8 @@ class FuncotateSegments(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=gatk, cwd=self.cf['postproc_funcotator_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(

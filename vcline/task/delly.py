@@ -42,7 +42,7 @@ class CallStructualVariantsWithDelly(ShellTask):
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=delly, cwd=self.cf['somatic_sv_delly_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
-            env={'OMP_NUM_THREADS': str(n_cpu)}
+            quiet=self.cf['quiet'], env={'OMP_NUM_THREADS': str(n_cpu)}
         )
         self.run_shell(
             args=(
@@ -63,6 +63,7 @@ class CallStructualVariantsWithDelly(ShellTask):
             memory_mb=self.cf['memory_mb_per_worker'], index_vcf=True,
             remove_input=False, log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
 
 

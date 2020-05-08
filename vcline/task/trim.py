@@ -45,7 +45,8 @@ class TrimAdapters(ShellTask):
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[cutadapt, fastqc, pigz, trim_galore, pbzip2],
             cwd=self.cf['trim_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         for i, o in tmp_fq_paths.items():
             self.run_shell(
@@ -67,7 +68,7 @@ class TrimAdapters(ShellTask):
             input_files_or_dirs=work_fq_paths,
             output_files_or_dirs=[o.path for o in self.output()]
         )
-        if tmp_fq_paths and self.cf['remove_if_failed']:
+        if tmp_fq_paths:
             self.run_shell(
                 args=('rm -f ' + ' '.join(tmp_fq_paths.values())),
                 input_files_or_dirs=list(tmp_fq_paths.values())

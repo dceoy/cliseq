@@ -57,7 +57,8 @@ class CreateCanvasGenomeSymlinks(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             cwd=Path(list(symlinks.values())[0]).parent,
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         for s, d in symlinks.items():
             self.run_shell(args=f'ln -s {s} {d}', output_files_or_dirs=d)
@@ -107,7 +108,8 @@ class CreateUniqueRegionManifest(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             cwd=self.cf['somatic_cnv_canvas_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -159,7 +161,8 @@ class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=canvas, cwd=self.cf['somatic_cnv_canvas_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         if self.cf['exome']:
             target = yield CreateUniqueRegionManifest(

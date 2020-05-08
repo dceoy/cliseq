@@ -40,7 +40,8 @@ class SplitEvaluationIntervals(ShellTask):
         output_dir = Path(output_interval_paths[0]).parent
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=output_dir, remove_if_failed=self.cf['remove_if_failed']
+            cwd=output_dir, remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -131,13 +132,15 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                 samtools=self.cf['samtools'],
                 n_cpu=self.cf['n_cpu_per_worker'], remove_input=True,
                 log_dir_path=self.cf['log_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed']
+                remove_if_failed=self.cf['remove_if_failed'],
+                quiet=self.cf['quiet']
             )
         else:
             self.setup_shell(
                 run_id=run_id, log_dir_path=self.cf['log_dir_path'],
                 commands=gatk, cwd=self.cf['germline_snv_indel_gatk_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed']
+                remove_if_failed=self.cf['remove_if_failed'],
+                quiet=self.cf['quiet']
             )
             tmp_gvcf_paths = [f'{s}.g.vcf.gz' for s in tmp_prefixes]
             self.run_shell(
@@ -160,7 +163,8 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                 memory_per_thread=self.cf['samtools_memory_per_thread'],
                 index_sam=True, remove_input=False,
                 log_dir_path=self.cf['log_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed']
+                remove_if_failed=self.cf['remove_if_failed'],
+                quiet=self.cf['quiet']
             )
             for t in targets:
                 tmp_file_paths = [o.path for o in t]
@@ -198,7 +202,8 @@ class HaplotypeCaller(ShellTask):
             run_id='.'.join(Path(output_file_paths[0]).name.split('.')[:-3]),
             log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=Path(output_file_paths[0]).parent,
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -258,7 +263,8 @@ class GenotypeHaplotypeCallerGVCF(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['germline_snv_indel_gatk_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -307,7 +313,8 @@ class CNNScoreVariants(ShellTask):
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[gatk, python3],
             cwd=self.cf['germline_snv_indel_gatk_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -357,7 +364,8 @@ class FilterVariantTranches(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['germline_snv_indel_gatk_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(

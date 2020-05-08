@@ -61,7 +61,8 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[python2, config_script], cwd=root_dir_path,
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -100,7 +101,8 @@ class CallSomaticVariantsWithStrelka(ShellTask):
             bcftools=self.cf['bcftools'], n_cpu=n_cpu,
             memory_mb=self.cf['memory_mb_per_worker'], remove_input=False,
             log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
 
 
@@ -147,7 +149,8 @@ class CallGermlineVariantsWithStrelka(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=config_script, cwd=root_dir_path,
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(

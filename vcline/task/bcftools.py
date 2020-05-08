@@ -17,6 +17,7 @@ class NormalizeVCF(ShellTask):
     memory_mb = luigi.IntParameter(default=(4 * 1024))
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
+    quiet = luigi.BoolParameter(default=False)
     priority = 60
 
     def output(self):
@@ -38,8 +39,7 @@ class NormalizeVCF(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
             commands=self.bcftools, cwd=self.dest_dir_path,
-            remove_if_failed=self.remove_if_failed,
-            quiet=bool(self.log_dir_path)
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet
         )
         self.run_shell(
             args=(
@@ -60,7 +60,7 @@ class NormalizeVCF(ShellTask):
         yield BcftoolsIndex(
             vcf_path=output_vcf_path, bcftools=self.bcftools, n_cpu=self.n_cpu,
             tbi=True, log_dir_path=self.log_dir_path,
-            remove_if_failed=self.remove_if_failed
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet
         )
 
 
@@ -73,6 +73,7 @@ class ConcatenateVCFsIntoSortedVCF(ShellTask):
     remove_input = luigi.BoolParameter(default=True)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
+    quiet = luigi.BoolParameter(default=False)
     priority = 60
 
     def output(self):
@@ -90,8 +91,7 @@ class ConcatenateVCFsIntoSortedVCF(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
             commands=self.bcftools, cwd=Path(self.output_vcf_path).parent,
-            remove_if_failed=self.remove_if_failed,
-            quiet=bool(self.log_dir_path)
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet
         )
         self.run_shell(
             args=(
@@ -116,7 +116,7 @@ class ConcatenateVCFsIntoSortedVCF(ShellTask):
         yield BcftoolsIndex(
             vcf_path=output_vcf_path, bcftools=self.bcftools, n_cpu=self.n_cpu,
             tbi=True, log_dir_path=self.log_dir_path,
-            remove_if_failed=self.remove_if_failed
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet
         )
         if self.remove_input:
             self.run_shell(
@@ -132,6 +132,7 @@ class BcftoolsIndex(ShellTask):
     tbi = luigi.BoolParameter(default=True)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
+    quiet = luigi.BoolParameter(default=False)
     priority = 60
 
     def output(self):
@@ -148,8 +149,7 @@ class BcftoolsIndex(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
             commands=self.bcftools, cwd=Path(self.vcf_path).parent,
-            remove_if_failed=self.remove_if_failed,
-            quiet=bool(self.log_dir_path)
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet
         )
         self.run_shell(
             args=(
@@ -172,6 +172,7 @@ class SortVCF(ShellTask):
     remove_input = luigi.BoolParameter(default=True)
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
+    quiet = luigi.BoolParameter(default=False)
     priority = 60
 
     def output(self):
@@ -186,8 +187,7 @@ class SortVCF(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
             commands=self.bcftools, cwd=Path(self.output_vcf_path).parent,
-            remove_if_failed=self.remove_if_failed,
-            quiet=bool(self.log_dir_path)
+            remove_if_failed=self.remove_if_failed, quiet=self.quiet
         )
         self.run_shell(
             args=(
@@ -204,7 +204,7 @@ class SortVCF(ShellTask):
             yield BcftoolsIndex(
                 vcf_path=self.output_vcf_path, bcftools=self.bcftools,
                 n_cpu=self.n_cpu, tbi=True, log_dir_path=self.log_dir_path,
-                remove_if_failed=self.remove_if_failed
+                remove_if_failed=self.remove_if_failed, quiet=self.quiet
             )
         if self.remove_input:
             self.run_shell(

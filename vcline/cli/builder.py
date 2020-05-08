@@ -28,6 +28,7 @@ def build_luigi_tasks(*args, **kwargs):
 def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
                             ref_dir_path=None, max_n_cpu=None,
                             max_n_worker=None, skip_cleaning=False,
+                            print_subprocesses=False,
                             console_log_level='WARNING',
                             file_log_level='DEBUG', remove_bam=True):
     logger = logging.getLogger(__name__)
@@ -129,7 +130,8 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
         'ref_version': (config.get('reference_version') or 'hg38'),
         'exome': bool(config.get('exome')),
         'save_memory': (memory_mb_per_worker < 8 * 1024),
-        'remove_if_failed': (not skip_cleaning)
+        'remove_if_failed': (not skip_cleaning),
+        'quiet': (not print_subprocesses)
     }
     logger.debug('system_dict:' + os.linesep + pformat(system_dict))
 

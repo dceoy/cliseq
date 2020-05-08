@@ -310,7 +310,7 @@ class FlagUniqueKmers(ShellTask):
         self.print_log(f'Flag unique k-mers:\t{run_id}')
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=self.cf['ref_dir_path']
+            cwd=self.cf['ref_dir_path'], quiet=False
         )
         self.run_shell(
             args=(

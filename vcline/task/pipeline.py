@@ -232,6 +232,7 @@ class PrintEnvVersions(ShellTask):
     log_dir_path = luigi.Parameter()
     command_paths = luigi.ListParameter(default=list())
     run_id = luigi.Parameter(default='env')
+    quiet = luigi.BoolParameter(default=False)
     priority = luigi.IntParameter(default=sys.maxsize)
     __is_completed = False
 
@@ -243,7 +244,7 @@ class PrintEnvVersions(ShellTask):
         self.print_log(f'Print environment versions: {python}')
         self.setup_shell(
             run_id=self.run_id, log_dir_path=self.log_dir_path,
-            commands=[python, *self.command_paths], quiet=False
+            commands=[python, *self.command_paths], quiet=self.quiet
         )
         self.run_shell(
             args=[
@@ -305,7 +306,8 @@ class RemoveBAMs(ShellTask):
             self.setup_shell(
                 run_id=run_id, log_dir_path=self.cf['log_dir_path'],
                 cwd=self.cf['align_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed']
+                remove_if_failed=self.cf['remove_if_failed'],
+                quiet=self.cf['quiet']
             )
             self.run_shell(
                 args=('rm -f' + ''.join([f' {b} {b}.bai' for b in bams]))

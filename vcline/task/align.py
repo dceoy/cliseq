@@ -63,7 +63,7 @@ class AlignReads(ShellTask):
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[bwa, samtools], cwd=self.cf['align_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
-            env={'REF_CACHE': '.ref_cache'}
+            quiet=self.cf['quiet'], env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
             args=(
@@ -81,7 +81,8 @@ class AlignReads(ShellTask):
         yield SamtoolsIndex(
             sam_path=cram_path, samtools=samtools, n_cpu=n_cpu,
             log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
 
 
@@ -119,7 +120,7 @@ class MarkDuplicates(ShellTask):
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=gatk, cwd=self.cf['align_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
-            env={'REF_CACHE': '.ref_cache'}
+            quiet=self.cf['quiet'], env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
             args=(
@@ -150,7 +151,8 @@ class MarkDuplicates(ShellTask):
             input_sam_path=tmp_bam_paths[1], output_sam_path=output_cram_path,
             fa_path=fa_path, samtools=samtools, n_cpu=n_cpu,
             remove_input=False, log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args='rm -f {0} {1}'.format(*tmp_bam_paths),
@@ -189,7 +191,8 @@ class ApplyBQSR(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=gatk, cwd=self.cf['align_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -231,7 +234,8 @@ class ApplyBQSR(ShellTask):
             fa_path=fa_path, samtools=self.cf['samtools'],
             n_cpu=self.cf['n_cpu_per_worker'], remove_input=True,
             log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
 
 
@@ -257,7 +261,8 @@ class RemoveDuplicates(luigi.Task):
             n_cpu=self.cf['n_cpu_per_worker'], add_args='-F 1024',
             message='Remove duplicates', remove_input=False,
             log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
 
 
@@ -299,7 +304,8 @@ class PrepareCRAMTumor(luigi.Task):
                 sam_path=self.cram_list[0], samtools=self.cf['samtools'],
                 n_cpu=self.cf['n_cpu_per_worker'],
                 log_dir_path=self.cf['log_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed']
+                remove_if_failed=self.cf['remove_if_failed'],
+                quiet=self.cf['quiet']
             )
 
 
@@ -341,7 +347,8 @@ class PrepareCRAMNormal(luigi.Task):
                 sam_path=self.cram_list[1], samtools=self.cf['samtools'],
                 n_cpu=self.cf['n_cpu_per_worker'],
                 log_dir_path=self.cf['log_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed']
+                remove_if_failed=self.cf['remove_if_failed'],
+                quiet=self.cf['quiet']
             )
 
 
@@ -366,7 +373,8 @@ class PrepareBAMTumor(luigi.Task):
             fa_path=self.input()[1][0].path, samtools=self.cf['samtools'],
             n_cpu=self.cf['n_cpu_per_worker'], remove_input=False,
             log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
 
 
@@ -391,7 +399,8 @@ class PrepareBAMNormal(luigi.Task):
             fa_path=self.input()[1][0].path, samtools=self.cf['samtools'],
             n_cpu=self.cf['n_cpu_per_worker'], remove_input=False,
             log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
 
 

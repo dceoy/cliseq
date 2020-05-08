@@ -41,7 +41,8 @@ class GetPileupSummaries(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['somatic_snv_indel_gatk_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -98,7 +99,8 @@ class CalculateContamination(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['somatic_snv_indel_gatk_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -167,7 +169,8 @@ class CallVariantsWithMutect2(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['somatic_snv_indel_gatk_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -184,7 +187,8 @@ class CallVariantsWithMutect2(ShellTask):
                 samtools=self.cf['samtools'],
                 n_cpu=self.cf['n_cpu_per_worker'], remove_input=True,
                 log_dir_path=self.cf['log_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed']
+                remove_if_failed=self.cf['remove_if_failed'],
+                quiet=self.cf['quiet']
             )
         else:
             tmp_vcf_paths = [f'{s}.vcf.gz' for s in tmp_prefixes]
@@ -215,7 +219,8 @@ class CallVariantsWithMutect2(ShellTask):
                 memory_per_thread=self.cf['samtools_memory_per_thread'],
                 index_sam=True, remove_input=False,
                 log_dir_path=self.cf['log_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed']
+                remove_if_failed=self.cf['remove_if_failed'],
+                quiet=self.cf['quiet']
             )
             for t in targets:
                 tmp_file_paths = [o.path for o in t]
@@ -255,7 +260,8 @@ class Mutect2(ShellTask):
             run_id='.'.join(Path(output_file_paths[0]).name.split('.')[:-2]),
             log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=Path(output_file_paths[0]).parent,
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
@@ -316,7 +322,8 @@ class FilterMutectCalls(ShellTask):
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
             cwd=self.cf['somatic_snv_indel_gatk_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed']
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
