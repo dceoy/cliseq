@@ -4,7 +4,7 @@ import logging
 import os
 import re
 from datetime import datetime
-from itertools import product
+from itertools import chain, product
 from math import floor
 from pathlib import Path
 from pprint import pformat
@@ -13,9 +13,10 @@ import luigi
 import yaml
 from psutil import cpu_count, virtual_memory
 
-from ..cli.util import (fetch_executable, parse_cram_id, parse_fq_id,
-                        print_log, read_yml, render_template)
-from ..task.pipeline import PrintEnvVersions, RemoveBAMs, RunVariantCaller
+from ..cli.util import (fetch_executable, load_default_dict, parse_cram_id,
+                        parse_fq_id, print_log, read_yml, render_template)
+from ..task.pipeline import (PrepareCRAMNormal, PrepareCRAMTumor,
+                             PrintEnvVersions, RemoveBAMs, RunVariantCaller)
 
 
 def build_luigi_tasks(*args, **kwargs):
@@ -35,7 +36,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
     logger.info(f'dest_dir_path:\t{dest_dir_path}')
     dest_dir = Path(dest_dir_path).resolve()
     logger.info(f'config_yml_path:\t{config_yml_path}')
-    config = _read_config_yml(config_yml_path=config_yml_path)
+    config = _read_config_yml(path=config_yml_path)
 
     log_dir = dest_dir.joinpath('log')
     log_txt_path = str(
@@ -51,17 +52,23 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
         else dest_dir.joinpath('ref')
     )
 
-    callers = list()
-    if 'callers' in config:
-        for k, v in config['callers'].items():
-            for t, b in v.items():
-                if b:
-                    callers.append(f'{k}.{t}')
+    default_dict = load_default_dict(stem='vcline')
+    callers = (
+        list(
+            chain.from_iterable([
+                [
+                    f'{k}.{c}' for c, b in v.items()
+                    if b and default_dict['callers'][k].get(c)
+                ] for k, v in config['callers'].items()
+                if default_dict['callers'].get(k)
+            ])
+        ) if 'callers' in config else list()
+    )
     logger.debug('callers:' + os.linesep + pformat(callers))
 
     annotators = (
-        [k for k, v in config['annotators'].items() if v]
-        if 'annotators' in config else ['funcotator', 'snpeff']
+        [k for k in default_dict['annotators'] if config['annotators'].get(k)]
+        if 'annotators' in config else list()
     )
     logger.debug('annotators:' + os.linesep + pformat(annotators))
 
@@ -104,81 +111,86 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
     }
     logger.debug('command_dict:' + os.linesep + pformat(command_dict))
 
+    n_tn = len(config['runs'])
     n_cpu = cpu_count()
     n_worker = min(
         int(max_n_worker or max_n_cpu or n_cpu),
-        (len(callers) * len(config['runs']))
+        ((len(callers) if callers else 2) * n_tn)
     )
     n_cpu_per_worker = max(1, floor((max_n_cpu or n_cpu) / n_worker))
     memory_mb = virtual_memory().total / 1024 / 1024
     memory_mb_per_worker = int(memory_mb / n_worker)
-    system_dict = {
-        'n_worker': n_worker,
-        'memory_mb_per_worker': memory_mb_per_worker,
-        'n_cpu_per_worker': n_cpu_per_worker,
-        'gatk_java_options': ' '.join([
-            '-Dsamjdk.compression_level=5',
-            '-Dsamjdk.use_async_io_read_samtools=true',
-            '-Dsamjdk.use_async_io_write_samtools=true',
-            '-Dsamjdk.use_async_io_write_tribble=false',
-            f'-Xmx{memory_mb_per_worker:d}m',
-            '-XX:+UseParallelGC',
-            f'-XX:ParallelGCThreads={n_cpu_per_worker}'
-        ]),
-        'samtools_memory_per_thread':
-        '{:d}M'.format(int(memory_mb_per_worker / n_cpu_per_worker / 20)),
-        'ref_version': (config.get('reference_version') or 'hg38'),
-        'exome': bool(config.get('exome')),
-        'save_memory': (memory_mb_per_worker < 8 * 1024),
-        'remove_if_failed': (not skip_cleaning),
-        'quiet': (not print_subprocesses)
-    }
-    logger.debug('system_dict:' + os.linesep + pformat(system_dict))
-
-    dir_dict = {
-        'ref_dir_path': str(ref_dir),
-        'log_dir_path': str(log_dir),
-        **{
-            (k.replace('/', '_') + '_dir_path'): str(dest_dir.joinpath(k))
-            for k in {
-                'trim', 'align', 'postproc/bcftools', 'postproc/funcotator',
-                'postproc/snpeff', 'somatic_snv_indel/gatk',
-                'somatic_snv_indel/strelka', 'germline_snv_indel/gatk',
-                'germline_snv_indel/strelka', 'somatic_sv/manta',
-                'somatic_sv/delly', 'somatic_cnv/gatk', 'somatic_cnv/canvas',
-                'somatic_msi/msisensor'
+    common_arg_dict = {
+        **_resolve_input_file_paths(
+            path_dict={
+                k: v for k, v in config['references'].items() if (
+                    callers or k in {
+                        'ref_fa', 'dbsnp_vcf', 'mills_indel_vcf',
+                        'known_indel_vcf'
+                    }
+                )
             }
+        ),
+        'cf': {
+            'log_dir_path': str(log_dir), 'ref_dir_path': str(ref_dir),
+            'n_worker': n_worker, 'memory_mb_per_worker': memory_mb_per_worker,
+            'n_cpu_per_worker': n_cpu_per_worker,
+            'gatk_java_options': ' '.join([
+                '-Dsamjdk.compression_level=5',
+                '-Dsamjdk.use_async_io_read_samtools=true',
+                '-Dsamjdk.use_async_io_write_samtools=true',
+                '-Dsamjdk.use_async_io_write_tribble=false',
+                f'-Xmx{memory_mb_per_worker:d}m',
+                '-XX:+UseParallelGC',
+                f'-XX:ParallelGCThreads={n_cpu_per_worker}'
+            ]),
+            'samtools_memory_per_thread':
+            '{:d}M'.format(int(memory_mb_per_worker / n_cpu_per_worker / 20)),
+            'ref_version': (config.get('reference_version') or 'hg38'),
+            'exome': bool(config.get('exome')),
+            'save_memory': (memory_mb_per_worker < 8 * 1024),
+            'remove_if_failed': (not skip_cleaning),
+            'quiet': (not print_subprocesses),
+            **{
+                (k.replace('/', '_') + '_dir_path'): str(dest_dir.joinpath(k))
+                for k in {
+                    'trim', 'align', 'postproc/bcftools',
+                    *[f'postproc/{a}' for a in annotators],
+                    *[c.replace('.', '/') for c in callers]
+                }
+            },
+            **command_dict
         }
     }
-    logger.debug('dir_dict:' + os.linesep + pformat(dir_dict))
-
-    ref_file_dict = _resolve_input_file_paths(path_dict=config['references'])
-    logger.debug('ref_file_dict:' + os.linesep + pformat(ref_file_dict))
+    logger.debug('common_arg_dict:' + os.linesep + pformat(common_arg_dict))
 
     sample_dict_list = [
-        {**_determine_input_samples(run_dict=r), 'priority': p}
-        for p, r in zip(
-            [i * 1000 for i in range(1, (len(config['runs']) + 1))[::-1]],
-            config['runs']
-        )
+        {**_determine_input_samples(run_dict=r), 'priority': p} for p, r
+        in zip([i * 1000 for i in range(1, (n_tn + 1))[::-1]], config['runs'])
     ]
     logger.debug('sample_dict_list:' + os.linesep + pformat(sample_dict_list))
 
-    cf = {**command_dict, **system_dict, **dir_dict}
-    task_args_list = [
-        {'caller': c, 'annotators': annotators, 'cf': cf, **ref_file_dict, **s}
-        for s, c in product(sample_dict_list, callers)
-    ]
+    if callers:
+        task_args_list = [
+            {'caller': c, 'annotators': annotators, **d, **common_arg_dict}
+            for d, c in product(sample_dict_list, callers)
+        ]
+    else:
+        task_args_list = [{**d, **common_arg_dict} for d in sample_dict_list]
     logger.info('task_args_list:' + os.linesep + pformat(task_args_list))
 
     print_log(f'Run the analytical pipeline:\t{dest_dir}')
     print(
-        yaml.dump({
-            'SAMPLES': [
-                dict(zip(['TUMOR', 'NORMAL'], d['sample_names']))
-                for d in sample_dict_list
-            ]
-        })
+        yaml.dump([
+            {'workers': n_worker}, {'callers': callers},
+            {'annotators': annotators},
+            {
+                'samples': [
+                    dict(zip(['tumor', 'normal'], d['sample_names']))
+                    for d in sample_dict_list
+                ]
+            }
+        ])
     )
 
     if not log_dir.is_dir():
@@ -205,11 +217,21 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
         ],
         workers=1, log_level=console_log_level, logging_conf_file=log_cfg_path
     )
-    build_luigi_tasks(
-        tasks=[RunVariantCaller(**d) for d in task_args_list],
-        workers=n_worker, log_level=console_log_level,
-        logging_conf_file=log_cfg_path
-    )
+    if callers:
+        build_luigi_tasks(
+            tasks=[RunVariantCaller(**d) for d in task_args_list],
+            workers=n_worker, log_level=console_log_level,
+            logging_conf_file=log_cfg_path
+        )
+    else:
+        build_luigi_tasks(
+            tasks=[
+                *[PrepareCRAMTumor(**d) for d in task_args_list],
+                *[PrepareCRAMNormal(**d) for d in task_args_list]
+            ],
+            workers=n_worker, log_level=console_log_level,
+            logging_conf_file=log_cfg_path
+        )
     if ({'msisensor', 'canvas'} & set(callers)) and remove_bam:
         build_luigi_tasks(
             tasks=[RemoveBAMs(**d) for d in task_args_list],
@@ -218,8 +240,8 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
         )
 
 
-def _read_config_yml(config_yml_path):
-    config = read_yml(path=str(Path(config_yml_path).resolve()))
+def _read_config_yml(path):
+    config = read_yml(path=Path(path).resolve())
     assert isinstance(config, dict), config
     for k in ['references', 'runs']:
         assert config.get(k), k

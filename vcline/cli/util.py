@@ -86,18 +86,16 @@ def fetch_executable(cmd):
 
 def read_yml(path):
     logger = logging.getLogger(__name__)
-    with open(path, 'r') as f:
+    with open(str(path), 'r') as f:
         d = yaml.load(f, Loader=yaml.FullLoader)
     logger.debug('YAML data:' + os.linesep + pformat(d))
     return d
 
 
 def render_template(template, data, output_path):
-    print_log(
-        ('Overwrite' if Path(output_path).exists() else 'Render')
-        + f' a file:\t{output_path}'
-    )
-    with open(output_path, 'w') as f:
+    po = (Path(output_path) if isinstance(output_path, str) else output_path)
+    print_log(('Overwrite' if po.exists() else 'Render') + f' a file:\t{po}')
+    with po.open(mode='w') as f:
         f.write(
             Environment(
                 loader=FileSystemLoader(
@@ -108,7 +106,7 @@ def render_template(template, data, output_path):
         )
 
 
-def load_default_url_dict():
+def load_default_dict(stem):
     return read_yml(
-        path=str(Path(__file__).parent.parent.joinpath('static/urls.yml'))
+        path=Path(__file__).parent.parent.joinpath(f'static/{stem}.yml')
     )

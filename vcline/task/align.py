@@ -276,7 +276,7 @@ class PrepareCRAMTumor(luigi.Task):
     mills_indel_vcf_path = luigi.Parameter()
     known_indel_vcf_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 100
+    priority = luigi.IntParameter(default=100)
 
     def requires(self):
         if self.cram_list:
@@ -319,7 +319,7 @@ class PrepareCRAMNormal(luigi.Task):
     mills_indel_vcf_path = luigi.Parameter()
     known_indel_vcf_path = luigi.Parameter()
     cf = luigi.DictParameter()
-    priority = 100
+    priority = luigi.IntParameter(default=100)
 
     def requires(self):
         if self.cram_list:

@@ -88,7 +88,7 @@ from ..task.resource import (CreateIntervalListWithBED,
 from ..task.snpeff import SnpEff
 from .builder import build_luigi_tasks, run_analytical_pipeline
 from .util import (convert_url_to_dest_file_path, fetch_executable,
-                   load_default_url_dict, write_config_yml)
+                   load_default_dict, write_config_yml)
 
 
 def main():
@@ -120,7 +120,7 @@ def main():
         dest_dir_path = str(Path(args['--dest-dir']).resolve())
         n_cpu = int(args['--cpus'] or cpu_count())
         if args['download-resources']:
-            url_dict = load_default_url_dict()
+            url_dict = load_default_dict(stem='urls')
             cmds = {
                 c: fetch_executable(c)
                 for c in ['wget', 'pbzip2', 'bgzip', 'gatk', 'snpEff']
@@ -191,7 +191,7 @@ def main():
             build_luigi_tasks(
                 tasks=[
                     DownloadAndConvertVCFsIntoPassingAfOnlyVCF(
-                        src_url=load_default_url_dict()['gnomad_vcf'],
+                        src_url=load_default_dict(stem='urls')['gnomad_vcf'],
                         dest_dir_path=dest_dir_path, n_cpu=n_cpu,
                         **{c: fetch_executable(c) for c in ['wget', 'bgzip']}
                     )
