@@ -9,10 +9,9 @@ from luigi.util import requires
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
-from .haplotypecaller import PrepareEvaluationIntervals
 from .ref import (CreateGnomadBiallelicSnpVCF, CreateSequenceDictionary,
                   FetchEvaluationIntervalList, FetchGnomadVCF,
-                  FetchReferenceFASTA)
+                  FetchReferenceFASTA, PrepareEvaluationIntervals)
 from .samtools import MergeSAMsIntoSortedSAM, SamtoolsViewAndSamtoolsIndex
 
 

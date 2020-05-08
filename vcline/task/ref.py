@@ -63,6 +63,42 @@ class FetchResourceFile(ShellTask):
         )
 
 
+@requires(FetchReferenceFASTA)
+class CreateSequenceDictionary(ShellTask):
+    cf = luigi.DictParameter()
+    priority = 70
+
+    def output(self):
+        return luigi.LocalTarget(
+            Path(self.cf['ref_dir_path']).joinpath(
+                Path(self.input()[0].path).stem + '.dict'
+            )
+        )
+
+    def run(self):
+        fa_path = self.input()[0].path
+        run_id = Path(fa_path).stem
+        self.print_log(f'Create a sequence dictionary:\t{run_id}')
+        gatk = self.cf['gatk']
+        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        seq_dict_path = self.output().path
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=gatk, cwd=self.cf['ref_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
+        )
+        self.run_shell(
+            args=(
+                'set -e && '
+                + f'{gatk}{gatk_opts} CreateSequenceDictionary'
+                + f' --REFERENCE {fa_path}'
+                + f' --OUTPUT {seq_dict_path}'
+            ),
+            input_files_or_dirs=fa_path, output_files_or_dirs=seq_dict_path
+        )
+
+
 @requires(FetchResourceFile)
 class FetchResourceFASTA(luigi.Task):
     resource_file_path = luigi.Parameter()
@@ -217,6 +253,74 @@ class FetchEvaluationIntervalList(luigi.WrapperTask):
         return self.input()
 
 
+@requires(FetchEvaluationIntervalList, FetchReferenceFASTA,
+          CreateSequenceDictionary)
+class SplitEvaluationIntervals(ShellTask):
+    scatter_count = luigi.IntParameter(default=2)
+    cf = luigi.DictParameter()
+    priority = 50
+
+    def output(self):
+        return [
+            luigi.LocalTarget(
+                Path(self.cf['ref_dir_path']).joinpath(
+                    f'gatk/{i:04d}-scattered.interval_list'
+                )
+            ) for i in range(self.scatter_count)
+        ]
+
+    def run(self):
+        input_interval_path = self.input()[0].path
+        run_id = Path(input_interval_path).stem
+        self.print_log(f'Split an evaluation interval list:\t{run_id}')
+        gatk = self.cf['gatk']
+        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        fa_path = self.input()[1][0].path
+        output_interval_paths = [o.path for o in self.output()]
+        output_dir = Path(output_interval_paths[0]).parent
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
+            cwd=output_dir, remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
+        )
+        self.run_shell(
+            args=(
+                'set -e && '
+                + f'{gatk}{gatk_opts} SplitIntervals'
+                + f' --reference {fa_path}'
+                + f' --intervals {input_interval_path}'
+                + f' --scatter-count {self.scatter_count}'
+                + f' --output {output_dir}'
+            ),
+            input_files_or_dirs=[input_interval_path, fa_path],
+            output_files_or_dirs=output_interval_paths
+        )
+
+
+class PrepareEvaluationIntervals(luigi.WrapperTask):
+    evaluation_interval_path = luigi.Parameter()
+    ref_fa_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 50
+
+    def requires(self):
+        return (
+            SplitEvaluationIntervals(
+                evaluation_interval_path=self.evaluation_interval_path,
+                ref_fa_path=self.ref_fa_path,
+                scatter_count=self.cf['n_worker'], cf=self.cf
+            ) if self.cf['n_worker'] > 1 else [
+                FetchEvaluationIntervalList(
+                    evaluation_interval_path=self.evaluation_interval_path,
+                    cf=self.cf
+                )
+            ]
+        )
+
+    def output(self):
+        return self.input()
+
+
 @requires(FetchEvaluationIntervalList)
 class CreateEvaluationIntervalListBED(luigi.Task):
     cf = luigi.DictParameter()
@@ -344,42 +448,6 @@ class CreateExclusionIntervalListBED(ShellTask):
                 quiet=self.cf['quiet']
             ) for p in [genome_bed_path, exclusion_bed_path]
         ]
-
-
-@requires(FetchReferenceFASTA)
-class CreateSequenceDictionary(ShellTask):
-    cf = luigi.DictParameter()
-    priority = 70
-
-    def output(self):
-        return luigi.LocalTarget(
-            Path(self.cf['ref_dir_path']).joinpath(
-                Path(self.input()[0].path).stem + '.dict'
-            )
-        )
-
-    def run(self):
-        fa_path = self.input()[0].path
-        run_id = Path(fa_path).stem
-        self.print_log(f'Create a sequence dictionary:\t{run_id}')
-        gatk = self.cf['gatk']
-        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        seq_dict_path = self.output().path
-        self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=gatk, cwd=self.cf['ref_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
-        )
-        self.run_shell(
-            args=(
-                'set -e && '
-                + f'{gatk}{gatk_opts} CreateSequenceDictionary'
-                + f' --REFERENCE {fa_path}'
-                + f' --OUTPUT {seq_dict_path}'
-            ),
-            input_files_or_dirs=fa_path, output_files_or_dirs=seq_dict_path
-        )
 
 
 class FetchHapmapVCF(luigi.WrapperTask):
