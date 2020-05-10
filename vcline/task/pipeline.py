@@ -51,7 +51,7 @@ class RunVariantCaller(luigi.Task):
     priority = luigi.IntParameter(default=1000)
 
     def requires(self):
-        if 'germline_short_variant.gatk' == self.caller:
+        if 'germline_snv_indel.gatk' == self.caller:
             return FilterVariantTranches(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -63,7 +63,7 @@ class RunVariantCaller(luigi.Task):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'somatic_short_variant.gatk' == self.caller:
+        elif 'somatic_snv_indel.gatk' == self.caller:
             return FilterMutectCalls(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -75,7 +75,7 @@ class RunVariantCaller(luigi.Task):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'somatic_structual_variant.manta' == self.caller:
+        elif 'somatic_sv.manta' == self.caller:
             return CallStructualVariantsWithManta(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -86,7 +86,7 @@ class RunVariantCaller(luigi.Task):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'somatic_short_variant.strelka' == self.caller:
+        elif 'somatic_snv_indel.strelka' == self.caller:
             return CallSomaticVariantsWithStrelka(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -97,7 +97,7 @@ class RunVariantCaller(luigi.Task):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'germline_short_variant.strelka' == self.caller:
+        elif 'germline_snv_indel.strelka' == self.caller:
             return CallGermlineVariantsWithStrelka(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -108,7 +108,7 @@ class RunVariantCaller(luigi.Task):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'somatic_structual_variant.delly' == self.caller:
+        elif 'somatic_sv.delly' == self.caller:
             return CallStructualVariantsWithDelly(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -119,7 +119,7 @@ class RunVariantCaller(luigi.Task):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf
             )
-        elif 'somatic_copy_number_variation.gatk' == self.caller:
+        elif 'somatic_cnv.gatk' == self.caller:
             return CallCopyRatioSegmentsMatched(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -130,7 +130,7 @@ class RunVariantCaller(luigi.Task):
                 evaluation_interval_path=self.evaluation_interval_path,
                 cnv_black_list_path=self.cnv_black_list_path, cf=self.cf
             )
-        elif 'somatic_copy_number_variation.canvas' == self.caller:
+        elif 'somatic_cnv.canvas' == self.caller:
             return CallSomaticCopyNumberVariantsWithCanvas(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -177,9 +177,9 @@ class RunVariantCaller(luigi.Task):
 
     def _find_annotation_targets(self):
         input_paths = [i.path for i in self.input()]
-        if 'somatic_structual_variant.delly' == self.caller:
+        if 'somatic_sv.delly' == self.caller:
             suffix_dict = {'funcotator': None, 'snpeff': '.vcf.gz'}
-        elif 'somatic_structual_variant.manta' == self.caller:
+        elif 'somatic_sv.manta' == self.caller:
             suffix_dict = {
                 'funcotator': '.manta.somaticSV.vcf.gz', 'snpeff': '.vcf.gz'
             }

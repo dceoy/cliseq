@@ -2,18 +2,18 @@
 reference_version: hg38     # {hg38, hg19}
 exome: false
 callers:
-  somatic_short_variant:
+  somatic_snv_indel:
     gatk: true
     strelka: true
-  somatic_structual_variant:
+  somatic_sv:
     manta: true
     delly: true
-  somatic_copy_number_variation:
+  somatic_cnv:
     gatk: true
     canvas: false
   somatic_msi:
     msisensor: true
-  germline_short_variant:
+  germline_snv_indel:
     gatk: true
     strelka: true
 annotators:

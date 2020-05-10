@@ -79,31 +79,22 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
             'tabix', 'trim_galore',
             *(
                 {'python2', 'configureStrelkaSomaticWorkflow.py'}
-                if 'somatic_short_variant.strelka' in callers else set()
+                if 'somatic_snv_indel.strelka' in callers else set()
             ),
-            *(
-                {'python3'}
-                if 'germline_short_variant.gatk' in callers else set()
-            ),
+            *({'python3'} if 'germline_snv_indel.gatk' in callers else set()),
             *(
                 {'python2', 'configureStrelkaGermlineWorkflow.py'}
-                if 'germline_short_variant.strelka' in callers else set()
+                if 'germline_snv_indel.strelka' in callers else set()
             ),
             *(
                 {'python2', 'configManta.py'}
-                if 'somatic_structual_variant.manta' in callers else set()
+                if 'somatic_sv.manta' in callers else set()
             ),
-            *(
-                {'delly'}
-                if 'somatic_structual_variant.delly' in callers else set()
-            ),
-            *(
-                {'R'}
-                if 'somatic_copy_number_variation.gatk' in callers else set()
-            ),
+            *({'delly'} if 'somatic_sv.delly' in callers else set()),
+            *({'R'} if 'somatic_cnv.gatk' in callers else set()),
             *(
                 {'Canvas', 'dotnet'}
-                if 'somatic_copy_number_variation.canvas' in callers else set()
+                if 'somatic_cnv.canvas' in callers else set()
             ),
             *({'snpEff'} if 'snpeff' in annotators else set()),
             *({'msisensor'} if 'somatic_msi.msisensor' in callers else set())
@@ -156,7 +147,10 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
                 for k in {
                     'trim', 'align', 'postproc/bcftools',
                     *[f'postproc/{a}' for a in annotators],
-                    *[c.replace('.', '/') for c in callers]
+                    *chain.from_iterable([
+                        [f'{k}/{c}' for c in v.keys()]
+                        for k, v in default_dict['callers'].items()
+                    ])
                 }
             },
             **command_dict
@@ -193,9 +187,10 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
         ])
     )
 
-    if not log_dir.is_dir():
-        print_log(f'Make a directory:\t{log_dir}')
-        log_dir.mkdir()
+    for d in [dest_dir, log_dir]:
+        if not d.is_dir():
+            print_log(f'Make a directory:\t{d}')
+            d.mkdir()
     render_template(
         template='{}.j2'.format(Path(log_cfg_path).name),
         data={
