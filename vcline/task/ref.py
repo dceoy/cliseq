@@ -264,8 +264,8 @@ class SplitEvaluationIntervals(ShellTask):
         return [
             luigi.LocalTarget(
                 Path(self.cf['ref_dir_path']).joinpath(
-                    f'gatk/{i:04d}-scattered.interval_list'
-                )
+                    Path(self.input()[0].path).stem + '.split'
+                ).joinpath(f'{i:04d}-scattered.interval_list')
             ) for i in range(self.scatter_count)
         ]
 

@@ -16,14 +16,19 @@ from psutil import cpu_count, virtual_memory
 from ..cli.util import (fetch_executable, load_default_dict, parse_cram_id,
                         parse_fq_id, print_log, read_yml, render_template)
 from ..task.pipeline import (PrepareCRAMNormal, PrepareCRAMTumor,
-                             PrintEnvVersions, RemoveBAMs, RunVariantCaller)
+                             PrintEnvVersions, RunVariantCaller)
 
 
 def build_luigi_tasks(*args, **kwargs):
     r = luigi.build(
         *args, **kwargs, local_scheduler=True, detailed_summary=True
     )
-    print_log(os.linesep.join(['Execution summary:', r.summary_text, str(r)]))
+    if kwargs.get('print_summary') is False:
+        print(r)
+    else:
+        print_log(
+            os.linesep.join(['Execution summary:', r.summary_text, str(r)])
+        )
 
 
 def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
@@ -31,7 +36,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
                             max_n_worker=None, skip_cleaning=False,
                             print_subprocesses=False,
                             console_log_level='WARNING',
-                            file_log_level='DEBUG', remove_bam=True):
+                            file_log_level='DEBUG'):
     logger = logging.getLogger(__name__)
     logger.info(f'dest_dir_path:\t{dest_dir_path}')
     dest_dir = Path(dest_dir_path).resolve()
@@ -210,7 +215,8 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
                 command_paths=list(command_dict.values())
             )
         ],
-        workers=1, log_level=console_log_level, logging_conf_file=log_cfg_path
+        workers=1, log_level=console_log_level, logging_conf_file=log_cfg_path,
+        print_summary=False
     )
     if callers:
         build_luigi_tasks(
@@ -225,12 +231,6 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
                 *[PrepareCRAMNormal(**d) for d in task_args_list]
             ],
             workers=n_worker, log_level=console_log_level,
-            logging_conf_file=log_cfg_path
-        )
-    if ({'msisensor', 'canvas'} & set(callers)) and remove_bam:
-        build_luigi_tasks(
-            tasks=[RemoveBAMs(**d) for d in task_args_list],
-            workers=1, log_level=console_log_level,
             logging_conf_file=log_cfg_path
         )
 

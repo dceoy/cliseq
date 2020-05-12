@@ -19,7 +19,7 @@ class ScanMicrosatellites(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            Path(self.cf['ref_dir_path']).joinpath('msisensor').joinpath(
+            Path(self.cf['ref_dir_path']).joinpath(
                 Path(self.input()[0].path).stem + '.microsatellites.list'
             )
         )
@@ -54,7 +54,7 @@ class UncompressEvaluationIntervalListBED(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            Path(self.cf['ref_dir_path']).joinpath('msisensor').joinpath(
+            Path(self.cf['ref_dir_path']).joinpath(
                 Path(self.input()[0].path).stem
             )
         )

@@ -7,12 +7,13 @@ import luigi
 from luigi.util import requires
 
 from ..cli.util import create_matched_id
-from .align import PrepareBAMNormal, PrepareBAMTumor
+from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
 from .haplotypecaller import GenotypeHaplotypeCallerGVCF
 from .mutect2 import CallVariantsWithMutect2
 from .ref import (CreateCnvBlackListBED, FetchReferenceFASTA,
                   FetchResourceFASTA, FetchResourceFile, UncompressBgzipFiles)
+from .samtools import SamtoolsIndex
 
 
 class CreateCanvasGenomeSymlinks(ShellTask):
@@ -72,7 +73,7 @@ class UncompressCnvBlackListBED(luigi.Task):
     def output(self):
         return luigi.LocalTarget(
             Path(self.cf['ref_dir_path']).joinpath(
-                'canvas/{}'.format(Path(self.input()[0].path).stem)
+                Path(self.input()[0].path).stem
             )
         )
 
@@ -128,7 +129,57 @@ class CreateUniqueRegionManifest(ShellTask):
         )
 
 
-@requires(PrepareBAMTumor, PrepareBAMNormal, CreateCanvasGenomeSymlinks,
+class CreateCanvasBAM(luigi.Task):
+    input_cram_path = luigi.Parameter()
+    output_bam_path = luigi.Parameter()
+    fa_path = luigi.Parameter()
+    kmer_fai_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = 60
+
+    def output(self):
+        return [
+            luigi.LocalTarget(
+                Path(self.cf['somatic_cnv_canvas_dir_path']).joinpath(
+                    Path(self.input_cram_path).stem + f'.bam{s}'
+                )
+            ) for s in ['', '.bai']
+        ]
+
+    def run(self):
+        run_id = Path(self.input_cram_path).stem
+        self.print_log(f'Create Canvas BAM:\t{run_id}')
+        samtools = self.cf['samtools']
+        n_cpu = self.cf['n_cpu_per_worker']
+        output_bam_path = self.output()[0].path
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=samtools, cwd=Path(output_bam_path).parent,
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet'], env={'REF_CACHE': '.ref_cache'}
+        )
+        self.run_shell(
+            args=(
+                f'set -e && cut -f 1 {self.kmer_fai_path}'
+                + f' | tr "\\n" " "'
+                + f' | xargs {samtools} view -@ {n_cpu} -T {self.fa_path} -bS'
+                + f' -o {output_bam_path} {self.input_cram_path}'
+            ),
+            input_files_or_dirs=[
+                self.input_cram_path, self.fa_path, f'{self.fa_path}.fai',
+                self.kmer_fai_path
+            ],
+            output_files_or_dirs=output_bam_path
+        )
+        yield SamtoolsIndex(
+            sam_path=output_bam_path, samtools=samtools, n_cpu=n_cpu,
+            log_dir_path=self.cf['log_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
+        )
+
+
+@requires(PrepareCRAMTumor, PrepareCRAMNormal, CreateCanvasGenomeSymlinks,
           UncompressCnvBlackListBED, GenotypeHaplotypeCallerGVCF,
           CallVariantsWithMutect2)
 class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
@@ -148,16 +199,23 @@ class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
 
     def run(self):
         output_dir_path = self.output()[0].path
-        tumor_bam_path = self.input()[0][0].path
         run_id = Path(output_dir_path).name
         self.print_log(f'Call somatic CNVs with Canvas:\t{run_id}')
         canvas = self.cf['Canvas']
         sample_name = self.sample_names[0]
+        tumor_cram_path = self.input()[0][0].path
+        genome_fa_path = self.input()[2][0].path
         kmer_fa_path = self.input()[2][3].path
+        kmer_fai_path = self.input()[2][4].path
         canvas_genome_dir_path = str(Path(self.input()[2][0].path).parent)
         filter_bed_path = self.input()[3].path
         germline_b_allele_vcf_path = self.input()[4][0].path
         somatic_vcf_path = self.input()[5][0].path
+        target = yield CreateCanvasBAM(
+            input_cram_path=tumor_cram_path, fa_path=genome_fa_path,
+            kmer_fai_path=kmer_fai_path, cf=self.cf
+        )
+        tumor_bam_path = target[0].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=canvas, cwd=self.cf['somatic_cnv_canvas_dir_path'],
@@ -208,6 +266,10 @@ class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
                 ],
                 output_files_or_dirs=output_dir_path
             )
+        self.run_shell(
+            args=f'rm -f {tumor_bam_path} {tumor_bam_path}.bai',
+            input_files_or_dirs=tumor_bam_path
+        )
 
 
 if __name__ == '__main__':
