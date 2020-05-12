@@ -4,7 +4,7 @@ exome: false
 callers:
   somatic_snv_indel:
     gatk: true
-    strelka: true
+    strelka: false
   somatic_sv:
     manta: true
     delly: true
@@ -15,7 +15,7 @@ callers:
     msisensor: true
   germline_snv_indel:
     gatk: true
-    strelka: true
+    strelka: false
 annotators:
   funcotator: true
   snpeff: true

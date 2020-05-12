@@ -21,13 +21,13 @@ from ..task.pipeline import (PrepareCRAMNormal, PrepareCRAMTumor,
 
 def build_luigi_tasks(*args, **kwargs):
     r = luigi.build(
-        *args, **kwargs, local_scheduler=True, detailed_summary=True
+        *args, **{k: v for k, v in kwargs.items() if k != 'hide_summary'},
+        local_scheduler=True, detailed_summary=True
     )
-    if kwargs.get('print_summary') is False:
-        print(r)
-    else:
+    if not kwargs.get('hide_summary'):
         print_log(
-            os.linesep.join(['Execution summary:', r.summary_text, str(r)])
+            os.linesep
+            + os.linesep.join(['Execution summary:', r.summary_text, str(r)])
         )
 
 
@@ -63,7 +63,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
             chain.from_iterable([
                 [
                     f'{k}.{c}' for c, b in v.items()
-                    if b and default_dict['callers'][k].get(c)
+                    if b and c in default_dict['callers'][k]
                 ] for k, v in config['callers'].items()
                 if default_dict['callers'].get(k)
             ])
@@ -181,7 +181,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
     print_log(f'Run the analytical pipeline:\t{dest_dir}')
     print(
         yaml.dump([
-            {'workers': n_worker}, {'callers': callers},
+            {'workers': n_worker}, {'runs': n_tn}, {'callers': callers},
             {'annotators': annotators},
             {
                 'samples': [
@@ -216,7 +216,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
             )
         ],
         workers=1, log_level=console_log_level, logging_conf_file=log_cfg_path,
-        print_summary=False
+        hide_summary=True
     )
     if callers:
         build_luigi_tasks(
