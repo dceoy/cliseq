@@ -224,16 +224,14 @@ class DenoiseReadCounts(ShellTask):
             ]
         )
         if self.create_plots:
-            plots_dir_path = str(
-                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath('plots')
-            )
+            plots_dir = Path(self.cf['somatic_cnv_gatk_dir_path'])
             self.run_shell(
                 args=(
                     f'set -e && {gatk}{gatk_opts} PlotDenoisedCopyRatios'
                     + f' --standardized-copy-ratios {standardized_cr_tsv_path}'
                     + f' --denoised-copy-ratios {denoised_cr_tsv_path}'
                     + f' --sequence-dictionary {self.seq_dict_path}'
-                    + f' --output {plots_dir_path}'
+                    + f' --output {plots_dir}'
                     + f' --output-prefix {run_id}'
 
                 ),
@@ -241,8 +239,8 @@ class DenoiseReadCounts(ShellTask):
                     standardized_cr_tsv_path, denoised_cr_tsv_path,
                     self.seq_dict_path
                 ],
-                output_files_or_dirs=str(
-                    Path(plots_dir_path).joinpath(f'{run_id}.denoised.png')
+                output_files_or_dirs=plots_dir.joinpath(
+                    f'{run_id}.denoised.png'
                 )
             )
 
@@ -326,9 +324,7 @@ class ModelSegments(ShellTask):
         if self.create_plots:
             het_allelic_counts_tsv_path = output_file_paths[1]
             modeled_segments_path = output_file_paths[2]
-            plots_dir_path = str(
-                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath('plots')
-            )
+            plots_dir = Path(self.cf['somatic_cnv_gatk_dir_path'])
             self.run_shell(
                 args=(
                     f'set -e && {gatk}{gatk_opts} PlotModeledSegments'
@@ -336,7 +332,7 @@ class ModelSegments(ShellTask):
                     + f' --allelic-counts {het_allelic_counts_tsv_path}'
                     + f' --segments {modeled_segments_path}'
                     + f' --sequence-dictionary {self.seq_dict_path}'
-                    + f' --output {plots_dir_path}'
+                    + f' --output {plots_dir}'
                     + f' --output-prefix {run_id}'
 
                 ),
@@ -344,8 +340,8 @@ class ModelSegments(ShellTask):
                     denoised_cr_tsv_path, het_allelic_counts_tsv_path,
                     modeled_segments_path, self.seq_dict_path
                 ],
-                output_files_or_dirs=str(
-                    Path(plots_dir_path).joinpath(f'{run_id}.modeled.png')
+                output_files_or_dirs=plots_dir.joinpath(
+                    f'{run_id}.modeled.png'
                 )
             )
 
@@ -398,7 +394,7 @@ class CallCopyRatioSegmentsTumor(luigi.Task):
             Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
                 create_matched_id(
                     *[Path(i.path).stem for i in self.input()[4:6]]
-                ) + f'.cr.called.seg'
+                ) + '.cr.called.seg'
             )
         )
 
@@ -422,7 +418,7 @@ class CallCopyRatioSegmentsNormal(luigi.Task):
     def output(self):
         return luigi.LocalTarget(
             Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                Path(Path(self.input()[4].path).stem).stem + f'.cr.called.seg'
+                Path(Path(self.input()[4].path).stem).stem + '.cr.called.seg'
             )
         )
 

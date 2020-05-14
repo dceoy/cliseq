@@ -230,7 +230,7 @@ class WritePassingAfOnlyVCF(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -eo pipefail && '
+                'set -eo pipefail && '
                 + (
                     f'{self.bgzip} -@ {self.n_cpu} -dc {self.src_path}'
                     if self.src_path else (
@@ -286,8 +286,7 @@ class CreateIntervalListWithBED(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -e && '
-                + f'{self.gatk}{gatk_opts} BedToIntervalList'
+                f'set -e && {self.gatk}{gatk_opts} BedToIntervalList'
                 + f' --INPUT {self.bed_path}'
                 + f' --OUTPUT {interval_list_path}'
                 + f' --SEQUENCE_DICTIONARY {seq_dict_path}'

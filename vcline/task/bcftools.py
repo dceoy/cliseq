@@ -43,7 +43,7 @@ class NormalizeVCF(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -eo pipefail && '
+                'set -eo pipefail && '
                 + f'{self.bcftools} reheader --fai {self.fa_path}.fai'
                 + f' --threads {self.n_cpu} {self.input_vcf_path}'
                 + f' | {self.bcftools} sort --max-mem {self.memory_mb}M'
@@ -96,13 +96,13 @@ class ConcatenateVCFsIntoSortedVCF(ShellTask):
         self.run_shell(
             args=(
                 (
-                    f'set -e && '
+                    'set -e && '
                     + f'{self.bcftools} sort --max-mem {self.memory_mb}M'
                     + f' --temp-dir {output_vcf_path}.sort --output-type z'
                     + f' --output-file {output_vcf_path}'
                     + f' {self.input_vcf_paths[0]}'
                 ) if len(self.input_vcf_paths) == 1 else (
-                    f'set -eo pipefail && '
+                    'set -eo pipefail && '
                     + f'{self.bcftools} concat --threads {self.n_cpu} '
                     + ' '.join(self.input_vcf_paths)
                     + f' | {self.bcftools} sort --max-mem {self.memory_mb}M'
@@ -191,7 +191,7 @@ class SortVCF(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -eo pipefail && '
+                'set -eo pipefail && '
                 + f'{self.bcftools} sort --max-mem {self.memory_mb}M'
                 + f' --temp-dir {self.output_vcf_path}.sort'
                 + f' --output-type z --output-file {self.output_vcf_path}'

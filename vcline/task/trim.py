@@ -51,7 +51,7 @@ class TrimAdapters(ShellTask):
         for i, o in tmp_fq_paths.items():
             self.run_shell(
                 args=(
-                    f'set -eo pipefail && '
+                    'set -eo pipefail && '
                     + f'{pbzip2} -p{n_cpu} -dc {i}'
                     + f' | {pigz} -p {n_cpu} -c - > {o}'
                 ),

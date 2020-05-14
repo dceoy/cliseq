@@ -91,11 +91,11 @@ class CallStructualVariantsWithManta(ShellTask):
             ],
             output_files_or_dirs=[*result_file_paths, run_dir_path]
         )
-        for l in output_link_paths:
+        for p in output_link_paths:
             f = Path(run_dir_path).joinpath('results/variants').joinpath(
-                Path(l).name.split('.manta.')[-1]
+                Path(p).name.split('.manta.')[-1]
             ).relative_to(root_dir_path)
-            self.run_shell(args=f'ln -s {f} {l}', output_files_or_dirs=l)
+            self.run_shell(args=f'ln -s {f} {p}', output_files_or_dirs=p)
 
 
 if __name__ == '__main__':

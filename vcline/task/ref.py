@@ -368,7 +368,7 @@ class IntervalList2BED(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -eo pipefail && '
+                'set -eo pipefail && '
                 + f'{sys.executable} {pyscript_path} {self.interval_list_path}'
                 + f' | {bgzip} -@ {n_cpu} -c > {interval_bed_path}'
             ),

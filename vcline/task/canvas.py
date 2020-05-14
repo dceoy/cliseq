@@ -69,7 +69,7 @@ class PrepareCanvasGenomeFiles(ShellTask):
         self.run_shell(
             args=(
                 f'set -eo pipefail && cut -f 1 {output_kmer_fai_path}'
-                + f' | tr "\\n" " "'
+                + ' | tr "\\n" " "'
                 + f' | xargs {samtools} faidx {input_genome_fa_path}'
                 + f' > {output_genome_fa_path}'
             ),
@@ -181,7 +181,7 @@ class CreateCanvasBAM(ShellTask):
         self.run_shell(
             args=(
                 f'set -eo pipefail && cut -f 1 {self.kmer_fai_path}'
-                + f' | tr "\\n" " "'
+                + ' | tr "\\n" " "'
                 + f' | xargs {samtools} view -@ {n_cpu} -T {self.cram_fa_path}'
                 + f' -bS -o {output_bam_path} {self.input_cram_path}'
             ),

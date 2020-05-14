@@ -95,7 +95,7 @@ class SamtoolsView(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -e && '
+                'set -e && '
                 + f'{self.samtools} view -@ {self.n_cpu} -T {self.fa_path}'
                 + ' -{0}S{1}'.format(
                     ('C' if self.output_sam_path.endswith('.cram') else 'b'),

@@ -137,6 +137,10 @@ class Funcotator(ShellTask):
         output_file_path = self.output()[0].path
         run_id = '.'.join(Path(output_file_path).name.split('.')[:-3])
         self.print_log(f'Annotate variants with Funcotator:\t{run_id}')
+        gatk_opts = (
+            f' --java-options "{self.gatk_java_options}"'
+            if self.gatk_java_options else ''
+        )
         input_vcf_path = (
             self.input()[0].path if self.normalize_vcf else self.input_vcf_path
         )
@@ -147,11 +151,7 @@ class Funcotator(ShellTask):
         )
         self.run_shell(
             args=(
-                f'set -e && '
-                + (
-                    f'{self.gatk} --java-options "{self.gatk_java_options}"'
-                    if self.gatk_java_options else self.gatk
-                ) + ' Funcotator'
+                f'set -e && {self.gatk}{gatk_opts} Funcotator'
                 + f' --variant {input_vcf_path}'
                 + f' --data-sources-path {self.data_src_dir_path}'
                 + f' --reference {self.fa_path}'
