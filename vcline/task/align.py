@@ -89,7 +89,7 @@ class AlignReads(ShellTask):
 @requires(AlignReads, FetchReferenceFASTA, CreateSequenceDictionary)
 class MarkDuplicates(ShellTask):
     cf = luigi.DictParameter()
-    priority = 80
+    priority = 70
 
     def output(self):
         return [
@@ -164,7 +164,7 @@ class MarkDuplicates(ShellTask):
           FetchDbsnpVCF, FetchMillsIndelVCF, FetchKnownIndelVCF)
 class ApplyBQSR(ShellTask):
     cf = luigi.DictParameter()
-    priority = 90
+    priority = 70
 
     def output(self):
         return [
@@ -242,7 +242,7 @@ class ApplyBQSR(ShellTask):
 @requires(ApplyBQSR, FetchReferenceFASTA)
 class RemoveDuplicates(luigi.Task):
     cf = luigi.DictParameter()
-    priority = 100
+    priority = 70
 
     def output(self):
         return [

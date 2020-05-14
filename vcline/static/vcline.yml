@@ -36,9 +36,9 @@ references:   # These files can be downloaded with vcline download-resources.
   # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/wgs_calling_regions.hg38.interval_list
   cnv_black_list: /path/to/CNV_and_centromere_blacklist.hg38liftover.list.bz2
   # https://storage.googleapis.com/gatk-best-practices/somatic-hg38/CNV_and_centromere_blacklist.hg38liftover.list
-  genomesize_xml: /path/to/canvas-cnv-public.GRCh38.WholeGenomeFasta.GenomeSize.xml.bz2
+  # genomesize_xml: /path/to/canvas-cnv-public.GRCh38.WholeGenomeFasta.GenomeSize.xml.bz2
   # https://canvas-cnv-public.s3.amazonaws.com/GRCh38/WholeGenomeFasta/GenomeSize.xml
-  kmer_fa: /path/to/canvas-cnv-public.GRCh38.kmer.fa.bz2
+  # kmer_fa: /path/to/canvas-cnv-public.GRCh38.kmer.fa.bz2
   # https://canvas-cnv-public.s3.amazonaws.com/GRCh38/kmer.fa
   # exome_manifest: /path/to/xgen-exome-research-panel-v2-targets-manifest-hg38.txt.bz2
   # https://sfvideo.blob.core.windows.net/sitefinity/docs/default-source/supplementary-product-info/xgen-exome-research-panel-v2-targets-manifest-hg38.txt

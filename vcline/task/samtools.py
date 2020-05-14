@@ -14,7 +14,7 @@ class SamtoolsFaidx(ShellTask):
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     quiet = luigi.BoolParameter(default=False)
-    priority = 60
+    priority = 100
 
     def output(self):
         return luigi.LocalTarget(self.fa_path + '.fai')
@@ -41,7 +41,7 @@ class SamtoolsIndex(ShellTask):
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     quiet = luigi.BoolParameter(default=False)
-    priority = 60
+    priority = 100
 
     def output(self):
         return luigi.LocalTarget(
@@ -78,7 +78,7 @@ class SamtoolsView(ShellTask):
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     quiet = luigi.BoolParameter(default=False)
-    priority = 60
+    priority = 100
 
     def output(self):
         return luigi.LocalTarget(self.output_sam_path)
@@ -127,7 +127,7 @@ class SamtoolsViewAndSamtoolsIndex(luigi.Task):
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     quiet = luigi.BoolParameter(default=False)
-    priority = 60
+    priority = 90
 
     def output(self):
         return [
@@ -175,7 +175,7 @@ class SortSAM(ShellTask):
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     quiet = luigi.BoolParameter(default=False)
-    priority = 60
+    priority = 90
 
     def output(self):
         if self.index_sam:
@@ -241,7 +241,7 @@ class MergeSAMsIntoSortedSAM(ShellTask):
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     quiet = luigi.BoolParameter(default=False)
-    priority = 60
+    priority = 80
 
     def output(self):
         if self.index_sam:
@@ -318,7 +318,7 @@ class Tabix(ShellTask):
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     quiet = luigi.BoolParameter(default=False)
-    priority = 60
+    priority = 100
 
     def output(self):
         return luigi.LocalTarget(f'{self.tsv_path}.tbi')

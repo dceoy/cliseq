@@ -18,7 +18,7 @@ class NormalizeVCF(ShellTask):
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     quiet = luigi.BoolParameter(default=False)
-    priority = 60
+    priority = 10
 
     def output(self):
         return [
@@ -74,7 +74,7 @@ class ConcatenateVCFsIntoSortedVCF(ShellTask):
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     quiet = luigi.BoolParameter(default=False)
-    priority = 60
+    priority = 90
 
     def output(self):
         return [
@@ -133,7 +133,7 @@ class BcftoolsIndex(ShellTask):
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     quiet = luigi.BoolParameter(default=False)
-    priority = 60
+    priority = 100
 
     def output(self):
         return luigi.LocalTarget(
@@ -173,7 +173,7 @@ class SortVCF(ShellTask):
     log_dir_path = luigi.Parameter(default='')
     remove_if_failed = luigi.BoolParameter(default=True)
     quiet = luigi.BoolParameter(default=False)
-    priority = 60
+    priority = 90
 
     def output(self):
         return [

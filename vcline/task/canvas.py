@@ -11,8 +11,8 @@ from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
 from .haplotypecaller import GenotypeHaplotypeCallerGVCF
 from .mutect2 import CallVariantsWithMutect2
-from .ref import (CreateCnvBlackListBED, FetchReferenceFASTA,
-                  FetchResourceFASTA, FetchResourceFile, UncompressBgzipFiles)
+from .ref import (CreateCnvBlackListBED, CreateExclusionIntervalListBED,
+                  FetchReferenceFASTA, FetchResourceFASTA, FetchResourceFile)
 from .samtools import SamtoolsFaidx, SamtoolsIndex
 
 
@@ -86,22 +86,42 @@ class PrepareCanvasGenomeFiles(ShellTask):
         )
 
 
-@requires(CreateCnvBlackListBED)
-class UncompressCnvBlackListBED(luigi.Task):
+@requires(CreateCnvBlackListBED, CreateExclusionIntervalListBED)
+class CreateCanvasFilterBED(ShellTask):
     cf = luigi.DictParameter()
     priority = 60
 
     def output(self):
         return luigi.LocalTarget(
             Path(self.cf['ref_dir_path']).joinpath(
-                Path(self.input()[0].path).stem
+                '.'.join([
+                    Path(Path(i[0].path).stem).stem for i in self.input()
+                ]) + '.bed'
             )
         )
 
     def run(self):
-        yield UncompressBgzipFiles(
-            bgz_paths=[self.input()[0].path],
-            dest_dir_path=str(Path(self.output().path).parent), cf=self.cf
+        output_bed_path = self.output().path
+        run_id = Path(output_bed_path).stem
+        self.print_log(f'Create a Canvas filter BED:\t{run_id}')
+        bedtools = self.cf['bedtools']
+        bgzip = self.cf['bgzip']
+        input_bed_paths = [i[0].path for i in self.input()]
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=bgzip, cwd=self.cf['ref_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
+        )
+        self.run_shell(
+            args=(
+                'set -eo pipefail && cat'
+                + ''.join([f' <({bgzip} -dc {p})' for p in input_bed_paths])
+                + f' | {bedtools} sort'
+                + f' | {bedtools} merge > {output_bed_path}'
+            ),
+            input_files_or_dirs=input_bed_paths,
+            output_files_or_dirs=output_bed_path
         )
 
 
@@ -161,7 +181,7 @@ class CreateCanvasBAM(ShellTask):
         return [
             luigi.LocalTarget(
                 Path(self.cf['somatic_cnv_canvas_dir_path']).joinpath(
-                    Path(self.input_cram_path).stem + f'.bam{s}'
+                    Path(self.input_cram_path).stem + f'.canvas.bam{s}'
                 )
             ) for s in ['', '.bai']
         ]
@@ -200,7 +220,7 @@ class CreateCanvasBAM(ShellTask):
 
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFASTA,
-          PrepareCanvasGenomeFiles, UncompressCnvBlackListBED,
+          PrepareCanvasGenomeFiles, CreateCanvasFilterBED,
           GenotypeHaplotypeCallerGVCF, CallVariantsWithMutect2)
 class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
     sample_names = luigi.ListParameter()
