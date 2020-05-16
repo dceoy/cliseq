@@ -31,25 +31,20 @@ class FuncotateVariants(luigi.Task):
         ]
 
     def output(self):
-        suffixes = [
-            '{0}.funcotator.{1}.{2}'.format(
-                ('.norm' if self.normalize_vcf else ''),
-                self.output_file_format.lower(),
-                (f'tsv{s}' if self.output_file_format == 'SEG' else f'gz{s}')
-            ) for s in [
+        output_vcf = Path(self.cf['postproc_funcotator_dir_path']).joinpath(
+            re.sub(r'\.vcf$', '', Path(self.input_vcf_path).stem)
+            + ('.norm' if self.normalize_vcf else '') + '.funcotator.'
+            + self.output_file_format.lower()
+            + ('.tsv' if self.output_file_format == 'SEG' else '.gz')
+        )
+        return [
+            luigi.LocalTarget(f'{output_vcf}{s}') for s in [
                 '',
                 (
                     '.gene_list.txt' if self.output_file_format == 'SEG'
                     else '.tbi'
                 )
             ]
-        ]
-        return [
-            luigi.LocalTarget(
-                Path(self.cf['postproc_funcotator_dir_path']).joinpath(
-                    re.sub(r'\.vcf$', s, Path(self.input_vcf_path).stem)
-                )
-            ) for s in suffixes
         ]
 
     def run(self):
@@ -107,30 +102,24 @@ class Funcotator(ShellTask):
             return super().requires()
 
     def output(self):
-        suffixes = [
-            '.funcotator.{0}.{1}'.format(
-                self.output_file_format.lower(),
-                (f'tsv{s}' if self.output_file_format == 'SEG' else f'gz{s}')
-            ) for s in [
+        output_vcf = Path(self.dest_dir_path).joinpath(
+            re.sub(
+                r'\.vcf$', '',
+                Path(
+                    self.input()[0].path if self.normalize_vcf
+                    else self.input_vcf_path
+                ).stem
+            ) + '.funcotator.' + self.output_file_format.lower()
+            + ('.tsv' if self.output_file_format == 'SEG' else '.gz')
+        )
+        return [
+            luigi.LocalTarget(f'{output_vcf}{s}') for s in [
                 '',
                 (
                     '.gene_list.txt' if self.output_file_format == 'SEG'
                     else '.tbi'
                 )
             ]
-        ]
-        return [
-            luigi.LocalTarget(
-                Path(self.dest_dir_path).joinpath(
-                    re.sub(
-                        r'\.vcf$', s,
-                        Path(
-                            self.input()[0].path if self.normalize_vcf
-                            else self.input_vcf_path
-                        ).stem
-                    )
-                )
-            ) for s in suffixes
         ]
 
     def run(self):

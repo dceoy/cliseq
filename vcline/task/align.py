@@ -22,16 +22,13 @@ class AlignReads(ShellTask):
     priority = 70
 
     def output(self):
-        return [
-            luigi.LocalTarget(
-                Path(self.cf['align_dir_path']).joinpath(
-                    '{0}.trim.{1}.cram{2}'.format(
-                        parse_fq_id(fq_path=self.input()[0][0].path),
-                        Path(self.input()[1][0].path).stem, s
-                    )
-                )
-            ) for s in ['', '.crai']
-        ]
+        cram = Path(self.cf['align_dir_path']).joinpath(
+            '{0}.trim.{1}.cram'.format(
+                parse_fq_id(fq_path=self.input()[0][0].path),
+                Path(self.input()[1][0].path).stem
+            )
+        )
+        return [luigi.LocalTarget(f'{cram}{s}') for s in ['', '.crai']]
 
     def run(self):
         cram_path = self.output()[0].path
@@ -41,6 +38,7 @@ class AlignReads(ShellTask):
         samtools = self.cf['samtools']
         n_cpu = self.cf['n_cpu_per_worker']
         memory_mb_per_thread = int(self.cf['memory_mb_per_worker'] / n_cpu / 2)
+        fq_paths = [i.path for i in self.input()[0]]
         rg = '\\t'.join(
             [
                 '@RG',
@@ -48,7 +46,7 @@ class AlignReads(ShellTask):
                 'PU:{}'.format(self.read_group.get('PU') or 'UNIT-1'),
                 'SM:{}'.format(
                     self.read_group.get('SM')
-                    or parse_fq_id(fq_path=self.input()[0][0].path)
+                    or parse_fq_id(fq_path=fq_paths[0])
                 ),
                 'PL:{}'.format(self.read_group.get('PL') or 'ILLUMINA'),
                 'LB:{}'.format(self.read_group.get('LB') or 'LIBRARY-1')
@@ -57,7 +55,6 @@ class AlignReads(ShellTask):
                 if k not in ['ID', 'PU', 'SM', 'PL', 'LB']
             ]
         )
-        fq_paths = [i.path for i in self.input()[0]]
         fa_path = self.input()[1][0].path
         index_paths = [o.path for o in self.input()[2]]
         self.setup_shell(
@@ -90,12 +87,14 @@ class MarkDuplicates(ShellTask):
     priority = 70
 
     def output(self):
+        output_prefix = str(
+            Path(self.cf['align_dir_path']).joinpath(
+                Path(self.input()[0][0].path).stem + '.markdup'
+            )
+        )
         return [
-            luigi.LocalTarget(
-                Path(self.cf['align_dir_path']).joinpath(
-                    Path(self.input()[0][0].path).stem + f'.markdup.{s}'
-                )
-            ) for s in ['cram', 'cram.crai', 'metrics.txt']
+            luigi.LocalTarget(f'{output_prefix}.{s}')
+            for s in ['cram', 'cram.crai', 'metrics.txt']
         ]
 
     def run(self):
@@ -162,12 +161,14 @@ class ApplyBQSR(ShellTask):
     priority = 70
 
     def output(self):
+        output_prefix = str(
+            Path(self.cf['align_dir_path']).joinpath(
+                Path(self.input()[0][0].path).stem + '.bqsr'
+            )
+        )
         return [
-            luigi.LocalTarget(
-                Path(self.cf['align_dir_path']).joinpath(
-                    Path(self.input()[0][0].path).stem + f'.bqsr.{s}'
-                )
-            ) for s in ['cram', 'cram.crai', 'data.csv']
+            luigi.LocalTarget(f'{output_prefix}.{s}')
+            for s in ['cram', 'cram.crai', 'data.csv']
         ]
 
     def run(self):
@@ -241,13 +242,10 @@ class RemoveDuplicates(luigi.Task):
     priority = 70
 
     def output(self):
-        return [
-            luigi.LocalTarget(
-                Path(self.cf['align_dir_path']).joinpath(
-                    Path(self.input()[0][0].path).stem + f'.dedup.cram{s}'
-                )
-            ) for s in ['', '.crai']
-        ]
+        output_cram = Path(self.cf['align_dir_path']).joinpath(
+            Path(self.input()[0][0].path).stem + '.dedup.cram'
+        )
+        return [luigi.LocalTarget(f'{output_cram}{s}') for s in ['', '.crai']]
 
     def run(self):
         yield SamtoolsView(
@@ -346,58 +344,6 @@ class PrepareCRAMNormal(luigi.Task):
                 remove_if_failed=self.cf['remove_if_failed'],
                 quiet=self.cf['quiet']
             )
-
-
-@requires(PrepareCRAMTumor, FetchReferenceFASTA)
-class PrepareBAMTumor(luigi.Task):
-    cf = luigi.DictParameter()
-    priority = 10
-
-    def output(self):
-        return [
-            luigi.LocalTarget(
-                Path(self.cf['align_dir_path']).joinpath(
-                    Path(self.input()[0][0].path).stem + f'.bam{s}'
-                )
-            ) for s in ['', '.bai']
-        ]
-
-    def run(self):
-        yield SamtoolsView(
-            input_sam_path=self.input()[0][0].path,
-            output_sam_path=self.output()[0].path,
-            fa_path=self.input()[1][0].path, samtools=self.cf['samtools'],
-            n_cpu=self.cf['n_cpu_per_worker'], remove_input=False,
-            index_sam=True, log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
-        )
-
-
-@requires(PrepareCRAMNormal, FetchReferenceFASTA)
-class PrepareBAMNormal(luigi.Task):
-    cf = luigi.DictParameter()
-    priority = 10
-
-    def output(self):
-        return [
-            luigi.LocalTarget(
-                Path(self.cf['align_dir_path']).joinpath(
-                    Path(self.input()[0][0].path).stem + f'.bam{s}'
-                )
-            ) for s in ['', '.bai']
-        ]
-
-    def run(self):
-        yield SamtoolsView(
-            input_sam_path=self.input()[0][0].path,
-            output_sam_path=self.output()[0].path,
-            fa_path=self.input()[1][0].path, samtools=self.cf['samtools'],
-            n_cpu=self.cf['n_cpu_per_worker'], remove_input=False,
-            index_sam=True, log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
-        )
 
 
 if __name__ == '__main__':

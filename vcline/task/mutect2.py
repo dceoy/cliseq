@@ -69,13 +69,14 @@ class CalculateContamination(ShellTask):
     priority = 50
 
     def output(self):
+        output_prefix = str(
+            Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
+                create_matched_id(*[i[0].path for i in self.input()[0:2]])
+            )
+        )
         return [
-            luigi.LocalTarget(
-                Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
-                    create_matched_id(*[i[0].path for i in self.input()[0:2]])
-                    + s
-                )
-            ) for s in ['.contamination.table', '.segment.table']
+            luigi.LocalTarget(f'{output_prefix}.{s}.table')
+            for s in ['contamination', 'segment']
         ]
 
     def run(self):
@@ -123,13 +124,14 @@ class CallVariantsWithMutect2(ShellTask):
     priority = 50
 
     def output(self):
+        output_prefix = str(
+            Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
+                create_matched_id(*[i[0].path for i in self.input()[0:2]])
+                + '.mutect2'
+            )
+        )
         return [
-            luigi.LocalTarget(
-                Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
-                    create_matched_id(*[i[0].path for i in self.input()[0:2]])
-                    + f'.mutect2.{s}'
-                )
-            ) for s in [
+            luigi.LocalTarget(f'{output_prefix}.{s}') for s in [
                 'vcf.gz', 'vcf.gz.tbi', 'vcf.gz.stats', 'cram', 'cram.crai',
                 'read-orientation-model.tar.gz'
             ]
@@ -293,12 +295,12 @@ class FilterMutectCalls(ShellTask):
     priority = 50
 
     def output(self):
+        output_vcf_path = re.sub(
+            r'\.vcf\.gz$', '.filtered.vcf.gz', self.input()[0][0].path
+        )
         return [
-            luigi.LocalTarget(
-                re.sub(
-                    r'\.vcf\.gz$', f'.filtered.{s}', self.input()[0][0].path
-                )
-            ) for s in ['vcf.gz', 'vcf.gz.tbi', 'vcf.gz.stats']
+            luigi.LocalTarget(output_vcf_path + s)
+            for s in ['', '.tbi', '.stats']
         ]
 
     def run(self):

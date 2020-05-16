@@ -29,13 +29,11 @@ class CallStructualVariantsWithManta(ShellTask):
     priority = 40
 
     def output(self):
+        run_dir = Path(self.cf['somatic_sv_manta_dir_path']).joinpath(
+            create_matched_id(*[i[0].path for i in self.input()[0:2]])
+        )
         return [
-            luigi.LocalTarget(
-                Path(self.cf['somatic_sv_manta_dir_path']).joinpath(
-                    create_matched_id(*[i[0].path for i in self.input()[0:2]])
-                    + s
-                )
-            ) for s in [
+            luigi.LocalTarget(f'{run_dir}{s}') for s in [
                 '', '.manta.somaticSV.vcf.gz', '.manta.somaticSV.vcf.gz.tbi',
                 '.manta.diploidSV.vcf.gz', '.manta.diploidSV.vcf.gz.tbi'
             ]

@@ -175,13 +175,10 @@ class CreateCanvasBAM(ShellTask):
     priority = 60
 
     def output(self):
-        return [
-            luigi.LocalTarget(
-                Path(self.cf['somatic_cnv_canvas_dir_path']).joinpath(
-                    Path(self.input_cram_path).stem + f'.canvas.bam{s}'
-                )
-            ) for s in ['', '.bai']
-        ]
+        bam = Path(self.cf['somatic_cnv_canvas_dir_path']).joinpath(
+            Path(self.input_cram_path).stem + '.canvas.bam'
+        )
+        return [luigi.LocalTarget(f'{bam}{s}') for s in ['', '.bai']]
 
     def run(self):
         run_id = Path(self.input_cram_path).stem
@@ -309,6 +306,31 @@ class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
         self.run_shell(
             args=f'rm -f {tumor_bam_path} {tumor_bam_path}.bai',
             input_files_or_dirs=tumor_bam_path
+        )
+
+
+class FlagUniqueKmers(ShellTask):
+    input_fa_path = luigi.Parameter()
+    output_fa_path = luigi.Parameter()
+    flaguniquekmers = luigi.Parameter(default='FlagUniqueKmers')
+
+    def output(self):
+        return luigi.LocalTarget(self.output_fa_path)
+
+    def run(self):
+        run_id = Path(self.input_fa_path).stem
+        self.print_log(f'Flag unique k-mers:\t{run_id}')
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            cwd=self.cf['ref_dir_path'], quiet=False
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {self.flaguniquekmers}'
+                + f' {self.input_fa_path} {self.output_fa_path}'
+            ),
+            input_files_or_dirs=self.input_fa_path,
+            output_files_or_dirs=self.output_fa_path
         )
 
 

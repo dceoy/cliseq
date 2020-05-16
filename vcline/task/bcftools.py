@@ -8,53 +8,6 @@ import luigi
 from .base import ShellTask
 
 
-class BcftoolsIndex(ShellTask):
-    vcf_path = luigi.Parameter()
-    bcftools = luigi.Parameter()
-    n_cpu = luigi.IntParameter(default=1)
-    tbi = luigi.BoolParameter(default=True)
-    log_dir_path = luigi.Parameter(default='')
-    remove_if_failed = luigi.BoolParameter(default=True)
-    quiet = luigi.BoolParameter(default=False)
-    priority = 100
-
-    def output(self):
-        return luigi.LocalTarget(
-            re.sub(
-                r'\.(bcf|vcf.gz)$',
-                '.\\1.{}'.format('tbi' if self.tbi else 'csi'), self.vcf_path
-            )
-        )
-
-    def run(self):
-        run_id = re.sub(r'.(bcf|vcf.gz)$', '', Path(self.vcf_path).name)
-        self.print_log(f'Index VCF/BCF:\t{run_id}')
-        self.setup_shell(
-            run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=self.bcftools, cwd=Path(self.vcf_path).parent,
-            remove_if_failed=self.remove_if_failed, quiet=self.quiet
-        )
-        bcftools_index(
-            shelltask=self, bcftools=self.bcftools, vcf_path=self.vcf_path,
-            n_cpu=self.n_cpu, tbi=self.tbi
-        )
-
-
-def bcftools_index(shelltask, bcftools, vcf_path, n_cpu, tbi=True):
-    shelltask.run_shell(
-        args=(
-            f'set -e && {bcftools} index --threads {n_cpu}'
-            + (' --tbi' if tbi else ' --csi')
-            + f' {vcf_path}'
-        ),
-        input_files_or_dirs=vcf_path,
-        output_files_or_dirs=re.sub(
-            r'\.(bcf|vcf.gz)$', '.\\1.{}'.format('tbi' if tbi else 'csi'),
-            vcf_path
-        )
-    )
-
-
 class NormalizeVCF(ShellTask):
     input_vcf_path = luigi.Parameter()
     fa_path = luigi.Parameter()
@@ -68,16 +21,11 @@ class NormalizeVCF(ShellTask):
     priority = 10
 
     def output(self):
-        return [
-            luigi.LocalTarget(
-                Path(self.dest_dir_path).joinpath(
-                    re.sub(
-                        r'\.vcf$', f'.norm.vcf.gz{s}',
-                        Path(self.input_vcf_path).stem
-                    )
-                )
-            ) for s in ['', '.tbi']
-        ]
+        output_vcf = Path(self.dest_dir_path).joinpath(
+            re.sub(r'\.vcf$', '', Path(self.input_vcf_path).stem)
+            + '.norm.vcf.gz'
+        )
+        return [luigi.LocalTarget(f'{output_vcf}{s}') for s in ['', '.tbi']]
 
     def run(self):
         output_vcf_path = self.output()[0].path
@@ -110,64 +58,19 @@ class NormalizeVCF(ShellTask):
         )
 
 
-class ConcatenateVCFsIntoSortedVCF(ShellTask):
-    input_vcf_paths = luigi.ListParameter()
-    output_vcf_path = luigi.Parameter()
-    bcftools = luigi.Parameter()
-    n_cpu = luigi.IntParameter(default=1)
-    memory_mb = luigi.IntParameter(default=(4 * 1024))
-    remove_input = luigi.BoolParameter(default=True)
-    log_dir_path = luigi.Parameter(default='')
-    remove_if_failed = luigi.BoolParameter(default=True)
-    quiet = luigi.BoolParameter(default=False)
-    priority = 90
-
-    def output(self):
-        return [
-            luigi.LocalTarget(self.output_vcf_path + s) for s in ['', '.tbi']
-        ]
-
-    def run(self):
-        output_vcf_path = self.output()[0].path
-        run_id = '.'.join(Path(output_vcf_path).name.split('.')[:-2])
-        self.print_log(
-            f'Concatenate VCFs:\t{run_id}' if len(self.input_vcf_paths) == 1
-            else f'Sort VCF:\t{run_id}'
+def bcftools_index(shelltask, bcftools, vcf_path, n_cpu, tbi=True):
+    shelltask.run_shell(
+        args=(
+            f'set -e && {bcftools} index --threads {n_cpu}'
+            + (' --tbi' if tbi else ' --csi')
+            + f' {vcf_path}'
+        ),
+        input_files_or_dirs=vcf_path,
+        output_files_or_dirs=re.sub(
+            r'\.(bcf|vcf.gz)$', '.\\1.{}'.format('tbi' if tbi else 'csi'),
+            vcf_path
         )
-        self.setup_shell(
-            run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=self.bcftools, cwd=Path(self.output_vcf_path).parent,
-            remove_if_failed=self.remove_if_failed, quiet=self.quiet
-        )
-        self.run_shell(
-            args=(
-                (
-                    'set -e && '
-                    + f'{self.bcftools} sort --max-mem {self.memory_mb}M'
-                    + f' --temp-dir {output_vcf_path}.sort --output-type z'
-                    + f' --output-file {output_vcf_path}'
-                    + f' {self.input_vcf_paths[0]}'
-                ) if len(self.input_vcf_paths) == 1 else (
-                    'set -eo pipefail && '
-                    + f'{self.bcftools} concat --threads {self.n_cpu} '
-                    + ' '.join(self.input_vcf_paths)
-                    + f' | {self.bcftools} sort --max-mem {self.memory_mb}M'
-                    + f' --temp-dir {output_vcf_path}.sort --output-type z'
-                    + f' --output-file {output_vcf_path} -'
-                )
-            ),
-            input_files_or_dirs=self.input_vcf_paths,
-            output_files_or_dirs=output_vcf_path
-        )
-        bcftools_index(
-            shelltask=self, bcftools=self.bcftools, vcf_path=output_vcf_path,
-            n_cpu=self.n_cpu, tbi=True
-        )
-        if self.remove_input:
-            self.run_shell(
-                args=('rm -f ' + ' '.join(self.input_vcf_paths)),
-                input_files_or_dirs=self.input_vcf_paths
-            )
+    )
 
 
 def bcftools_concat_and_index(shelltask, bcftools, input_vcf_paths,

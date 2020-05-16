@@ -19,13 +19,15 @@ class CallStructualVariantsWithDelly(ShellTask):
     priority = 30
 
     def output(self):
+        output_prefix = str(
+            Path(self.cf['somatic_sv_delly_dir_path']).joinpath(
+                create_matched_id(*[i[0].path for i in self.input()[0:2]])
+                + '.delly'
+            )
+        )
         return [
-            luigi.LocalTarget(
-                Path(self.cf['somatic_sv_delly_dir_path']).joinpath(
-                    create_matched_id(*[i[0].path for i in self.input()[0:2]])
-                    + f'.delly.{s}'
-                )
-            ) for s in ['bcf', 'vcf.gz', 'vcf.gz.tbi']
+            luigi.LocalTarget(f'{output_prefix}.{s}') for s in
+            ['bcf', 'vcf.gz', 'vcf.gz.tbi']
         ]
 
     def run(self):

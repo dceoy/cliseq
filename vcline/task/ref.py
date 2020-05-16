@@ -2,13 +2,14 @@
 
 import re
 import sys
+from itertools import product
 from pathlib import Path
 
 import luigi
 from luigi.util import requires
 
 from .base import ShellTask
-from .samtools import SamtoolsFaidx
+from .samtools import samtools_faidx
 
 
 class FetchReferenceFASTA(luigi.WrapperTask):
@@ -100,21 +101,28 @@ class CreateSequenceDictionary(ShellTask):
 
 
 @requires(FetchResourceFile)
-class FetchResourceFASTA(luigi.Task):
+class FetchResourceFASTA(ShellTask):
     resource_file_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 70
 
     def output(self):
         fa_path = self.input().path
-        return [luigi.LocalTarget(f'{fa_path}{s}') for s in ['', '.fai']]
+        return [luigi.LocalTarget(fa_path + s) for s in ['', '.fai']]
 
     def run(self):
-        yield SamtoolsFaidx(
-            fa_path=self.input().path, samtools=self.cf['samtools'],
-            log_dir_path=self.cf['log_dir_path'],
+        fa_path = self.input().path
+        run_id = Path(fa_path).stem
+        self.print_log(f'Index FASTA:\t{run_id}')
+        samtools = self.cf['samtools']
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=samtools, cwd=self.cf['ref_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
+        )
+        samtools_faidx(
+            shelltask=self, samtools=samtools, fa_path=fa_path
         )
 
 
@@ -124,16 +132,10 @@ class FetchResourceVCF(ShellTask):
     priority = 70
 
     def output(self):
-        return [
-            luigi.LocalTarget(
-                Path(self.cf['ref_dir_path']).joinpath(
-                    re.sub(
-                        r'\.(gz|bgz)$', f'.{s}',
-                        Path(self.resource_vcf_path).name
-                    )
-                )
-            ) for s in ['gz', 'gz.tbi']
-        ]
+        dest_vcf = Path(self.cf['ref_dir_path']).joinpath(
+            re.sub(r'\.(gz|bgz)$', '.gz', Path(self.resource_vcf_path).name)
+        )
+        return [luigi.LocalTarget(f'{dest_vcf}{s}') for s in ['', '.tbi']]
 
     def run(self):
         dest_vcf_path = self.output()[0].path
@@ -221,9 +223,10 @@ class CreateBWAIndices(ShellTask):
     priority = 100
 
     def output(self):
+        fa_path = self.input()[0].path
         return [
-            luigi.LocalTarget(self.input()[0].path + s)
-            for s in ['.pac', '.bwt', '.ann', '.amb', '.sa']
+            luigi.LocalTarget(f'{fa_path}.{s}')
+            for s in ['pac', 'bwt', 'ann', 'amb', 'sa']
         ]
 
     def run(self):
@@ -266,11 +269,12 @@ class SplitEvaluationIntervals(ShellTask):
     priority = 50
 
     def output(self):
+        dest_dir = Path(self.cf['ref_dir_path']).joinpath(
+            Path(self.input()[0].path).stem + '.split'
+        )
         return [
             luigi.LocalTarget(
-                Path(self.cf['ref_dir_path']).joinpath(
-                    Path(self.input()[0].path).stem + '.split'
-                ).joinpath(f'{i:04d}-scattered.interval_list')
+                dest_dir.joinpath(f'{i:04d}-scattered.interval_list')
             ) for i in range(self.scatter_count)
         ]
 
@@ -327,40 +331,24 @@ class PrepareEvaluationIntervals(luigi.WrapperTask):
 
 
 @requires(FetchEvaluationIntervalList)
-class CreateEvaluationIntervalListBED(luigi.Task):
+class CreateEvaluationIntervalListBED(ShellTask):
     cf = luigi.DictParameter()
     priority = 70
 
     def output(self):
-        return [
-            luigi.LocalTarget(self.input().path + f'.bed.gz{s}')
-            for s in ['', '.tbi']
-        ]
-
-    def run(self):
-        yield IntervalList2BED(
-            interval_list_path=self.input().path, cf=self.cf
+        bed = Path(self.cf['ref_dir_path']).joinpath(
+            Path(self.input().path).stem + '.bed.gz'
         )
-
-
-class IntervalList2BED(ShellTask):
-    interval_list_path = luigi.Parameter()
-    cf = luigi.DictParameter()
-    priority = 70
-
-    def output(self):
-        return [
-            luigi.LocalTarget(self.interval_list_path + f'.bed.gz{s}')
-            for s in ['', '.tbi']
-        ]
+        return [luigi.LocalTarget(f'{bed}{s}') for s in ['', '.tbi']]
 
     def run(self):
-        run_id = Path(self.interval_list_path).stem
+        interval_list_path = self.input().path
+        run_id = Path(interval_list_path).stem
         self.print_log(f'Create an interval_list BED:\t{run_id}')
         bgzip = self.cf['bgzip']
         tabix = self.cf['tabix']
         n_cpu = self.cf['n_cpu_per_worker']
-        interval_bed_path = self.output()[0].path
+        bed_path = self.output()[0].path
         pyscript_path = str(
             Path(__file__).parent.parent.joinpath(
                 'script/interval_list2bed.py'
@@ -368,23 +356,20 @@ class IntervalList2BED(ShellTask):
         )
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[bgzip, tabix], cwd=Path(interval_bed_path).parent,
+            commands=[bgzip, tabix], cwd=self.cf['ref_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
-                'set -eo pipefail && '
-                + f'{sys.executable} {pyscript_path} {self.interval_list_path}'
-                + f' | {bgzip} -@ {n_cpu} -c > {interval_bed_path}'
+                f'set -eo pipefail && {sys.executable} {pyscript_path}'
+                + f' {interval_list_path}'
+                + f' | {bgzip} -@ {n_cpu} -c > {bed_path}'
             ),
-            input_files_or_dirs=self.interval_list_path,
-            output_files_or_dirs=interval_bed_path
+            input_files_or_dirs=interval_list_path,
+            output_files_or_dirs=bed_path
         )
-        _tabix(
-            shelltask=self, tabix=tabix, tsv_path=interval_bed_path,
-            preset='bed'
-        )
+        _tabix(shelltask=self, tabix=tabix, tsv_path=bed_path, preset='bed')
 
 
 @requires(CreateEvaluationIntervalListBED, FetchReferenceFASTA)
@@ -393,19 +378,18 @@ class CreateExclusionIntervalListBED(ShellTask):
     priority = 70
 
     def output(self):
-        return (
-            [
-                luigi.LocalTarget(
+        return [
+            luigi.LocalTarget(p + s) for p, s in product(
+                [
                     re.sub(
-                        r'\.bed\.gz$', f'.exclusion.bed.gz{s}',
+                        r'\.bed\.gz$', '.exclusion.bed.gz',
                         self.input()[0][0].path
-                    )
-                ) for s in ['', '.tbi']
-            ] + [
-                luigi.LocalTarget(self.input()[1][0].path + f'.bed.gz{s}')
-                for s in ['', '.tbi']
-            ]
-        )
+                    ),
+                    (self.input()[1][0].path + '.bed.gz')
+                ],
+                ['', '.tbi']
+            )
+        ]
 
     def run(self):
         evaluation_bed_path = self.input()[0][0].path
@@ -484,13 +468,12 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
     priority = 90
 
     def output(self):
+        biallelic_snp_vcf = Path(self.cf['ref_dir_path']).joinpath(
+            Path(Path(self.input()[0][0].path).stem).stem
+            + '.biallelic_snp.vcf.gz'
+        )
         return [
-            luigi.LocalTarget(
-                Path(self.cf['ref_dir_path']).joinpath(
-                    Path(Path(self.input()[0][0].path).stem).stem
-                    + f'.biallelic_snp.vcf.{s}'
-                )
-            ) for s in ['gz', 'gz.tbi']
+            luigi.LocalTarget(f'{biallelic_snp_vcf}{s}') for s in ['', '.tbi']
         ]
 
     def run(self):
@@ -540,9 +523,7 @@ class ExtractTarFile(ShellTask):
     def output(self):
         return luigi.LocalTarget(
             Path(self.cf['ref_dir_path']).joinpath(
-                re.sub(
-                    r'\.tar\.(gz|bz2)$', '', Path(self.tar_path).name
-                )
+                re.sub(r'\.tar\.(gz|bz2)$', '', Path(self.tar_path).name)
             )
         )
 
@@ -570,13 +551,13 @@ class ExtractTarFile(ShellTask):
 
 
 class FetchCnvBlackList(luigi.WrapperTask):
-    cnv_black_list_path = luigi.Parameter()
+    cnv_blacklist_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 80
 
     def requires(self):
         return FetchResourceFile(
-            resource_file_path=self.cnv_black_list_path, cf=self.cf
+            resource_file_path=self.cnv_blacklist_path, cf=self.cf
         )
 
     def output(self):
@@ -589,10 +570,10 @@ class CreateCnvBlackListBED(ShellTask):
     priority = 70
 
     def output(self):
-        return [
-            luigi.LocalTarget(self.input().path + f'.bed.gz{s}')
-            for s in ['', '.tbi']
-        ]
+        bed = Path(self.cf['ref_dir_path']).joinpath(
+            Path(self.input().path).stem + '.bed.gz'
+        )
+        return [luigi.LocalTarget(f'{bed}{s}') for s in ['', '.tbi']]
 
     def run(self):
         blacklist_path = self.input().path
@@ -648,7 +629,7 @@ class PreprocessIntervals(ShellTask):
         self.print_log(f'Prepares bins for coverage collection:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        cnv_black_list_path = self.input()[1].path
+        cnv_blacklist_path = self.input()[1].path
         fa_path = self.input()[2][0].path
         seq_dict_path = self.input()[3].path
         preprocessed_interval_path = self.output().path
@@ -662,7 +643,7 @@ class PreprocessIntervals(ShellTask):
             args=(
                 f'set -e && {gatk}{gatk_opts} PreprocessIntervals'
                 + f' --intervals {evaluation_interval_path}'
-                + f' --exclude-intervals {cnv_black_list_path}'
+                + f' --exclude-intervals {cnv_blacklist_path}'
                 + f' --sequence-dictionary {seq_dict_path}'
                 + f' --reference {fa_path}'
                 + ''.join([
@@ -674,8 +655,8 @@ class PreprocessIntervals(ShellTask):
                 + f' --output {preprocessed_interval_path}'
             ),
             input_files_or_dirs=[
-                evaluation_interval_path, cnv_black_list_path,
-                seq_dict_path, fa_path
+                evaluation_interval_path, cnv_blacklist_path, seq_dict_path,
+                fa_path
             ],
             output_files_or_dirs=preprocessed_interval_path
         )
@@ -688,8 +669,9 @@ class UncompressBgzipFiles(ShellTask):
     priority = 60
 
     def output(self):
+        dest_dir = Path(self.dest_dir_path)
         return [
-            luigi.LocalTarget(Path(self.dest_dir_path).joinpath(Path(p).stem))
+            luigi.LocalTarget(dest_dir.joinpath(Path(p).stem))
             for p in self.bgz_paths
         ]
 
@@ -718,8 +700,9 @@ class CreateSymlinks(ShellTask):
     priority = 60
 
     def output(self):
+        dest_dir = Path(self.dest_dir_path)
         return [
-            luigi.LocalTarget(Path(self.dest_dir_path).joinpath(Path(p).name))
+            luigi.LocalTarget(dest_dir.joinpath(Path(p).name))
             for p in self.src_paths
         ]
 

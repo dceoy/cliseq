@@ -188,12 +188,14 @@ class DenoiseReadCounts(ShellTask):
     priority = 30
 
     def output(self):
+        output_prefix = str(
+            Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                Path(Path(self.input().path).stem).stem
+            )
+        )
         return [
-            luigi.LocalTarget(
-                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                    Path(Path(self.input().path).stem).stem + f'.{s}.tsv'
-                )
-            ) for s in ['denoised_cr', 'standardized_cr']
+            luigi.LocalTarget(f'{output_prefix}.{s}.tsv')
+            for s in ['denoised_cr', 'standardized_cr']
         ]
 
     def run(self):
@@ -258,18 +260,20 @@ class ModelSegments(ShellTask):
     priority = 30
 
     def output(self):
+        output_prefix = str(
+            Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                Path(
+                    create_matched_id(
+                        self.case_allelic_counts_tsv_path,
+                        self.normal_allelic_counts_tsv_path
+                    ) if self.case_allelic_counts_tsv_path else
+                    Path(self.normal_allelic_counts_tsv_path).stem
+                ).stem
+            )
+        )
         return [
-            luigi.LocalTarget(
-                Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                    Path(
-                        create_matched_id(
-                            self.case_allelic_counts_tsv_path,
-                            self.normal_allelic_counts_tsv_path
-                        ) if self.case_allelic_counts_tsv_path else
-                        Path(self.normal_allelic_counts_tsv_path).stem
-                    ).stem + f'.{s}'
-                )
-            ) for s in ['cr.seg', 'hets.tsv', 'modelFinal.seg']
+            luigi.LocalTarget(f'{output_prefix}.{s}')
+            for s in ['cr.seg', 'hets.tsv', 'modelFinal.seg']
         ]
 
     def run(self):

@@ -9,8 +9,6 @@ from pathlib import Path
 import luigi
 from luigi.tools import deps_tree
 
-from ..cli.util import create_matched_id
-from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
 from .canvas import CallSomaticCopyNumberVariantsWithCanvas
@@ -37,7 +35,7 @@ class RunVariantCaller(luigi.Task):
     hapmap_vcf_path = luigi.Parameter(default='')
     gnomad_vcf_path = luigi.Parameter(default='')
     evaluation_interval_path = luigi.Parameter(default='')
-    cnv_black_list_path = luigi.Parameter(default='')
+    cnv_blacklist_path = luigi.Parameter(default='')
     genomesize_xml_path = luigi.Parameter(default='')
     kmer_fa_path = luigi.Parameter(default='')
     exome_manifest_path = luigi.Parameter(default='')
@@ -128,7 +126,7 @@ class RunVariantCaller(luigi.Task):
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
-                cnv_black_list_path=self.cnv_black_list_path, cf=self.cf
+                cnv_blacklist_path=self.cnv_blacklist_path, cf=self.cf
             )
         elif 'somatic_cnv.canvas' == self.caller:
             return CallSomaticCopyNumberVariantsWithCanvas(
@@ -140,7 +138,7 @@ class RunVariantCaller(luigi.Task):
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 gnomad_vcf_path=self.gnomad_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
-                cnv_black_list_path=self.cnv_black_list_path,
+                cnv_blacklist_path=self.cnv_blacklist_path,
                 genomesize_xml_path=self.genomesize_xml_path,
                 kmer_fa_path=self.kmer_fa_path,
                 exome_manifest_path=self.exome_manifest_path, cf=self.cf
@@ -271,68 +269,6 @@ class PrintEnvVersions(ShellTask):
                 *[f'cat {o}' for o in version_files if o.is_file()]
             ]
         )
-        self.__is_completed = True
-
-
-class RemoveBAMs(ShellTask):
-    fq_list = luigi.ListParameter()
-    cram_list = luigi.ListParameter()
-    read_groups = luigi.ListParameter()
-    sample_names = luigi.ListParameter()
-    ref_fa_path = luigi.Parameter()
-    dbsnp_vcf_path = luigi.Parameter()
-    mills_indel_vcf_path = luigi.Parameter()
-    known_indel_vcf_path = luigi.Parameter()
-    hapmap_vcf_path = luigi.Parameter()
-    gnomad_vcf_path = luigi.Parameter()
-    evaluation_interval_path = luigi.Parameter()
-    cnv_black_list_path = luigi.Parameter()
-    genomesize_xml_path = luigi.Parameter()
-    kmer_fa_path = luigi.Parameter()
-    exome_manifest_path = luigi.Parameter(default='')
-    funcotator_somatic_tar_path = luigi.Parameter()
-    funcotator_germline_tar_path = luigi.Parameter()
-    snpeff_config_path = luigi.Parameter()
-    cf = luigi.DictParameter()
-    callers = luigi.ListParameter()
-    annotators = luigi.ListParameter()
-    normalize_vcf = luigi.BoolParameter(default=True)
-    priority = luigi.IntParameter(default=0)
-    __is_completed = False
-
-    def requires(self):
-        kwargs = {
-            k: getattr(self, k) for k in [
-                'fq_list', 'read_groups', 'cram_list', 'sample_names',
-                'ref_fa_path', 'dbsnp_vcf_path', 'mills_indel_vcf_path',
-                'known_indel_vcf_path', 'cf'
-            ]
-        }
-        return [PrepareCRAMTumor(**kwargs), PrepareCRAMNormal(**kwargs)]
-
-    def complete(self):
-        return self.__is_completed
-
-    def run(self):
-        align_dir = Path(self.cf['align_dir_path'])
-        bams = [
-            align_dir.joinpath(Path(i[0].path).stem + '.bam')
-            for i in self.input()
-        ]
-        if any([b.is_file() for b in bams]):
-            run_id = create_matched_id(*[b.name for b in bams])
-            self.print_log(f'Remove BAM files:\t{run_id}')
-            self.setup_shell(
-                run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-                cwd=self.cf['align_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed'],
-                quiet=self.cf['quiet']
-            )
-            self.run_shell(
-                args=('rm -f' + ''.join([f' {b} {b}.bai' for b in bams]))
-            )
-        if not list(align_dir.iterdir()):
-            align_dir.rmdir()
         self.__is_completed = True
 
 

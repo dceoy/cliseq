@@ -22,13 +22,14 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
     priority = 50
 
     def output(self):
+        output_prefix = str(
+            Path(self.cf['germline_snv_indel_gatk_dir_path']).joinpath(
+                Path(self.input()[0][0].path).stem + '.haplotypecaller'
+            )
+        )
         return [
-            luigi.LocalTarget(
-                Path(self.cf['germline_snv_indel_gatk_dir_path']).joinpath(
-                    Path(self.input()[0][0].path).stem
-                    + f'.haplotypecaller.{s}'
-                )
-            ) for s in ['g.vcf.gz', 'g.vcf.gz.tbi', 'cram', 'cram.crai']
+            luigi.LocalTarget(f'{output_prefix}.{s}')
+            for s in ['g.vcf.gz', 'g.vcf.gz.tbi', 'cram', 'cram.crai']
         ]
 
     def run(self):
@@ -174,10 +175,10 @@ class GenotypeHaplotypeCallerGVCF(ShellTask):
     priority = 50
 
     def output(self):
+        output_prefix = re.sub(r'\.g\.vcf\.gz$', '', self.input()[0][0].path)
         return [
-            luigi.LocalTarget(
-                re.sub(r'\.g\.vcf\.gz$', s, self.input()[0][0].path)
-            ) for s in ['.vcf.gz', '.vcf.gz.tbi']
+            luigi.LocalTarget(f'{output_prefix}.{s}')
+            for s in ['vcf.gz', 'vcf.gz.tbi']
         ]
 
     def run(self):
@@ -222,11 +223,10 @@ class CNNScoreVariants(ShellTask):
     priority = 50
 
     def output(self):
-        return [
-            luigi.LocalTarget(
-                re.sub(r'\.vcf\.gz$', f'.cnn.{s}', self.input()[0][0].path)
-            ) for s in ['vcf.gz', 'vcf.gz.tbi']
-        ]
+        output_vcf_path = re.sub(
+            r'\.vcf\.gz$', '.cnn.vcf.gz', self.input()[0][0].path
+        )
+        return [luigi.LocalTarget(output_vcf_path + s) for s in ['', '.tbi']]
 
     def run(self):
         cnn_vcf_path = self.output()[0].path
@@ -274,13 +274,10 @@ class FilterVariantTranches(ShellTask):
     priority = 50
 
     def output(self):
-        return [
-            luigi.LocalTarget(
-                re.sub(
-                    r'\.vcf\.gz$', f'.filtered.{s}', self.input()[0][0].path
-                )
-            ) for s in ['vcf.gz', 'vcf.gz.tbi']
-        ]
+        output_vcf_path = re.sub(
+            r'\.vcf\.gz$', '.filtered.vcf.gz', self.input()[0][0].path
+        )
+        return [luigi.LocalTarget(output_vcf_path + s) for s in ['', '.tbi']]
 
     def run(self):
         filtered_vcf_path = self.output()[0].path

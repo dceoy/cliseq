@@ -29,19 +29,11 @@ class AnnotateVariantsWithSnpEff(luigi.Task):
         ]
 
     def output(self):
-        return [
-            luigi.LocalTarget(
-                Path(self.cf['postproc_snpeff_dir_path']).joinpath(
-                    re.sub(
-                        r'\.vcf$',
-                        '{0}.snpeff.vcf.gz{1}'.format(
-                            ('.norm' if self.normalize_vcf else ''), s
-                        ),
-                        Path(self.input_vcf_path).stem
-                    )
-                )
-            ) for s in ['', '.tbi']
-        ]
+        output_vcf = Path(self.cf['postproc_snpeff_dir_path']).joinpath(
+            re.sub(r'\.vcf$', '', Path(self.input_vcf_path).stem)
+            + ('.norm' if self.normalize_vcf else '') + '.snpeff.vcf.gz'
+        )
+        return [luigi.LocalTarget(f'{output_vcf}{s}') for s in ['', '.tbi']]
 
     def run(self):
         yield SnpEff(
@@ -94,19 +86,16 @@ class SnpEff(ShellTask):
             return super().requires()
 
     def output(self):
-        return [
-            luigi.LocalTarget(
-                Path(self.dest_dir_path).joinpath(
-                    re.sub(
-                        r'\.vcf$', f'.snpeff.vcf.gz{s}',
-                        Path(
-                            self.input()[0].path if self.normalize_vcf
-                            else self.input_vcf_path
-                        ).stem
-                    )
-                )
-            ) for s in ['', '.tbi']
-        ]
+        output_vcf = Path(self.dest_dir_path).joinpath(
+            re.sub(
+                r'\.vcf$', '',
+                Path(
+                    self.input()[0].path if self.normalize_vcf
+                    else self.input_vcf_path
+                ).stem
+            ) + '.snpeff.vcf.gz'
+        )
+        return [luigi.LocalTarget(f'{output_vcf}{s}') for s in ['', '.tbi']]
 
     def run(self):
         output_vcf_path = self.output()[0].path

@@ -169,7 +169,7 @@ class DownloadSnpEffDataSource(ShellTask):
         )
 
 
-class DownloadAndConvertVCFsIntoPassingAfOnlyVCF(ShellTask):
+class DownloadAndConvertVCFsIntoPassingAfOnlyVCF(luigi.Task):
     src_url = luigi.Parameter()
     dest_dir_path = luigi.Parameter(default='.')
     n_cpu = luigi.IntParameter(default=1)
@@ -293,31 +293,6 @@ class CreateIntervalListWithBED(ShellTask):
             ),
             input_files_or_dirs=[self.bed_path, seq_dict_path],
             output_files_or_dirs=interval_list_path
-        )
-
-
-class FlagUniqueKmers(ShellTask):
-    input_fa_path = luigi.Parameter()
-    output_fa_path = luigi.Parameter()
-    flaguniquekmers = luigi.Parameter(default='FlagUniqueKmers')
-
-    def output(self):
-        return luigi.LocalTarget(self.output_fa_path)
-
-    def run(self):
-        run_id = Path(self.input_fa_path).stem
-        self.print_log(f'Flag unique k-mers:\t{run_id}')
-        self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            cwd=self.cf['ref_dir_path'], quiet=False
-        )
-        self.run_shell(
-            args=(
-                f'set -e && {self.flaguniquekmers}'
-                + f' {self.input_fa_path} {self.output_fa_path}'
-            ),
-            input_files_or_dirs=self.input_fa_path,
-            output_files_or_dirs=self.output_fa_path
         )
 
 

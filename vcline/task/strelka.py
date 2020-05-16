@@ -26,13 +26,11 @@ class CallSomaticVariantsWithStrelka(ShellTask):
     priority = 30
 
     def output(self):
+        run_dir = Path(self.cf['somatic_snv_indel_strelka_dir_path']).joinpath(
+            create_matched_id(*[i[0].path for i in self.input()[0:2]])
+        )
         return [
-            luigi.LocalTarget(
-                Path(self.cf['somatic_snv_indel_strelka_dir_path']).joinpath(
-                    create_matched_id(*[i[0].path for i in self.input()[0:2]])
-                    + s
-                )
-            ) for s
+            luigi.LocalTarget(f'{run_dir}{s}') for s
             in ['', '.strelka.somatic.vcf.gz', '.strelka.somatic.vcf.gz.tbi']
         ]
 
@@ -115,12 +113,11 @@ class CallGermlineVariantsWithStrelka(ShellTask):
     priority = 30
 
     def output(self):
+        run_dir = Path(
+            self.cf['germline_snv_indel_strelka_dir_path']
+        ).joinpath(Path(self.input()[0][0].path).stem)
         return [
-            luigi.LocalTarget(
-                Path(self.cf['germline_snv_indel_strelka_dir_path']).joinpath(
-                    Path(self.input()[0][0].path).stem + s
-                )
-            ) for s in [
+            luigi.LocalTarget(f'{run_dir}{s}') for s in [
                 '', '.strelka.germline.variants.vcf.gz',
                 '.strelka.germline.variants.vcf.gz.tbi'
             ]
