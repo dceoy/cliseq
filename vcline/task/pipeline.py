@@ -248,6 +248,13 @@ class PrintEnvVersions(ShellTask):
     def run(self):
         python = sys.executable
         self.print_log(f'Print environment versions: {python}')
+        version_files = [
+            Path('/proc/version'),
+            *[
+                o for o in Path('/etc').iterdir()
+                if o.name.endswith(('-release', '_version'))
+            ]
+        ]
         self.setup_shell(
             run_id=self.run_id, log_dir_path=self.log_dir_path,
             commands=[python, *self.command_paths], quiet=self.quiet
@@ -256,6 +263,12 @@ class PrintEnvVersions(ShellTask):
             args=[
                 f'{python} -m pip --version',
                 f'{python} -m pip freeze --no-cache-dir'
+            ]
+        )
+        self.run_shell(
+            args=[
+                'uname -a',
+                *[f'cat {o}' for o in version_files if o.is_file()]
             ]
         )
         self.__is_completed = True
