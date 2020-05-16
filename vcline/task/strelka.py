@@ -10,7 +10,7 @@ from luigi.util import requires
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
-from .bcftools import ConcatenateVCFsIntoSortedVCF
+from .bcftools import bcftools_concat_and_index
 from .manta import CallStructualVariantsWithManta
 from .ref import CreateEvaluationIntervalListBED, FetchReferenceFASTA
 
@@ -45,8 +45,10 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         run_script = str(Path(run_dir_path).joinpath('runWorkflow.py'))
         pythonpath = Path(config_script).parent.parent.joinpath('lib/python')
         python2 = self.cf['python2']
+        bcftools = self.cf['bcftools']
         n_cpu = self.cf['n_cpu_per_worker']
-        memory_gb = max(floor(self.cf['memory_mb_per_worker'] / 1024), 1)
+        memory_mb = self.cf['memory_mb_per_worker']
+        memory_gb = max(floor(memory_mb / 1024), 1)
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
         fa_path = self.input()[2][0].path
         bed_path = self.input()[3][0].path
@@ -60,7 +62,7 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         output_vcf_path = self.output()[1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[python2, config_script], cwd=root_dir_path,
+            commands=[python2, config_script, bcftools], cwd=root_dir_path,
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
@@ -93,16 +95,12 @@ class CallSomaticVariantsWithStrelka(ShellTask):
             ],
             output_files_or_dirs=[*result_file_paths, run_dir_path]
         )
-        yield ConcatenateVCFsIntoSortedVCF(
+        bcftools_concat_and_index(
+            shelltask=self, bcftools=bcftools,
             input_vcf_paths=[
                 p for p in result_file_paths if p.endswith('.vcf.gz')
             ],
-            output_vcf_path=output_vcf_path,
-            bcftools=self.cf['bcftools'], n_cpu=n_cpu,
-            memory_mb=self.cf['memory_mb_per_worker'], remove_input=False,
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+            output_vcf_path=output_vcf_path, n_cpu=n_cpu, memory_mb=memory_mb
         )
 
 

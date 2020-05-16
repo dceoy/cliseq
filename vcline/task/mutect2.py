@@ -12,7 +12,7 @@ from .base import ShellTask
 from .ref import (CreateGnomadBiallelicSnpVCF, CreateSequenceDictionary,
                   FetchEvaluationIntervalList, FetchGnomadVCF,
                   FetchReferenceFASTA, PrepareEvaluationIntervals)
-from .samtools import MergeSAMsIntoSortedSAM, SamtoolsViewAndSamtoolsIndex
+from .samtools import samtools_merge_and_index, samtools_view_and_index
 
 
 class GetPileupSummaries(ShellTask):
@@ -136,18 +136,11 @@ class CallVariantsWithMutect2(ShellTask):
         ]
 
     def run(self):
-        output_vcf_path = self.output()[0].path
-        run_id = '.'.join(Path(output_vcf_path).name.split('.')[:-3])
-        self.print_log(f'Call somatic variants with Mutect2:\t{run_id}')
-        gatk = self.cf['gatk']
-        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
         fa_path = self.input()[2][0].path
         evaluation_interval_paths = [i.path for i in self.input()[3]]
         gnomad_vcf_path = self.input()[4][0].path
-        output_stats_path = self.output()[2].path
-        output_cram_path = self.output()[3].path
-        ob_priors_path = self.output()[5].path
+        output_vcf_path = self.output()[0].path
         output_path_prefix = '.'.join(output_vcf_path.split('.')[:-2])
         if len(evaluation_interval_paths) == 1:
             tmp_prefixes = [output_path_prefix]
@@ -156,7 +149,7 @@ class CallVariantsWithMutect2(ShellTask):
                 '{0}.{1}'.format(output_path_prefix, Path(i).stem)
                 for i in evaluation_interval_paths
             ]
-        targets = yield [
+        input_targets = yield [
             Mutect2(
                 input_cram_paths=input_cram_paths, fa_path=fa_path,
                 gnomad_vcf_path=gnomad_vcf_path, evaluation_interval_path=i,
@@ -164,9 +157,20 @@ class CallVariantsWithMutect2(ShellTask):
                 cf=self.cf
             ) for i, s in zip(evaluation_interval_paths, tmp_prefixes)
         ]
+        run_id = '.'.join(Path(output_vcf_path).name.split('.')[:-3])
+        self.print_log(f'Call somatic variants with Mutect2:\t{run_id}')
+        gatk = self.cf['gatk']
+        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        samtools = self.cf['samtools']
+        n_cpu = self.cf['n_cpu_per_worker']
+        memory_mb = self.cf['memory_mb_per_worker']
+        output_stats_path = self.output()[2].path
+        output_cram_path = self.output()[3].path
+        ob_priors_path = self.output()[5].path
         f1r2_paths = [f'{s}.f1r2.tar.gz' for s in tmp_prefixes]
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=[gatk, samtools],
             cwd=self.cf['somatic_snv_indel_gatk_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
@@ -180,14 +184,13 @@ class CallVariantsWithMutect2(ShellTask):
             input_files_or_dirs=f1r2_paths, output_files_or_dirs=ob_priors_path
         )
         if len(evaluation_interval_paths) == 1:
-            yield SamtoolsViewAndSamtoolsIndex(
-                input_sam_path=f'{tmp_prefixes[0]}.bam',
-                output_sam_path=output_cram_path, fa_path=fa_path,
-                samtools=self.cf['samtools'],
-                n_cpu=self.cf['n_cpu_per_worker'], remove_input=True,
-                log_dir_path=self.cf['log_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed'],
-                quiet=self.cf['quiet']
+            tmp_bam_path = f'{tmp_prefixes[0]}.bam'
+            samtools_view_and_index(
+                shelltask=self, samtools=samtools, input_sam_path=tmp_bam_path,
+                fa_path=fa_path, output_sam_path=output_cram_path, n_cpu=n_cpu
+            )
+            self.run_shell(
+                args=f'rm -f {tmp_bam_path}', input_files_or_dirs=tmp_bam_path
             )
         else:
             tmp_vcf_paths = [f'{s}.vcf.gz' for s in tmp_prefixes]
@@ -210,18 +213,13 @@ class CallVariantsWithMutect2(ShellTask):
                 input_files_or_dirs=tmp_stats_paths,
                 output_files_or_dirs=output_stats_path
             )
-            yield MergeSAMsIntoSortedSAM(
+            samtools_merge_and_index(
+                shelltask=self, samtools=samtools,
                 input_sam_paths=[f'{s}.bam' for s in tmp_prefixes],
-                output_sam_path=output_cram_path, fa_path=fa_path,
-                samtools=self.cf['samtools'],
-                n_cpu=self.cf['n_cpu_per_worker'],
-                memory_per_thread=self.cf['samtools_memory_per_thread'],
-                index_sam=True, remove_input=False,
-                log_dir_path=self.cf['log_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed'],
-                quiet=self.cf['quiet']
+                fa_path=fa_path, output_sam_path=output_cram_path, n_cpu=n_cpu,
+                memory_mb=memory_mb
             )
-            for t in targets:
+            for t in input_targets:
                 tmp_file_paths = [o.path for o in t]
                 self.run_shell(
                     args=('rm -f ' + ' '.join(tmp_file_paths)),

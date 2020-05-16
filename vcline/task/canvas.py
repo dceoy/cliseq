@@ -13,7 +13,7 @@ from .haplotypecaller import GenotypeHaplotypeCallerGVCF
 from .mutect2 import CallVariantsWithMutect2
 from .ref import (CreateCnvBlackListBED, CreateExclusionIntervalListBED,
                   FetchReferenceFASTA, FetchResourceFASTA, FetchResourceFile)
-from .samtools import SamtoolsFaidx, SamtoolsIndex
+from .samtools import samtools_faidx, samtools_index
 
 
 class PrepareCanvasGenomeFiles(ShellTask):
@@ -78,11 +78,8 @@ class PrepareCanvasGenomeFiles(ShellTask):
             ],
             output_files_or_dirs=output_genome_fa_path
         )
-        yield SamtoolsFaidx(
-            fa_path=output_genome_fa_path, samtools=samtools,
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+        samtools_faidx(
+            shelltask=self, samtools=samtools, fa_path=output_genome_fa_path
         )
 
 
@@ -211,11 +208,9 @@ class CreateCanvasBAM(ShellTask):
             ],
             output_files_or_dirs=output_bam_path
         )
-        yield SamtoolsIndex(
-            sam_path=output_bam_path, samtools=samtools, n_cpu=n_cpu,
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+        samtools_index(
+            shelltask=self, samtools=samtools, sam_path=output_bam_path,
+            n_cpu=n_cpu
         )
 
 
@@ -238,24 +233,32 @@ class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
         ]
 
     def run(self):
+        targets = yield [
+            CreateCanvasBAM(
+                input_cram_path=self.input()[0][0].path,
+                cram_fa_path=self.input()[2][0].path,
+                kmer_fai_path=self.input()[3][4].path, cf=self.cf
+            ),
+            *(
+                [
+                    CreateUniqueRegionManifest(
+                        exome_manifest_path=self.exome_manifest_path,
+                        cf=self.cf
+                    )
+                ] if self.cf['exome'] else list()
+            )
+        ]
         output_dir_path = self.output()[0].path
         run_id = Path(output_dir_path).name
         self.print_log(f'Call somatic CNVs with Canvas:\t{run_id}')
         canvas = self.cf['Canvas']
         sample_name = self.sample_names[0]
-        tumor_cram_path = self.input()[0][0].path
-        cram_fa_path = self.input()[2][0].path
         kmer_fa_path = self.input()[3][3].path
-        kmer_fai_path = self.input()[3][4].path
         canvas_genome_dir_path = str(Path(self.input()[3][0].path).parent)
         filter_bed_path = self.input()[4].path
         germline_b_allele_vcf_path = self.input()[5][0].path
         somatic_vcf_path = self.input()[6][0].path
-        target = yield CreateCanvasBAM(
-            input_cram_path=tumor_cram_path, cram_fa_path=cram_fa_path,
-            kmer_fai_path=kmer_fai_path, cf=self.cf
-        )
-        tumor_bam_path = target[0].path
+        tumor_bam_path = targets[0][0].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=canvas, cwd=self.cf['somatic_cnv_canvas_dir_path'],
@@ -263,10 +266,7 @@ class CallSomaticCopyNumberVariantsWithCanvas(ShellTask):
             quiet=self.cf['quiet']
         )
         if self.cf['exome']:
-            target = yield CreateUniqueRegionManifest(
-                exome_manifest_path=self.exome_manifest_path, cf=self.cf
-            )
-            manifest_path = target.path
+            manifest_path = targets[1].path
             self.run_shell(
                 args=(
                     f'set -e && {canvas} Somatic-Enrichment'

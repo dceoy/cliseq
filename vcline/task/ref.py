@@ -8,7 +8,7 @@ import luigi
 from luigi.util import requires
 
 from .base import ShellTask
-from .samtools import SamtoolsFaidx, Tabix
+from .samtools import SamtoolsFaidx
 
 
 class FetchReferenceFASTA(luigi.WrapperTask):
@@ -140,10 +140,11 @@ class FetchResourceVCF(ShellTask):
         run_id = Path(Path(dest_vcf_path).stem).stem
         self.print_log(f'Create a VCF:\t{run_id}')
         bgzip = self.cf['bgzip']
+        tabix = self.cf['tabix']
         n_cpu = self.cf['n_cpu_per_worker']
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=bgzip, cwd=self.cf['ref_dir_path'],
+            commands=[bgzip, tabix], cwd=self.cf['ref_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
@@ -160,12 +161,16 @@ class FetchResourceVCF(ShellTask):
             input_files_or_dirs=self.resource_vcf_path,
             output_files_or_dirs=dest_vcf_path
         )
-        yield Tabix(
-            tsv_path=dest_vcf_path, tabix=self.cf['tabix'], preset='vcf',
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+        _tabix(
+            shelltask=self, tabix=tabix, tsv_path=dest_vcf_path, preset='vcf'
         )
+
+
+def _tabix(shelltask, tabix, tsv_path, preset='bed'):
+    shelltask.run_shell(
+        args=f'set -e && {tabix} --preset {preset} {tsv_path}',
+        input_files_or_dirs=tsv_path, output_files_or_dirs=f'{tsv_path}.tbi'
+    )
 
 
 class FetchDbsnpVCF(luigi.WrapperTask):
@@ -353,6 +358,7 @@ class IntervalList2BED(ShellTask):
         run_id = Path(self.interval_list_path).stem
         self.print_log(f'Create an interval_list BED:\t{run_id}')
         bgzip = self.cf['bgzip']
+        tabix = self.cf['tabix']
         n_cpu = self.cf['n_cpu_per_worker']
         interval_bed_path = self.output()[0].path
         pyscript_path = str(
@@ -362,7 +368,7 @@ class IntervalList2BED(ShellTask):
         )
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=self.cf['bgzip'], cwd=Path(interval_bed_path).parent,
+            commands=[bgzip, tabix], cwd=Path(interval_bed_path).parent,
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
@@ -375,11 +381,9 @@ class IntervalList2BED(ShellTask):
             input_files_or_dirs=self.interval_list_path,
             output_files_or_dirs=interval_bed_path
         )
-        yield Tabix(
-            tsv_path=interval_bed_path, tabix=self.cf['tabix'], preset='bed',
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+        _tabix(
+            shelltask=self, tabix=tabix, tsv_path=interval_bed_path,
+            preset='bed'
         )
 
 
@@ -409,13 +413,14 @@ class CreateExclusionIntervalListBED(ShellTask):
         self.print_log(f'Create an exclusion interval_list BED:\t{run_id}')
         bedtools = self.cf['bedtools']
         bgzip = self.cf['bgzip']
+        tabix = self.cf['tabix']
         fai_path = self.input()[1][1].path
         n_cpu = self.cf['n_cpu_per_worker']
         exclusion_bed_path = self.output()[0].path
         genome_bed_path = self.output()[2].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=bgzip, cwd=self.cf['ref_dir_path'],
+            commands=[bgzip, tabix], cwd=self.cf['ref_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
@@ -440,14 +445,8 @@ class CreateExclusionIntervalListBED(ShellTask):
             input_files_or_dirs=[genome_bed_path, evaluation_bed_path],
             output_files_or_dirs=exclusion_bed_path
         )
-        yield [
-            Tabix(
-                tsv_path=p, tabix=self.cf['tabix'], preset='bed',
-                log_dir_path=self.cf['log_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed'],
-                quiet=self.cf['quiet']
-            ) for p in [genome_bed_path, exclusion_bed_path]
-        ]
+        for p in [genome_bed_path, exclusion_bed_path]:
+            _tabix(shelltask=self, tabix=tabix, tsv_path=p, preset='bed')
 
 
 class FetchHapmapVCF(luigi.WrapperTask):
@@ -500,12 +499,13 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
         self.print_log(f'Create a common biallelic SNP VCF:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
+        tabix = self.cf['tabix']
         fa_path = self.input()[1][0].path
         evaluation_interval_path = self.input()[2].path
         biallelic_snp_vcf_path = self.output()[0].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=gatk, cwd=self.cf['ref_dir_path'],
+            commands=[gatk, tabix], cwd=self.cf['ref_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
@@ -525,11 +525,9 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
             ],
             output_files_or_dirs=biallelic_snp_vcf_path
         )
-        yield Tabix(
-            tsv_path=biallelic_snp_vcf_path, tabix=self.cf['tabix'],
-            preset='vcf', log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+        _tabix(
+            shelltask=self, tabix=tabix, tsv_path=biallelic_snp_vcf_path,
+            preset='vcf'
         )
 
 
@@ -601,11 +599,12 @@ class CreateCnvBlackListBED(ShellTask):
         run_id = Path(blacklist_path).stem
         self.print_log(f'Create a blacklist BED:\t{run_id}')
         bgzip = self.cf['bgzip']
+        tabix = self.cf['tabix']
         n_cpu = self.cf['n_cpu_per_worker']
         bed_path = self.output()[0].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=bgzip, cwd=self.cf['ref_dir_path'],
+            commands=[bgzip, tabix], cwd=self.cf['ref_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
@@ -622,12 +621,7 @@ class CreateCnvBlackListBED(ShellTask):
             ),
             input_files_or_dirs=blacklist_path, output_files_or_dirs=bed_path
         )
-        yield Tabix(
-            tsv_path=bed_path, tabix=self.cf['tabix'], preset='bed',
-            log_dir_path=self.cf['log_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
-        )
+        _tabix(shelltask=self, tabix=tabix, tsv_path=bed_path, preset='bed')
 
 
 @requires(FetchEvaluationIntervalList, FetchCnvBlackList,

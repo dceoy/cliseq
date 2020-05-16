@@ -195,37 +195,43 @@ class RunVariantCaller(luigi.Task):
         }
 
     def run(self):
+        if self.annotators:
+            tasks = list()
+            funcotator_common_kwargs = {
+                'data_src_tar_path': (
+                    self.funcotator_germline_tar_path
+                    if self.caller.startswith('germline_')
+                    else self.funcotator_somatic_tar_path
+                ),
+                'ref_fa_path': self.ref_fa_path, 'cf': self.cf
+            }
+            for k, v in self._find_annotation_targets().items():
+                if k == 'funcotator':
+                    tasks.extend([
+                        (
+                            FuncotateSegments(
+                                input_seg_path=p, **funcotator_common_kwargs
+                            ) if p.endswith('.seg') else FuncotateVariants(
+                                input_vcf_path=p,
+                                normalize_vcf=self.normalize_vcf,
+                                **funcotator_common_kwargs
+                            )
+                        ) for p in v
+                    ])
+                elif k == 'snpeff':
+                    tasks.extend([
+                        AnnotateVariantsWithSnpEff(
+                            input_vcf_path=p,
+                            snpeff_config_path=self.snpeff_config_path,
+                            ref_fa_path=self.ref_fa_path, cf=self.cf,
+                            normalize_vcf=self.normalize_vcf
+                        ) for p in v
+                    ])
+            yield tasks
+        else:
+            pass
         logger = logging.getLogger(__name__)
         logger.debug('Task tree:' + os.linesep + deps_tree.print_tree(self))
-        funcotator_common_kwargs = {
-            'data_src_tar_path': (
-                self.funcotator_germline_tar_path
-                if self.caller.startswith('germline_')
-                else self.funcotator_somatic_tar_path
-            ),
-            'ref_fa_path': self.ref_fa_path, 'cf': self.cf
-        }
-        for k, v in self._find_annotation_targets().items():
-            if k == 'funcotator':
-                yield [
-                    (
-                        FuncotateSegments(
-                            input_seg_path=p, **funcotator_common_kwargs
-                        ) if p.endswith('.seg') else FuncotateVariants(
-                            input_vcf_path=p, normalize_vcf=self.normalize_vcf,
-                            **funcotator_common_kwargs
-                        )
-                    ) for p in v
-                ]
-            elif k == 'snpeff':
-                yield [
-                    AnnotateVariantsWithSnpEff(
-                        input_vcf_path=p,
-                        snpeff_config_path=self.snpeff_config_path,
-                        ref_fa_path=self.ref_fa_path, cf=self.cf,
-                        normalize_vcf=self.normalize_vcf
-                    ) for p in v
-                ]
 
 
 class PrintEnvVersions(ShellTask):

@@ -6,7 +6,7 @@ from pathlib import Path
 import luigi
 
 from .base import ShellTask
-from .bcftools import BcftoolsIndex, NormalizeVCF
+from .bcftools import NormalizeVCF, bcftools_index
 from .ref import CreateSequenceDictionary, CreateSymlinks, FetchReferenceFASTA
 
 
@@ -135,7 +135,7 @@ class SnpEff(ShellTask):
         )
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=[self.snpeff, self.bgzip],
+            commands=[self.snpeff, self.bgzip, self.bcftools],
             cwd=self.dest_dir_path, remove_if_failed=self.remove_if_failed,
             quiet=self.quiet
         )
@@ -165,10 +165,9 @@ class SnpEff(ShellTask):
         self.run_shell(
             args=f'rm -rf {tmp_dir_path}', input_files_or_dirs=tmp_dir_path
         )
-        yield BcftoolsIndex(
-            vcf_path=output_vcf_path, bcftools=self.bcftools,
-            n_cpu=self.n_cpu, tbi=True, log_dir_path=self.log_dir_path,
-            remove_if_failed=self.remove_if_failed, quiet=self.quiet
+        bcftools_index(
+            shelltask=self, bcftools=self.bcftools, vcf_path=output_vcf_path,
+            n_cpu=self.n_cpu, tbi=True
         )
 
 

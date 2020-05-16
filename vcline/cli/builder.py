@@ -140,8 +140,6 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
                 '-XX:+UseParallelGC',
                 f'-XX:ParallelGCThreads={n_cpu_per_worker}'
             ]),
-            'samtools_memory_per_thread':
-            '{:d}M'.format(int(memory_mb_per_worker / n_cpu_per_worker / 20)),
             'ref_version': (config.get('reference_version') or 'hg38'),
             'exome': bool(config.get('exome')),
             'save_memory': (memory_mb_per_worker < 8 * 1024),
