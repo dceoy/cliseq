@@ -1,6 +1,7 @@
 ---
 reference_version: hg38     # {hg38, hg19}
 exome: false
+adapter_removal: true
 callers:
   somatic_snv_indel:
     gatk: true

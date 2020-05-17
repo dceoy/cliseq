@@ -12,10 +12,10 @@ from .ref import (CreateBWAIndices, CreateSequenceDictionary, FetchDbsnpVCF,
                   FetchKnownIndelVCF, FetchMillsIndelVCF, FetchReferenceFASTA)
 from .samtools import (SamtoolsIndex, SamtoolsView, samtools_index,
                        samtools_view_and_index)
-from .trim import TrimAdapters
+from .trim import PrepareFASTQs
 
 
-@requires(TrimAdapters, FetchReferenceFASTA, CreateBWAIndices)
+@requires(PrepareFASTQs, FetchReferenceFASTA, CreateBWAIndices)
 class AlignReads(ShellTask):
     read_group = luigi.DictParameter()
     cf = luigi.DictParameter()

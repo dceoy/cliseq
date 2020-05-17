@@ -57,6 +57,16 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
         else dest_dir.joinpath('ref')
     )
 
+    read_alignment = bool([
+        r for r in config['runs'] if [v for v in r.values() if v.get('fq')]
+    ])
+    logger.debug(f'read_alignment:\t{read_alignment}')
+    adapter_removal = (
+        (config['adapter_removal'] if 'adapter_removal' in config else True)
+        and read_alignment
+    )
+    logger.debug(f'adapter_removal:\t{adapter_removal}')
+
     default_dict = load_default_dict(stem='vcline')
     callers = (
         list(
@@ -79,9 +89,13 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
 
     command_dict = {
         c: fetch_executable(c) for c in {
-            'bcftools', 'bedtools', 'bgzip', 'bwa', 'cutadapt',
-            'fastqc', 'gatk', 'java', 'pbzip2', 'pigz', 'samtools',
-            'tabix', 'trim_galore',
+            'bgzip', 'gatk', 'java', 'pbzip2', 'pigz', 'samtools', 'tabix',
+            *({'bcftools'} if callers else set()),
+            *(
+                {'cutadapt', 'fastqc', 'trim_galore'}
+                if adapter_removal else set()
+            ),
+            *({'bwa'} if read_alignment else set()),
             *(
                 {'python2', 'configureStrelkaSomaticWorkflow.py'}
                 if 'somatic_snv_indel.strelka' in callers else set()
@@ -95,10 +109,13 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
                 {'python2', 'configManta.py'}
                 if 'somatic_sv.manta' in callers else set()
             ),
-            *({'delly'} if 'somatic_sv.delly' in callers else set()),
+            *(
+                {'bedtools', 'delly'}
+                if 'somatic_sv.delly' in callers else set()
+            ),
             *({'R'} if 'somatic_cnv.gatk' in callers else set()),
             *(
-                {'Canvas', 'dotnet'}
+                {'Canvas', 'dotnet', 'delly'}
                 if 'somatic_cnv.canvas' in callers else set()
             ),
             *({'snpEff'} if 'snpeff' in annotators else set()),
@@ -142,6 +159,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
             ]),
             'ref_version': (config.get('reference_version') or 'hg38'),
             'exome': bool(config.get('exome')),
+            'adapter_removal': adapter_removal,
             'save_memory': (memory_mb_per_worker < 8 * 1024),
             'remove_if_failed': (not skip_cleaning),
             'quiet': (not print_subprocesses),
@@ -179,8 +197,14 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
     print_log(f'Run the analytical pipeline:\t{dest_dir}')
     print(
         yaml.dump([
-            {'workers': n_worker}, {'runs': n_tn}, {'callers': callers},
-            {'annotators': annotators},
+            {'workers': n_worker}, {'runs': n_tn},
+            {
+                'preprocesses': {
+                    'adapter_removal': adapter_removal,
+                    'read_alignment': read_alignment
+                }
+            },
+            {'callers': callers}, {'annotators': annotators},
             {
                 'samples': [
                     dict(zip(['tumor', 'normal'], d['sample_names']))
@@ -262,8 +286,11 @@ def _read_config_yml(path):
                 assert isinstance(s['fq'], list), s
                 assert _has_unique_elements(s['fq']), s
                 assert (len(s['fq']) <= 2), s
+                for p in s['fq']:
+                    assert p.endswith(('.gz', '.bz2')), p
             else:
                 assert isinstance(s['cram'], str), s
+                assert s['cram'].endswith('.cram'), s
             if s.get('read_group'):
                 assert isinstance(s['read_group'], dict), s
                 for k, v in s['read_group'].items():

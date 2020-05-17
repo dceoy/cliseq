@@ -49,7 +49,7 @@ class CallStructualVariantsWithManta(ShellTask):
         pythonpath = Path(config_script).parent.parent.joinpath('lib/python')
         python2 = self.cf['python2']
         n_cpu = self.cf['n_cpu_per_worker']
-        memory_gb = max(floor(self.cf['memory_mb_per_worker'] / 1024), 1)
+        memory_gb = max(floor(self.cf['memory_mb_per_worker'] / 1024), 4)
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
         fa_path = self.input()[2][0].path
         bed_path = self.input()[3][0].path
