@@ -37,7 +37,7 @@ class AlignReads(ShellTask):
         bwa = self.cf['bwa']
         samtools = self.cf['samtools']
         n_cpu = self.cf['n_cpu_per_worker']
-        memory_mb_per_thread = int(self.cf['memory_mb_per_worker'] / n_cpu / 2)
+        memory_mb_per_thread = int(self.cf['memory_mb_per_worker'] / n_cpu / 8)
         fq_paths = [i.path for i in self.input()[0]]
         rg = '\\t'.join(
             [
@@ -105,7 +105,7 @@ class MarkDuplicates(ShellTask):
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         samtools = self.cf['samtools']
         n_cpu = self.cf['n_cpu_per_worker']
-        memory_mb_per_thread = int(self.cf['memory_mb_per_worker'] / n_cpu / 2)
+        memory_mb_per_thread = int(self.cf['memory_mb_per_worker'] / n_cpu / 8)
         fa_path = self.input()[1][0].path
         output_cram_path = self.output()[0].path
         tmp_bam_paths = [

@@ -38,9 +38,9 @@ class NormalizeVCF(ShellTask):
         )
         self.run_shell(
             args=(
-                'set -eo pipefail && '
-                + f'{self.bcftools} reheader --fai {self.fa_path}.fai'
-                + f' --threads {self.n_cpu} {self.input_vcf_path}'
+                f'set -eo pipefail && {self.bcftools} reheader'
+                + f' --fai {self.fa_path}.fai --threads {self.n_cpu}'
+                + f' {self.input_vcf_path}'
                 + f' | {self.bcftools} sort --max-mem {self.memory_mb}M'
                 + f' --temp-dir {output_vcf_path}.sort -'
                 + f' | {self.bcftools} norm --fasta-ref {self.fa_path}'
@@ -90,8 +90,7 @@ def bcftools_concat(shelltask, bcftools, input_vcf_paths, output_vcf_path,
                     n_cpu=1, memory_mb=1024):
     shelltask.run_shell(
         args=(
-            'set -eo pipefail && '
-            + f'{bcftools} concat --threads {n_cpu} '
+            f'set -eo pipefail && {bcftools} concat --threads {n_cpu} '
             + ' '.join(input_vcf_paths)
             + f' | {bcftools} sort --max-mem {memory_mb}M'
             + f' --temp-dir {output_vcf_path}.sort --output-type z'

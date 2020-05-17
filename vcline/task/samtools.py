@@ -172,10 +172,10 @@ def samtools_merge_and_index(shelltask, samtools, input_sam_paths, fa_path,
 
 def samtools_merge(shelltask, samtools, input_sam_paths, fa_path,
                    output_sam_path, n_cpu=1, memory_mb=1024):
-    memory_mb_per_thread = int(memory_mb / n_cpu / 2)
+    memory_mb_per_thread = int(memory_mb / n_cpu / 8)
     shelltask.run_shell(
         args=(
-            'set -eo pipefail && {samtools} merge -@ {n_cpu} -r - '
+            f'set -eo pipefail && {samtools} merge -@ {n_cpu} -r - '
             + ' '.join(input_sam_paths)
             + f' | {samtools} sort -@ {n_cpu} -m {memory_mb_per_thread}M'
             + f' -O bam -l 0 -T {output_sam_path}.sort -'

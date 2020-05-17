@@ -114,7 +114,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
         ((len(callers) if callers else 2) * n_tn)
     )
     n_cpu_per_worker = max(1, floor((max_n_cpu or n_cpu) / n_worker))
-    memory_mb = virtual_memory().total / 1024 / 1024
+    memory_mb = virtual_memory().total / 1024 / 1024 / 2
     memory_mb_per_worker = int(memory_mb / n_worker)
     common_arg_dict = {
         **_resolve_input_file_paths(
