@@ -1,4 +1,4 @@
-FROM ubuntu:18.04 AS builder
+FROM ubuntu:20.04 AS builder
 
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -96,14 +96,13 @@ RUN set -e \
         /usr/local/src/bwa /usr/local/src/FastQC /usr/local/src/TrimGalore \
         -maxdepth 1 -type f -executable -exec ln -s {} /usr/local/bin \;
 
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND noninteractive
 
 COPY --from=builder /usr/local /usr/local
 COPY --from=builder /opt /opt
 COPY --from=builder /etc/apt /etc/apt
-ADD http://mirrors.edge.kernel.org/ubuntu/pool/main/libp/libpng/libpng12-0_1.2.54-1ubuntu1.1_amd64.deb /tmp/libpng12-0.deb
 
 RUN set -e \
       && ln -sf bash /bin/sh
@@ -117,17 +116,18 @@ RUN set -ea pipefail \
       && sed -ne 's/^DISTRIB_RELEASE=\(.*\)$/\1/p' /etc/lsb-release \
         | xargs -i curl -SLO \
           https://packages.microsoft.com/config/ubuntu/{}/packages-microsoft-prod.deb \
-      && apt-get -y install ./packages-microsoft-prod.deb /tmp/libpng12-0.deb \
-      && rm -f packages-microsoft-prod.deb /tmp/libpng12-0.deb
+      && apt-get -y install ./packages-microsoft-prod.deb \
+      && rm -f packages-microsoft-prod.deb
 
 RUN set -e \
       && mv /tmp/r.list /etc/apt/sources.list.d/ \
       && add-apt-repository universe \
+      && add-apt-repository ppa:linuxuprising/libpng12 \
       && apt-get -y update \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
-        dotnet-runtime-2.1 libcurl3-gnutls libgsl23 libncurses5 openjdk-8-jre \
-        pbzip2 perl pigz python r-base wget \
+        dotnet-runtime-2.1 libcurl3-gnutls libgsl23 libncurses5 libpng12-0 \
+        openjdk-8-jre pbzip2 perl pigz python r-base wget \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
