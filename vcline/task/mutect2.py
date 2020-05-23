@@ -9,9 +9,10 @@ from luigi.util import requires
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
+from .haplotypecaller import SplitIntervals
 from .ref import (CreateGnomadBiallelicSnpVCF, CreateSequenceDictionary,
                   FetchEvaluationIntervalList, FetchGnomadVCF,
-                  FetchReferenceFASTA, PrepareEvaluationIntervals)
+                  FetchReferenceFASTA)
 from .samtools import samtools_merge_and_index, samtools_view_and_index
 
 
@@ -116,7 +117,7 @@ class CalculateContamination(ShellTask):
 
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFASTA,
-          PrepareEvaluationIntervals, FetchGnomadVCF,
+          FetchEvaluationIntervalList, FetchGnomadVCF,
           CreateSequenceDictionary)
 class CallVariantsWithMutect2(ShellTask):
     sample_names = luigi.ListParameter()
@@ -138,26 +139,32 @@ class CallVariantsWithMutect2(ShellTask):
         ]
 
     def run(self):
+        scatter_count = self.cf['n_worker']
+        interval_targets = yield SplitIntervals(
+            interval_path=self.input()[3].path,
+            dest_dir_path=self.cf['somatic_snv_indel_gatk_dir_path'],
+            scatter_count=scatter_count, cf=self.cf
+        )
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
         fa_path = self.input()[2][0].path
-        evaluation_interval_paths = [i.path for i in self.input()[3]]
         gnomad_vcf_path = self.input()[4][0].path
         output_vcf_path = self.output()[0].path
         output_path_prefix = '.'.join(output_vcf_path.split('.')[:-2])
-        if len(evaluation_interval_paths) == 1:
+        if scatter_count == 1:
             tmp_prefixes = [output_path_prefix]
         else:
             tmp_prefixes = [
-                '{0}.{1}'.format(output_path_prefix, Path(i).stem)
-                for i in evaluation_interval_paths
+                '{0}.{1}'.format(output_path_prefix, Path(i.path).stem)
+                for i in interval_targets
             ]
         input_targets = yield [
             Mutect2(
                 input_cram_paths=input_cram_paths, fa_path=fa_path,
-                gnomad_vcf_path=gnomad_vcf_path, evaluation_interval_path=i,
+                gnomad_vcf_path=gnomad_vcf_path,
+                evaluation_interval_path=i.path,
                 normal_name=self.sample_names[1], output_path_prefix=s,
                 cf=self.cf
-            ) for i, s in zip(evaluation_interval_paths, tmp_prefixes)
+            ) for i, s in zip(interval_targets, tmp_prefixes)
         ]
         run_id = '.'.join(Path(output_vcf_path).name.split('.')[:-3])
         self.print_log(f'Call somatic variants with Mutect2:\t{run_id}')
@@ -185,7 +192,7 @@ class CallVariantsWithMutect2(ShellTask):
             ),
             input_files_or_dirs=f1r2_paths, output_files_or_dirs=ob_priors_path
         )
-        if len(evaluation_interval_paths) == 1:
+        if scatter_count == 1:
             tmp_bam_path = f'{tmp_prefixes[0]}.bam'
             samtools_view_and_index(
                 shelltask=self, samtools=samtools, input_sam_path=tmp_bam_path,

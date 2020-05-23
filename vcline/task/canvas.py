@@ -37,7 +37,7 @@ class PrepareCanvasGenomeFiles(ShellTask):
     def output(self):
         return [
             luigi.LocalTarget(
-                Path(self.cf['ref_dir_path']).joinpath(f'canvas/{n}')
+                Path(self.cf['somatic_cnv_canvas_dir_path']).joinpath(n)
             ) for n in [
                 'genome.fa', 'genome.fa.fai', 'GenomeSize.xml',
                 'kmer.fa', 'kmer.fa.fai'
@@ -90,7 +90,7 @@ class CreateCanvasFilterBED(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            Path(self.cf['ref_dir_path']).joinpath(
+            Path(self.cf['somatic_cnv_canvas_dir_path']).joinpath(
                 '.'.join([
                     Path(Path(i[0].path).stem).stem for i in self.input()
                 ]) + '.bed'
@@ -106,7 +106,7 @@ class CreateCanvasFilterBED(ShellTask):
         input_bed_paths = [i[0].path for i in self.input()]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=bgzip, cwd=self.cf['ref_dir_path'],
+            commands=bgzip, cwd=self.cf['somatic_cnv_canvas_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
