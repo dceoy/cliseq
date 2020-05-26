@@ -140,13 +140,13 @@ class CallVariantsWithMutect2(ShellTask):
 
     def run(self):
         scatter_count = self.cf['n_worker']
+        fa_path = self.input()[2][0].path
         interval_targets = yield SplitIntervals(
-            interval_path=self.input()[3].path,
+            interval_path=self.input()[3].path, fa_path=fa_path,
             dest_dir_path=self.cf['somatic_snv_indel_gatk_dir_path'],
             scatter_count=scatter_count, cf=self.cf
         )
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
-        fa_path = self.input()[2][0].path
         gnomad_vcf_path = self.input()[4][0].path
         output_vcf_path = self.output()[0].path
         output_path_prefix = '.'.join(output_vcf_path.split('.')[:-2])

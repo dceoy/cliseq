@@ -16,6 +16,7 @@ from .samtools import samtools_merge_and_index, samtools_view_and_index
 
 class SplitIntervals(ShellTask):
     interval_path = luigi.Parameter()
+    fa_path = luigi.Parameter()
     dest_dir_path = luigi.Parameter()
     scatter_count = luigi.IntParameter(default=2)
     cf = luigi.DictParameter()
@@ -34,12 +35,10 @@ class SplitIntervals(ShellTask):
             return [luigi.LocalTarget(self.interval_path)]
 
     def run(self):
-        input_interval_path = self.input()[0].path
-        run_id = Path(input_interval_path).stem
+        run_id = Path(self.interval_path).stem
         self.print_log(f'Split an interval list:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        fa_path = self.input()[1][0].path
         output_interval_paths = [o.path for o in self.output()]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
@@ -51,12 +50,12 @@ class SplitIntervals(ShellTask):
             args=(
                 'set -e && '
                 + f'{gatk}{gatk_opts} SplitIntervals'
-                + f' --reference {fa_path}'
-                + f' --intervals {input_interval_path}'
+                + f' --reference {self.fa_path}'
+                + f' --intervals {self.interval_path}'
                 + f' --scatter-count {self.scatter_count}'
                 + f' --output {self.dest_dir_path}'
             ),
-            input_files_or_dirs=[input_interval_path, fa_path],
+            input_files_or_dirs=[self.interval_path, self.fa_path],
             output_files_or_dirs=output_interval_paths
         )
 
@@ -80,13 +79,13 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
 
     def run(self):
         scatter_count = self.cf['n_worker']
+        fa_path = self.input()[1][0].path
         interval_targets = yield SplitIntervals(
-            interval_path=self.input()[3].path,
+            interval_path=self.input()[3].path, fa_path=fa_path,
             dest_dir_path=self.cf['germline_snv_indel_gatk_dir_path'],
             scatter_count=scatter_count, cf=self.cf
         )
         input_cram_path = self.input()[0][0].path
-        fa_path = self.input()[1][0].path
         dbsnp_vcf_path = self.input()[2][0].path
         output_gvcf_path = self.output()[0].path
         output_path_prefix = '.'.join(output_gvcf_path.split('.')[:-3])
@@ -114,6 +113,12 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         n_cpu = self.cf['n_cpu_per_worker']
         memory_mb = self.cf['memory_mb_per_worker']
         output_cram_path = self.output()[2].path
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
+            commands=gatk, cwd=self.cf['germline_snv_indel_gatk_dir_path'],
+            remove_if_failed=self.cf['remove_if_failed'],
+            quiet=self.cf['quiet']
+        )
         if scatter_count == 1:
             tmp_bam_path = f'{tmp_prefixes[0]}.bam'
             samtools_view_and_index(
@@ -124,12 +129,6 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                 args=f'rm -f {tmp_bam_path}', input_files_or_dirs=tmp_bam_path
             )
         else:
-            self.setup_shell(
-                run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-                commands=gatk, cwd=self.cf['germline_snv_indel_gatk_dir_path'],
-                remove_if_failed=self.cf['remove_if_failed'],
-                quiet=self.cf['quiet']
-            )
             tmp_gvcf_paths = [f'{s}.g.vcf.gz' for s in tmp_prefixes]
             self.run_shell(
                 args=(
