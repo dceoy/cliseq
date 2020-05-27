@@ -19,20 +19,21 @@ class CallStructualVariantsWithDelly(ShellTask):
     priority = 30
 
     def output(self):
-        output_prefix = str(
-            Path(self.cf['somatic_sv_delly_dir_path']).joinpath(
-                create_matched_id(*[i[0].path for i in self.input()[0:2]])
-                + '.delly'
-            )
+        run_dir = Path(self.cf['somatic_sv_delly_dir_path']).joinpath(
+            create_matched_id(*[i[0].path for i in self.input()[0:2]])
         )
         return [
-            luigi.LocalTarget(f'{output_prefix}.{s}') for s in
-            ['bcf', 'vcf.gz', 'vcf.gz.tbi']
+            luigi.LocalTarget(run_dir),
+            *[
+                luigi.LocalTarget(
+                    run_dir.joinpath(run_dir.name + f'.delly.{s}')
+                ) for s in ['bcf', 'vcf.gz', 'vcf.gz.tbi']
+            ]
         ]
 
     def run(self):
-        output_bcf_path = self.output()[0].path
-        run_id = Path(Path(output_bcf_path).stem).stem
+        run_dir = Path(self.output()[0].path)
+        run_id = run_dir.name
         self.print_log(f'Call somatic SVs with Delly:\t{run_id}')
         delly = self.cf['delly']
         bcftools = self.cf['bcftools']
@@ -41,10 +42,11 @@ class CallStructualVariantsWithDelly(ShellTask):
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
         fa_path = self.input()[2][0].path
         exclusion_bed_path = self.input()[3][0].path
-        output_vcf_path = self.output()[1].path
+        output_bcf_path = self.output()[1].path
+        output_vcf_path = self.output()[2].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=delly, cwd=self.cf['somatic_sv_delly_dir_path'],
+            commands=delly, cwd=run_dir,
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet'], env={'OMP_NUM_THREADS': str(n_cpu)}
         )

@@ -87,13 +87,13 @@ class MarkDuplicates(ShellTask):
     priority = 70
 
     def output(self):
-        output_prefix = str(
+        output_path_prefix = str(
             Path(self.cf['align_dir_path']).joinpath(
                 Path(self.input()[0][0].path).stem + '.markdup'
             )
         )
         return [
-            luigi.LocalTarget(f'{output_prefix}.{s}')
+            luigi.LocalTarget(f'{output_path_prefix}.{s}')
             for s in ['cram', 'cram.crai', 'metrics.txt']
         ]
 
@@ -161,13 +161,13 @@ class ApplyBQSR(ShellTask):
     priority = 70
 
     def output(self):
-        output_prefix = str(
+        output_path_prefix = str(
             Path(self.cf['align_dir_path']).joinpath(
                 Path(self.input()[0][0].path).stem + '.bqsr'
             )
         )
         return [
-            luigi.LocalTarget(f'{output_prefix}.{s}')
+            luigi.LocalTarget(f'{output_path_prefix}.{s}')
             for s in ['cram', 'cram.crai', 'data.csv']
         ]
 

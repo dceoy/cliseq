@@ -21,12 +21,13 @@ class GetPileupSummaries(ShellTask):
     fa_path = luigi.Parameter()
     evaluation_interval_path = luigi.Parameter()
     gnomad_common_biallelic_vcf_path = luigi.Parameter()
+    dest_dir_path = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 50
 
     def output(self):
         return luigi.LocalTarget(
-            Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
+            Path(self.dest_dir_path).joinpath(
                 Path(self.cram_path).stem + '.pileup.table'
             )
         )
@@ -37,10 +38,10 @@ class GetPileupSummaries(ShellTask):
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         save_memory = str(self.cf['save_memory']).lower()
-        pileup_table_path = self.output().path
+        output_pileup_table = Path(self.output().path)
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['somatic_snv_indel_gatk_dir_path'],
+            cwd=output_pileup_table.parent,
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
@@ -51,14 +52,14 @@ class GetPileupSummaries(ShellTask):
                 + f' --reference {self.fa_path}'
                 + f' --variant {self.gnomad_common_biallelic_vcf_path}'
                 + f' --intervals {self.evaluation_interval_path}'
-                + f' --output {pileup_table_path}'
+                + f' --output {output_pileup_table}'
                 + f' --disable-bam-index-caching {save_memory}'
             ),
             input_files_or_dirs=[
                 self.cram_path, self.fa_path, self.evaluation_interval_path,
                 self.gnomad_common_biallelic_vcf_path
             ],
-            output_files_or_dirs=pileup_table_path
+            output_files_or_dirs=output_pileup_table
         )
 
 
@@ -70,37 +71,35 @@ class CalculateContamination(ShellTask):
     priority = 50
 
     def output(self):
-        output_prefix = str(
-            Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
-                create_matched_id(*[i[0].path for i in self.input()[0:2]])
-            )
+        output_path_prefix = Path(self.cf['qc_dir_path']).joinpath(
+            create_matched_id(*[i[0].path for i in self.input()[0:2]])
         )
         return [
-            luigi.LocalTarget(f'{output_prefix}.{s}.table')
+            luigi.LocalTarget(f'{output_path_prefix}.{s}.table')
             for s in ['contamination', 'segment']
         ]
 
     def run(self):
+        output_contamination_table = Path(self.output()[0].path)
+        run_dir = output_contamination_table.parent
         input_targets = yield [
             GetPileupSummaries(
                 cram_path=self.input()[i][0].path,
                 fa_path=self.input()[2][0].path,
                 evaluation_interval_path=self.input()[3].path,
                 gnomad_common_biallelic_vcf_path=self.input()[4][0].path,
-                cf=self.cf
+                dest_dir_path=str(run_dir), cf=self.cf
             ) for i in range(2)
         ]
-        contamination_table_path = self.output()[0].path
-        run_id = '.'.join(Path(contamination_table_path).name.split('.')[:-2])
+        run_id = '.'.join(output_contamination_table.name.split('.')[:-2])
         self.print_log(f'Calculate cross-sample contamination:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         pileup_table_paths = [i.path for i in input_targets]
-        segment_table_path = self.output()[1].path
+        output_segment_table_path = self.output()[1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['somatic_snv_indel_gatk_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
+            cwd=run_dir, remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
         self.run_shell(
@@ -108,11 +107,13 @@ class CalculateContamination(ShellTask):
                 f'set -e && {gatk}{gatk_opts} CalculateContamination'
                 + f' --input {pileup_table_paths[0]}'
                 + f' --matched-normal {pileup_table_paths[1]}'
-                + f' --output {contamination_table_path}'
-                + f' --tumor-segmentation {segment_table_path}'
+                + f' --output {output_contamination_table}'
+                + f' --tumor-segmentation {output_segment_table_path}'
             ),
             input_files_or_dirs=pileup_table_paths,
-            output_files_or_dirs=[contamination_table_path, segment_table_path]
+            output_files_or_dirs=[
+                output_contamination_table, output_segment_table_path
+            ]
         )
 
 
@@ -125,31 +126,29 @@ class CallVariantsWithMutect2(ShellTask):
     priority = 50
 
     def output(self):
-        output_prefix = str(
-            Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
-                create_matched_id(*[i[0].path for i in self.input()[0:2]])
-                + '.mutect2'
-            )
+        run_dir = Path(self.cf['somatic_snv_indel_gatk_dir_path']).joinpath(
+            create_matched_id(*[i[0].path for i in self.input()[0:2]])
         )
         return [
-            luigi.LocalTarget(f'{output_prefix}.{s}') for s in [
+            luigi.LocalTarget(run_dir.joinpath(f'{run_dir.name}.mutect2.{s}'))
+            for s in [
                 'vcf.gz', 'vcf.gz.tbi', 'vcf.gz.stats', 'cram', 'cram.crai',
                 'read-orientation-model.tar.gz'
             ]
         ]
 
     def run(self):
+        output_vcf = Path(self.output()[0].path)
         scatter_count = self.cf['n_worker']
         fa_path = self.input()[2][0].path
         interval_targets = yield SplitIntervals(
             interval_path=self.input()[3].path, fa_path=fa_path,
-            dest_dir_path=self.cf['somatic_snv_indel_gatk_dir_path'],
+            dest_dir_path=output_vcf.parent.parent,
             scatter_count=scatter_count, cf=self.cf
         )
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
         gnomad_vcf_path = self.input()[4][0].path
-        output_vcf_path = self.output()[0].path
-        output_path_prefix = '.'.join(output_vcf_path.split('.')[:-2])
+        output_path_prefix = '.'.join(str(output_vcf).split('.')[:-2])
         if scatter_count == 1:
             tmp_prefixes = [output_path_prefix]
         else:
@@ -166,7 +165,7 @@ class CallVariantsWithMutect2(ShellTask):
                 cf=self.cf
             ) for i, s in zip(interval_targets, tmp_prefixes)
         ]
-        run_id = '.'.join(Path(output_vcf_path).name.split('.')[:-3])
+        run_id = '.'.join(output_vcf.name.split('.')[:-3])
         self.print_log(f'Call somatic variants with Mutect2:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
@@ -179,8 +178,7 @@ class CallVariantsWithMutect2(ShellTask):
         f1r2_paths = [f'{s}.f1r2.tar.gz' for s in tmp_prefixes]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[gatk, samtools],
-            cwd=self.cf['somatic_snv_indel_gatk_dir_path'],
+            commands=[gatk, samtools], cwd=output_vcf.parent,
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
@@ -207,10 +205,10 @@ class CallVariantsWithMutect2(ShellTask):
                 args=(
                     f'set -e && {gatk}{gatk_opts} MergeVcfs'
                     + ''.join([f' --INPUT {v}' for v in tmp_vcf_paths])
-                    + f' --OUTPUT {output_vcf_path}'
+                    + f' --OUTPUT {output_vcf}'
                 ),
                 input_files_or_dirs=tmp_vcf_paths,
-                output_files_or_dirs=output_vcf_path
+                output_files_or_dirs=[output_vcf, f'{output_vcf}.tbi']
             )
             tmp_stats_paths = [f'{s}.vcf.gz.stats' for s in tmp_prefixes]
             self.run_shell(
@@ -262,10 +260,11 @@ class Mutect2(ShellTask):
         save_memory = str(self.cf['save_memory']).lower()
         n_cpu = self.cf['n_cpu_per_worker']
         output_file_paths = [o.path for o in self.output()]
+        output_vcf = Path(output_file_paths[0])
         self.setup_shell(
-            run_id='.'.join(Path(output_file_paths[0]).name.split('.')[:-2]),
+            run_id='.'.join(output_vcf.name.split('.')[:-2]),
             log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=Path(output_file_paths[0]).parent,
+            cwd=output_vcf.parent,
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
@@ -276,7 +275,7 @@ class Mutect2(ShellTask):
                 + f' --reference {self.fa_path}'
                 + f' --intervals {self.evaluation_interval_path}'
                 + f' --germline-resource {self.gnomad_vcf_path}'
-                + f' --output {output_file_paths[0]}'
+                + f' --output {output_vcf}'
                 + f' --bam-output {output_file_paths[3]}'
                 + f' --f1r2-tar-gz {output_file_paths[4]}'
                 + f' --normal-sample {self.normal_name}'
@@ -311,23 +310,23 @@ class FilterMutectCalls(ShellTask):
         ]
 
     def run(self):
-        filtered_vcf_path = self.output()[0].path
-        run_id = '.'.join(Path(filtered_vcf_path).name.split('.')[:-4])
+        output_filtered_vcf = Path(self.output()[0].path)
+        run_id = '.'.join(output_filtered_vcf.name.split('.')[:-4])
         self.print_log(f'Filter somatic variants called by Mutect2:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         save_memory = str(self.cf['save_memory']).lower()
-        raw_vcf_path = self.input()[0][0].path
-        raw_stats_path = self.input()[0][2].path
+        mutect_vcf_path = self.input()[0][0].path
+        mutect_stats_path = self.input()[0][2].path
         ob_priors_path = self.input()[0][5].path
         fa_path = self.input()[1][0].path
         evaluation_interval_path = self.input()[2].path
-        filtering_stats_path = self.output()[2].path
         contamination_table_path = self.input()[3][0].path
         segment_table_path = self.input()[3][1].path
+        output_filtering_stats_path = self.output()[2].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=self.cf['somatic_snv_indel_gatk_dir_path'],
+            cwd=output_filtered_vcf.parent,
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
@@ -336,21 +335,23 @@ class FilterMutectCalls(ShellTask):
                 f'set -e && {gatk}{gatk_opts} FilterMutectCalls'
                 + f' --reference {fa_path}'
                 + f' --intervals {evaluation_interval_path}'
-                + f' --variant {raw_vcf_path}'
-                + f' --stats {raw_stats_path}'
+                + f' --variant {mutect_vcf_path}'
+                + f' --stats {mutect_stats_path}'
                 + f' --contamination-table {contamination_table_path}'
                 + f' --tumor-segmentation {segment_table_path}'
                 + f' --orientation-bias-artifact-priors {ob_priors_path}'
-                + f' --output {filtered_vcf_path}'
-                + f' --filtering-stats {filtering_stats_path}'
+                + f' --output {output_filtered_vcf}'
+                + f' --filtering-stats {output_filtering_stats_path}'
                 + f' --disable-bam-index-caching {save_memory}'
             ),
             input_files_or_dirs=[
-                raw_vcf_path, fa_path, evaluation_interval_path,
-                raw_stats_path, ob_priors_path,
+                mutect_vcf_path, fa_path, evaluation_interval_path,
+                mutect_stats_path, ob_priors_path,
                 contamination_table_path, segment_table_path,
             ],
-            output_files_or_dirs=[filtered_vcf_path, filtering_stats_path]
+            output_files_or_dirs=[
+                output_filtered_vcf, output_filtering_stats_path
+            ]
         )
 
 
