@@ -82,7 +82,7 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
         fa_path = self.input()[1][0].path
         interval_targets = yield SplitIntervals(
             interval_path=self.input()[3].path, fa_path=fa_path,
-            dest_dir_path=output_gvcf.parent.parent,
+            dest_dir_path=str(output_gvcf.parent.parent),
             scatter_count=scatter_count, cf=self.cf
         )
         input_cram_path = self.input()[0][0].path

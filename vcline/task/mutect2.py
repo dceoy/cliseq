@@ -143,7 +143,7 @@ class CallVariantsWithMutect2(ShellTask):
         fa_path = self.input()[2][0].path
         interval_targets = yield SplitIntervals(
             interval_path=self.input()[3].path, fa_path=fa_path,
-            dest_dir_path=output_vcf.parent.parent,
+            dest_dir_path=str(output_vcf.parent.parent),
             scatter_count=scatter_count, cf=self.cf
         )
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
