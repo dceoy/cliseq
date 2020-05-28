@@ -21,7 +21,7 @@ class CreateGermlineSnpIntervalList(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            Path(self.cf['qc_dir_path']).joinpath(
+            Path(self.cf['qc_dir_path']).joinpath('cnv').joinpath(
                 Path(self.input()[0].path).stem + '.interval_list'
             )
         )
@@ -32,10 +32,11 @@ class CreateGermlineSnpIntervalList(ShellTask):
         self.print_log(f'Create a germline SNP interval_list:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        output_interval_path = self.output().path
+        output_interval = Path(self.output().path)
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=input_vcf.parent, remove_if_failed=self.cf['remove_if_failed'],
+            cwd=output_interval.parent,
+            remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
         self.run_shell(
@@ -43,10 +44,9 @@ class CreateGermlineSnpIntervalList(ShellTask):
                 f'set -e && {gatk}{gatk_opts} VcfToIntervalList'
                 + f' --INPUT {input_vcf}'
                 + ' --INCLUDE_FILTERED true'
-                + f' --OUTPUT {output_interval_path}'
+                + f' --OUTPUT {output_interval}'
             ),
-            input_files_or_dirs=input_vcf,
-            output_files_or_dirs=output_interval_path
+            input_files_or_dirs=input_vcf, output_files_or_dirs=output_interval
         )
 
 
@@ -59,7 +59,7 @@ class CollectAllelicCounts(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            Path(self.cf['qc_dir_path']).joinpath(
+            Path(self.cf['qc_dir_path']).joinpath('cnv').joinpath(
                 Path(self.cram_path).stem + '.allelic_counts.tsv'
             )
         )
@@ -101,7 +101,7 @@ class CollectAllelicCountsTumor(luigi.Task):
 
     def output(self):
         return luigi.LocalTarget(
-            Path(self.cf['qc_dir_path']).joinpath(
+            Path(self.cf['qc_dir_path']).joinpath('cnv').joinpath(
                 Path(self.input()[0][0].path).stem + '.allelic_counts.tsv'
             )
         )
@@ -122,7 +122,7 @@ class CollectAllelicCountsNormal(luigi.Task):
 
     def output(self):
         return luigi.LocalTarget(
-            Path(self.cf['qc_dir_path']).joinpath(
+            Path(self.cf['qc_dir_path']).joinpath('cnv').joinpath(
                 Path(self.input()[0][0].path).stem + '.allelic_counts.tsv'
             )
         )
@@ -144,7 +144,7 @@ class CollectReadCounts(ShellTask):
 
     def output(self):
         return luigi.LocalTarget(
-            Path(self.cf['qc_dir_path']).joinpath(
+            Path(self.cf['qc_dir_path']).joinpath('cnv').joinpath(
                 Path(self.cram_path).stem + '.counts.hdf5'
             )
         )
@@ -223,13 +223,14 @@ class DenoiseReadCounts(ShellTask):
             ]
         )
         if self.create_plots:
+            plots_dir = run_dir.joinpath(f'{run_id}.plots')
             self.run_shell(
                 args=(
                     f'set -e && {gatk}{gatk_opts} PlotDenoisedCopyRatios'
                     + f' --standardized-copy-ratios {standardized_cr_tsv_path}'
                     + f' --denoised-copy-ratios {denoised_cr_tsv_path}'
                     + f' --sequence-dictionary {self.seq_dict_path}'
-                    + f' --output {run_dir}'
+                    + f' --output {plots_dir}'
                     + f' --output-prefix {run_id}'
 
                 ),
@@ -237,7 +238,9 @@ class DenoiseReadCounts(ShellTask):
                     standardized_cr_tsv_path, denoised_cr_tsv_path,
                     self.seq_dict_path
                 ],
-                output_files_or_dirs=run_dir.joinpath(f'{run_id}.denoised.png')
+                output_files_or_dirs=[
+                    plots_dir.joinpath(f'{run_id}.denoised.png'), plots_dir
+                ]
             )
 
 
@@ -309,9 +312,10 @@ class ModelSegments(ShellTask):
                 + f' --output {run_dir}'
             ),
             input_files_or_dirs=input_file_paths,
-            output_files_or_dirs=output_file_paths
+            output_files_or_dirs=[*output_file_paths, run_dir]
         )
         if self.create_plots:
+            plots_dir = run_dir.joinpath(f'{run_id}.plots')
             het_allelic_counts_tsv_path = output_file_paths[1]
             modeled_segments_path = output_file_paths[2]
             self.run_shell(
@@ -321,7 +325,7 @@ class ModelSegments(ShellTask):
                     + f' --allelic-counts {het_allelic_counts_tsv_path}'
                     + f' --segments {modeled_segments_path}'
                     + f' --sequence-dictionary {self.seq_dict_path}'
-                    + f' --output {run_dir}'
+                    + f' --output {plots_dir}'
                     + f' --output-prefix {run_id}'
 
                 ),
@@ -329,7 +333,9 @@ class ModelSegments(ShellTask):
                     denoised_cr_tsv_path, het_allelic_counts_tsv_path,
                     modeled_segments_path, self.seq_dict_path
                 ],
-                output_files_or_dirs=run_dir.joinpath(f'{run_id}.modeled.png')
+                output_files_or_dirs=[
+                    plots_dir.joinpath(f'{run_id}.modeled.png'), plots_dir
+                ]
             )
 
 
@@ -402,9 +408,10 @@ class CallCopyRatioSegmentsNormal(luigi.Task):
     priority = 30
 
     def output(self):
-        run_dir = Path(self.input()[4].path).parent
         return luigi.LocalTarget(
-            run_dir.joinpath(f'{run_dir.name}.cr.called.seg')
+            Path(self.input()[4].path).parent.joinpath(
+                Path(Path(self.input()[4].path).stem).stem + '.cr.called.seg'
+            )
         )
 
     def run(self):

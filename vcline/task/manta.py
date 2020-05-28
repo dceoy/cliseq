@@ -24,16 +24,14 @@ class CallStructualVariantsWithManta(ShellTask):
             create_matched_id(*[i[0].path for i in self.input()[0:2]])
         )
         return [
-            luigi.LocalTarget(run_dir),
-            *[
-                luigi.LocalTarget(
-                    run_dir.joinpath(f'{run_dir.name}.manta.{v}SV.vcf.gz{s}')
-                ) for v, s in product(['somatic', 'diploid'], ['', '.tbi'])
-            ]
+            luigi.LocalTarget(
+                run_dir.joinpath(f'{run_dir.name}.manta.{v}SV.vcf.gz{s}')
+            ) for v, s in product(['somatic', 'diploid'], ['', '.tbi'])
         ]
 
     def run(self):
-        run_dir = Path(self.output()[0].path)
+        output_link_paths = [o.path for o in self.output()]
+        run_dir = Path(output_link_paths[0]).parent
         run_id = run_dir.name
         self.print_log(f'Call somatic SVs with Manta:\t{run_id}')
         config_script = self.cf['configManta.py']
@@ -55,7 +53,6 @@ class CallStructualVariantsWithManta(ShellTask):
                 ['', '.tbi']
             )
         ]
-        output_link_paths = [o.path for o in self.output()[1:]]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[python2, config_script], cwd=run_dir,

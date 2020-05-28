@@ -23,16 +23,14 @@ class CallStructualVariantsWithDelly(ShellTask):
             create_matched_id(*[i[0].path for i in self.input()[0:2]])
         )
         return [
-            luigi.LocalTarget(run_dir),
-            *[
-                luigi.LocalTarget(
-                    run_dir.joinpath(run_dir.name + f'.delly.{s}')
-                ) for s in ['bcf', 'vcf.gz', 'vcf.gz.tbi']
-            ]
+            luigi.LocalTarget(
+                run_dir.joinpath(run_dir.name + f'.delly.{s}')
+            ) for s in ['bcf', 'bcf.csi', 'vcf.gz', 'vcf.gz.tbi']
         ]
 
     def run(self):
-        run_dir = Path(self.output()[0].path)
+        output_bcf = Path(self.output()[0].path)
+        run_dir = output_bcf.parent
         run_id = run_dir.name
         self.print_log(f'Call somatic SVs with Delly:\t{run_id}')
         delly = self.cf['delly']
@@ -42,7 +40,6 @@ class CallStructualVariantsWithDelly(ShellTask):
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
         fa_path = self.input()[2][0].path
         exclusion_bed_path = self.input()[3][0].path
-        output_bcf_path = self.output()[1].path
         output_vcf_path = self.output()[2].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
@@ -53,7 +50,7 @@ class CallStructualVariantsWithDelly(ShellTask):
         self.run_shell(
             args=(
                 f'set -e && {delly} call'
-                + f' --outfile {output_bcf_path}'
+                + f' --outfile {output_bcf}'
                 + f' --genome {fa_path}'
                 + f' --exclude {exclusion_bed_path}'
                 + ''.join([f' {p}' for p in input_cram_paths])
@@ -61,10 +58,10 @@ class CallStructualVariantsWithDelly(ShellTask):
             input_files_or_dirs=[
                 *input_cram_paths, fa_path, exclusion_bed_path
             ],
-            output_files_or_dirs=output_bcf_path
+            output_files_or_dirs=[output_bcf, f'{output_bcf}.csi', run_dir]
         )
         bcftools_sort_and_index(
-            shelltask=self, bcftools=bcftools, input_vcf_path=output_bcf_path,
+            shelltask=self, bcftools=bcftools, input_vcf_path=str(output_bcf),
             output_vcf_path=output_vcf_path, memory_mb=memory_mb, n_cpu=n_cpu
         )
 

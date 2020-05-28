@@ -25,14 +25,15 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         run_dir = Path(self.cf['somatic_snv_indel_strelka_dir_path']).joinpath(
             create_matched_id(*[i[0].path for i in self.input()[0:2]])
         )
-        output_vcf = run_dir.joinpath(f'{run_dir.name}.strelka.somatic.vcf.gz')
         return [
-            luigi.LocalTarget(run_dir),
-            *[luigi.LocalTarget(f'{output_vcf}{s}') for s in ['', '.tbi']]
+            luigi.LocalTarget(
+                run_dir.joinpath(f'{run_dir.name}.strelka.somatic.vcf.gz{s}')
+            ) for s in ['', '.tbi']
         ]
 
     def run(self):
-        run_dir = Path(self.output()[0].path)
+        output_vcf_path = self.output()[0].path
+        run_dir = Path(output_vcf_path).parent
         run_id = run_dir.name
         self.print_log(f'Call somatic variants with Strelka:\t{run_id}')
         config_script = self.cf['configureStrelkaSomaticWorkflow.py']
@@ -46,14 +47,13 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
         fa_path = self.input()[2][0].path
         bed_path = self.input()[3][0].path
-        manta_indel_vcf_path = Path(self.input()[4][0].path).joinpath(
+        manta_indel_vcf_path = Path(self.input()[4][0].path).parent.joinpath(
             'results/variants/candidateSmallIndels.vcf.gz'
         )
         result_files = [
             run_dir.joinpath(f'results/variants/somatic.{v}.vcf.gz{s}')
             for v, s in product(['snvs', 'indels'], ['', '.tbi'])
         ]
-        output_vcf_path = self.output()[1].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[python2, config_script, bcftools], cwd=run_dir,
@@ -92,7 +92,7 @@ class CallSomaticVariantsWithStrelka(ShellTask):
         bcftools_concat_and_index(
             shelltask=self, bcftools=bcftools,
             input_vcf_paths=[
-                p for p in result_files if p.name.endswith('.vcf.gz')
+                str(p) for p in result_files if p.name.endswith('.vcf.gz')
             ],
             output_vcf_path=output_vcf_path, n_cpu=n_cpu, memory_mb=memory_mb
         )
@@ -108,16 +108,17 @@ class CallGermlineVariantsWithStrelka(ShellTask):
         run_dir = Path(
             self.cf['germline_snv_indel_strelka_dir_path']
         ).joinpath(Path(self.input()[0][0].path).stem)
-        output_vcf = run_dir.joinpath(
-            f'{run_dir.name}.strelka.germline.vcf.gz'
-        )
         return [
-            luigi.LocalTarget(run_dir),
-            *[luigi.LocalTarget(f'{output_vcf}{s}') for s in ['', '.tbi']]
+            luigi.LocalTarget(
+                run_dir.joinpath(
+                    f'{run_dir.name}.strelka.germline.vcf.gz{s}'
+                )
+            ) for s in ['', '.tbi']
         ]
 
     def run(self):
-        run_dir = Path(self.output()[0].path)
+        output_link_paths = [o.path for o in self.output()]
+        run_dir = Path(output_link_paths[0]).parent
         run_id = run_dir.name
         self.print_log(f'Call germline variants with Strelka:\t{run_id}')
         config_script = self.cf['configureStrelkaGermlineWorkflow.py']
@@ -132,7 +133,6 @@ class CallGermlineVariantsWithStrelka(ShellTask):
             run_dir.joinpath(f'results/variants/{v}.vcf.gz{s}')
             for v, s in product(['variants', 'genome'], ['', '.tbi'])
         ]
-        output_link_paths = [o.path for o in self.output()[1:]]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=config_script, cwd=run_dir,

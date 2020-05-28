@@ -77,29 +77,28 @@ class ScoreMSIWithMSIsensor(ShellTask):
         run_dir = Path(self.cf['somatic_msi_msisensor_dir_path']).joinpath(
             create_matched_id(*[i[0].path for i in self.input()[0:2]])
         )
-        main_tsv = run_dir.joinpath(f'{run_dir.name}.tsv')
         return [
-            luigi.LocalTarget(run_dir),
-            *[
-                luigi.LocalTarget(f'{main_tsv}{s}')
-                for s in ['', '_dis', '_germline', '_somatic']
-            ]
+            luigi.LocalTarget(
+                run_dir.joinpath(f'{run_dir.name}.msisensor.tsv{s}')
+            ) for s in ['', '_dis', '_germline', '_somatic']
         ]
 
     def run(self):
-        cram_paths = [i[0].path for i in self.input()[0:2]]
-        fa_path = self.input()[2][0].path
-        run_dir = Path(self.output()[0].path)
+        output_file_paths = [o.path for o in self.output()]
+        run_dir = Path(output_file_paths[0]).parent
         input_targets = yield [
             SamtoolsView(
-                input_sam_path=p,
-                output_sam_path=str(run_dir.joinpath(Path(p).stem + '.bam')),
-                fa_path=fa_path, samtools=self.cf['samtools'],
+                input_sam_path=i[0].path,
+                output_sam_path=str(
+                    run_dir.joinpath(Path(i[0].path).stem + '.bam')
+                ),
+                fa_path=self.input()[2][0].path,
+                samtools=self.cf['samtools'],
                 n_cpu=self.cf['n_cpu_per_worker'], remove_input=False,
-                index_sam=False, log_dir_path=self.cf['log_dir_path'],
+                index_sam=True, log_dir_path=self.cf['log_dir_path'],
                 remove_if_failed=self.cf['remove_if_failed'],
                 quiet=self.cf['quiet']
-            ) for p in cram_paths
+            ) for i in self.input()[0:2]
         ]
         run_id = run_dir.name
         self.print_log(f'Score MSI with MSIsensor:\t{run_id}')
@@ -107,7 +106,6 @@ class ScoreMSIWithMSIsensor(ShellTask):
         bam_paths = [i[0].path for i in input_targets]
         microsatellites_list_path = self.input()[3].path
         bed_path = self.input()[4].path
-        output_file_paths = [o.path for o in self.output()[1:]]
         output_path_prefix = Path(output_file_paths[0]).name
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
@@ -125,10 +123,10 @@ class ScoreMSIWithMSIsensor(ShellTask):
             input_files_or_dirs=[
                 *bam_paths, microsatellites_list_path, bed_path
             ],
-            output_files_or_dirs=output_file_paths
+            output_files_or_dirs=[*output_file_paths, run_dir]
         )
         self.run_shell(
-            args=('rm -f ' + ' '.join(bam_paths)),
+            args=('rm -f' + ''.join([f' {p} {p}.bai' for p in bam_paths])),
             input_files_or_dirs=bam_paths
         )
 

@@ -9,7 +9,7 @@ from luigi.util import requires
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
-from .haplotypecaller import SplitIntervals
+from .haplotypecaller import SplitEvaluationIntervals
 from .ref import (CreateGnomadBiallelicSnpVCF, CreateSequenceDictionary,
                   FetchEvaluationIntervalList, FetchGnomadVCF,
                   FetchReferenceFASTA)
@@ -72,6 +72,8 @@ class CalculateContamination(ShellTask):
 
     def output(self):
         output_path_prefix = Path(self.cf['qc_dir_path']).joinpath(
+            'contamination'
+        ).joinpath(
             create_matched_id(*[i[0].path for i in self.input()[0:2]])
         )
         return [
@@ -118,7 +120,7 @@ class CalculateContamination(ShellTask):
 
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFASTA,
-          FetchEvaluationIntervalList, FetchGnomadVCF,
+          SplitEvaluationIntervals, FetchGnomadVCF,
           CreateSequenceDictionary)
 class CallVariantsWithMutect2(ShellTask):
     sample_names = luigi.ListParameter()
@@ -139,31 +141,26 @@ class CallVariantsWithMutect2(ShellTask):
 
     def run(self):
         output_vcf = Path(self.output()[0].path)
-        scatter_count = self.cf['n_worker']
+        interval_paths = [i.path for i in self.input()[3]]
+        skip_interval_split = (len(interval_paths) == 1)
         fa_path = self.input()[2][0].path
-        interval_targets = yield SplitIntervals(
-            interval_path=self.input()[3].path, fa_path=fa_path,
-            dest_dir_path=str(output_vcf.parent.parent),
-            scatter_count=scatter_count, cf=self.cf
-        )
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
         gnomad_vcf_path = self.input()[4][0].path
         output_path_prefix = '.'.join(str(output_vcf).split('.')[:-2])
-        if scatter_count == 1:
+        if skip_interval_split:
             tmp_prefixes = [output_path_prefix]
         else:
             tmp_prefixes = [
-                '{0}.{1}'.format(output_path_prefix, Path(i.path).stem)
-                for i in interval_targets
+                '{0}.{1}'.format(output_path_prefix, Path(p).stem)
+                for p in interval_paths
             ]
         input_targets = yield [
             Mutect2(
                 input_cram_paths=input_cram_paths, fa_path=fa_path,
-                gnomad_vcf_path=gnomad_vcf_path,
-                evaluation_interval_path=i.path,
+                gnomad_vcf_path=gnomad_vcf_path, evaluation_interval_path=p,
                 normal_name=self.sample_names[1], output_path_prefix=s,
                 cf=self.cf
-            ) for i, s in zip(interval_targets, tmp_prefixes)
+            ) for p, s in zip(interval_paths, tmp_prefixes)
         ]
         run_id = '.'.join(output_vcf.name.split('.')[:-3])
         self.print_log(f'Call somatic variants with Mutect2:\t{run_id}')
@@ -190,7 +187,7 @@ class CallVariantsWithMutect2(ShellTask):
             ),
             input_files_or_dirs=f1r2_paths, output_files_or_dirs=ob_priors_path
         )
-        if scatter_count == 1:
+        if skip_interval_split:
             tmp_bam_path = f'{tmp_prefixes[0]}.bam'
             samtools_view_and_index(
                 shelltask=self, samtools=samtools, input_sam_path=tmp_bam_path,
@@ -261,10 +258,10 @@ class Mutect2(ShellTask):
         n_cpu = self.cf['n_cpu_per_worker']
         output_file_paths = [o.path for o in self.output()]
         output_vcf = Path(output_file_paths[0])
+        run_dir = output_vcf.parent
         self.setup_shell(
             run_id='.'.join(output_vcf.name.split('.')[:-2]),
-            log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=output_vcf.parent,
+            log_dir_path=self.cf['log_dir_path'], commands=gatk, cwd=run_dir,
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
@@ -289,7 +286,7 @@ class Mutect2(ShellTask):
                 *self.input_cram_paths, self.fa_path,
                 self.evaluation_interval_path, self.gnomad_vcf_path
             ],
-            output_files_or_dirs=output_file_paths
+            output_files_or_dirs=[*output_file_paths, run_dir]
         )
 
 
