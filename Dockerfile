@@ -12,7 +12,6 @@ COPY --from=dceoy/gatk:latest /opt/gatk /opt/gatk
 COPY --from=dceoy/manta:latest /opt/manta /opt/manta
 COPY --from=dceoy/strelka:latest /opt/strelka /opt/strelka
 COPY --from=dceoy/delly:latest /usr/local/bin/delly /usr/local/bin/delly
-COPY --from=dceoy/canvas:latest /opt/canvas /opt/canvas
 COPY --from=dceoy/msisensor:latest /usr/local/bin/msisensor /usr/local/bin/msisensor
 COPY --from=dceoy/snpeff:latest /opt/snpEff /opt/snpEff
 ADD https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh /tmp/miniconda.sh
@@ -24,18 +23,12 @@ RUN set -e \
 
 RUN set -e \
       && apt-get -y update \
-      && apt-get -y install --no-install-recommends --no-install-suggests \
-        apt-transport-https apt-utils ca-certificates gnupg \
-      && echo "deb https://cran.rstudio.com/bin/linux/ubuntu bionic-cran35/" \
-        > /etc/apt/sources.list.d/r.list \
-      && apt-key adv --keyserver keyserver.ubuntu.com \
-        --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9 \
-      && apt-get -y update \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
-        curl g++ gcc libbz2-dev libc-dev libcurl4-gnutls-dev libfreetype6-dev \
-        libgsl-dev liblzma-dev libncurses5-dev libperl-dev libpng-dev \
-        libssl-dev libz-dev make pkg-config python r-base \
+        apt-transport-https apt-utils ca-certificates curl g++ gcc gnupg \
+        libbz2-dev libc-dev libcurl4-gnutls-dev libfreetype6-dev libgsl-dev \
+        liblzma-dev libncurses5-dev libperl-dev libpng-dev libssl-dev \
+        libz-dev make pkg-config python r-base \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
@@ -102,38 +95,23 @@ ENV DEBIAN_FRONTEND noninteractive
 
 COPY --from=builder /usr/local /usr/local
 COPY --from=builder /opt /opt
-COPY --from=builder /etc/apt /etc/apt
 
 RUN set -e \
       && ln -sf bash /bin/sh
 
 RUN set -ea pipefail \
-      && mv /etc/apt/sources.list.d/r.list /tmp/ \
-      && apt-get -y update \
-      && apt-get -y install --no-install-recommends --no-install-suggests \
-        apt-transport-https apt-utils ca-certificates curl gnupg \
-        software-properties-common \
-      && sed -ne 's/^DISTRIB_RELEASE=\(.*\)$/\1/p' /etc/lsb-release \
-        | xargs -i curl -SLO \
-          https://packages.microsoft.com/config/ubuntu/{}/packages-microsoft-prod.deb \
-      && apt-get -y install ./packages-microsoft-prod.deb \
-      && rm -f packages-microsoft-prod.deb
-
-RUN set -e \
-      && mv /tmp/r.list /etc/apt/sources.list.d/ \
-      && add-apt-repository universe \
-      && add-apt-repository ppa:linuxuprising/libpng12 \
       && apt-get -y update \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
-        dotnet-runtime-2.1 libcurl3-gnutls libgsl23 libncurses5 libpng12-0 \
-        openjdk-8-jre pbzip2 perl pigz python r-base wget \
+        apt-transport-https apt-utils ca-certificates curl gnupg \
+        libcurl3-gnutls libgsl23 libncurses5 openjdk-8-jre pbzip2 perl pigz \
+        python r-base wget \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONPATH /opt/manta/lib/python:/opt/strelka/lib/python:${PYTHONPATH}
-ENV PATH /opt/gatk/bin:/opt/manta/bin:/opt/strelka/bin:/opt/canvas/bin:/opt/snpEff/bin:/opt/conda/envs/gatk/bin:/opt/conda/bin:${PATH}
+ENV PATH /opt/gatk/bin:/opt/manta/bin:/opt/strelka/bin:/opt/snpEff/bin:/opt/conda/envs/gatk/bin:/opt/conda/bin:${PATH}
 ENV BCFTOOLS_PLUGINS /usr/local/src/bcftools/plugins
 
 ENTRYPOINT ["/opt/conda/bin/vcline"]

@@ -79,12 +79,11 @@ from docopt import docopt
 from psutil import cpu_count, virtual_memory
 
 from .. import __version__
-from ..task.funcotator import Funcotator
-from ..task.resource import (CreateIntervalListWithBED,
-                             DownloadAndConvertVCFsIntoPassingAfOnlyVCF,
+from ..task.download import (DownloadAndConvertVCFsIntoPassingAfOnlyVCF,
                              DownloadFuncotatorDataSources,
-                             DownloadResourceFile, DownloadSnpEffDataSource,
-                             WritePassingAfOnlyVCF)
+                             DownloadResourceFile, DownloadSnpEffDataSource)
+from ..task.funcotator import Funcotator
+from ..task.resource import CreateIntervalListWithBED, WritePassingAfOnlyVCF
 from ..task.snpeff import SnpEff
 from .builder import build_luigi_tasks, run_analytical_pipeline
 from .util import (convert_url_to_dest_file_path, fetch_executable,

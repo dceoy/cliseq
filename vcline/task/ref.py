@@ -497,7 +497,7 @@ class PreprocessIntervals(ShellTask):
 
     def run(self):
         evaluation_interval = Path(self.input()[0].path)
-        run_id = evaluation_interval
+        run_id = evaluation_interval.stem
         self.print_log(f'Prepares bins for coverage collection:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
