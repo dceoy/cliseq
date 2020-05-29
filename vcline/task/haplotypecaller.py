@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import re
+from itertools import chain
 from pathlib import Path
 
 import luigi
@@ -146,12 +147,15 @@ class CallVariantsWithHaplotypeCaller(ShellTask):
                 fa_path=fa_path, output_sam_path=output_cram_path, n_cpu=n_cpu,
                 memory_mb=memory_mb
             )
-            for t in input_targets:
-                tmp_file_paths = [o.path for o in t]
-                self.run_shell(
-                    args=('rm -f ' + ' '.join(tmp_file_paths)),
-                    input_files_or_dirs=tmp_file_paths
-                )
+            tmp_file_paths = list(
+                chain.from_iterable([
+                    [o.path for o in t] for t in input_targets
+                ])
+            )
+            self.run_shell(
+                args=('rm -f' + ''.join([f' {p}' for p in tmp_file_paths])),
+                input_files_or_dirs=tmp_file_paths
+            )
 
 
 class HaplotypeCaller(ShellTask):

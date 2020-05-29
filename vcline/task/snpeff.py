@@ -7,7 +7,7 @@ import luigi
 
 from .base import ShellTask
 from .bcftools import NormalizeVCF, bcftools_index
-from .ref import CreateSequenceDictionary, CreateSymlinks, FetchReferenceFASTA
+from .ref import CreateSequenceDictionary, FetchReferenceFASTA
 
 
 class AnnotateVariantsWithSnpEff(luigi.Task):
@@ -21,11 +21,7 @@ class AnnotateVariantsWithSnpEff(luigi.Task):
     def requires(self):
         return [
             FetchReferenceFASTA(ref_fa_path=self.ref_fa_path, cf=self.cf),
-            CreateSequenceDictionary(ref_fa_path=self.ref_fa_path, cf=self.cf),
-            CreateSymlinks(
-                src_paths=[self.snpeff_config_path],
-                dest_dir_path=self.cf['db_dir_path'], cf=self.cf
-            )
+            CreateSequenceDictionary(ref_fa_path=self.ref_fa_path, cf=self.cf)
         ]
 
     def output(self):
@@ -39,7 +35,7 @@ class AnnotateVariantsWithSnpEff(luigi.Task):
         yield SnpEff(
             input_vcf_path=self.input_vcf_path,
             fa_path=self.input()[0][0].path,
-            snpeff_config_path=self.input()[2][0].path,
+            snpeff_config_path=self.snpeff_config_path,
             ref_version=self.cf['ref_version'],
             dest_dir_path=self.cf['postproc_snpeff_dir_path'],
             normalize_vcf=self.normalize_vcf,

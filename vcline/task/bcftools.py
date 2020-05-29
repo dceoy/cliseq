@@ -68,7 +68,7 @@ def bcftools_index(shelltask, bcftools, vcf_path, n_cpu, tbi=True):
         input_files_or_dirs=vcf_path,
         output_files_or_dirs=re.sub(
             r'\.(bcf|vcf.gz)$', '.\\1.{}'.format('tbi' if tbi else 'csi'),
-            vcf_path
+            str(vcf_path)
         )
     )
 
@@ -90,8 +90,8 @@ def bcftools_concat(shelltask, bcftools, input_vcf_paths, output_vcf_path,
                     n_cpu=1, memory_mb=1024):
     shelltask.run_shell(
         args=(
-            f'set -eo pipefail && {bcftools} concat --threads {n_cpu} '
-            + ' '.join(input_vcf_paths)
+            f'set -eo pipefail && {bcftools} concat --threads {n_cpu}'
+            + ''.join([f' {p}' for p in input_vcf_paths])
             + f' | {bcftools} sort --max-mem {memory_mb}M'
             + f' --temp-dir {output_vcf_path}.sort --output-type z'
             + f' --output-file {output_vcf_path} -'

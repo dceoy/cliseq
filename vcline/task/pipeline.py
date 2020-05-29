@@ -8,6 +8,7 @@ from pathlib import Path
 
 import luigi
 from luigi.tools import deps_tree
+from luigi.util import requires
 
 from .base import ShellTask
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
@@ -17,6 +18,14 @@ from .haplotypecaller import FilterVariantTranches
 from .manta import CallStructualVariantsWithManta
 from .msisensor import ScoreMSIWithMSIsensor
 from .mutect2 import FilterMutectCalls
+from .ref import (CreateBWAIndices, CreateCnvBlackListBED,
+                  CreateEvaluationIntervalListBED,
+                  CreateExclusionIntervalListBED, CreateGnomadBiallelicSnpVCF,
+                  CreateSequenceDictionary, FetchCnvBlackList, FetchDbsnpVCF,
+                  FetchEvaluationIntervalList, FetchGnomadVCF, FetchHapmapVCF,
+                  FetchKnownIndelVCF, FetchMillsIndelVCF, FetchReferenceFASTA,
+                  PreprocessIntervals, ScanMicrosatellites,
+                  UncompressEvaluationIntervalListBED)
 from .snpeff import AnnotateVariantsWithSnpEff
 from .strelka import (CallGermlineVariantsWithStrelka,
                       CallSomaticVariantsWithStrelka)
@@ -35,9 +44,6 @@ class RunVariantCaller(luigi.Task):
     gnomad_vcf_path = luigi.Parameter(default='')
     evaluation_interval_path = luigi.Parameter(default='')
     cnv_blacklist_path = luigi.Parameter(default='')
-    genomesize_xml_path = luigi.Parameter(default='')
-    kmer_fa_path = luigi.Parameter(default='')
-    exome_manifest_path = luigi.Parameter(default='')
     funcotator_somatic_tar_path = luigi.Parameter(default='')
     funcotator_germline_tar_path = luigi.Parameter(default='')
     snpeff_config_path = luigi.Parameter(default='')
@@ -253,6 +259,39 @@ class PrintEnvVersions(ShellTask):
                 *[f'cat {o}' for o in version_files if o.is_file()]
             ]
         )
+        self.__is_completed = True
+
+
+@requires(FetchReferenceFASTA, CreateBWAIndices, CreateSequenceDictionary,
+          FetchDbsnpVCF, FetchMillsIndelVCF, FetchKnownIndelVCF,
+          FetchEvaluationIntervalList, CreateEvaluationIntervalListBED,
+          CreateExclusionIntervalListBED, FetchHapmapVCF, FetchGnomadVCF,
+          CreateGnomadBiallelicSnpVCF, FetchCnvBlackList,
+          CreateCnvBlackListBED, ScanMicrosatellites,
+          UncompressEvaluationIntervalListBED)
+class PreprocessResources(luigi.Task):
+    ref_fa_path = luigi.Parameter()
+    evaluation_interval_path = luigi.Parameter()
+    cnv_blacklist_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    priority = luigi.IntParameter(default=sys.maxsize)
+    __is_completed = False
+
+    def complete(self):
+        return self.__is_completed
+
+    def run(self):
+        targets = yield [
+            PreprocessIntervals(
+                ref_fa_path=self.ref_fa_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cnv_blacklist_path=self.cnv_blacklist_path,
+                cf={
+                    k: (bool(i) if k == 'exome' else v)
+                    for k, v in self.cf.items()
+                }
+            ) for i in range(2)
+        ]
         self.__is_completed = True
 
 

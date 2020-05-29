@@ -121,7 +121,9 @@ def samtools_index(shelltask, samtools, sam_path, n_cpu=1):
             + f' && {samtools} index -@ {n_cpu} {sam_path}'
         ),
         input_files_or_dirs=sam_path,
-        output_files_or_dirs=re.sub(r'\.(cr|b)am$', '.\\1am.\\1ai', sam_path)
+        output_files_or_dirs=re.sub(
+            r'\.(cr|b)am$', '.\\1am.\\1ai', str(sam_path)
+        )
     )
 
 
@@ -175,8 +177,8 @@ def samtools_merge(shelltask, samtools, input_sam_paths, fa_path,
     memory_mb_per_thread = int(memory_mb / n_cpu / 8)
     shelltask.run_shell(
         args=(
-            f'set -eo pipefail && {samtools} merge -@ {n_cpu} -r - '
-            + ' '.join(input_sam_paths)
+            f'set -eo pipefail && {samtools} merge -@ {n_cpu} -r -'
+            + ''.join([f' {p}' for p in input_sam_paths])
             + f' | {samtools} sort -@ {n_cpu} -m {memory_mb_per_thread}M'
             + f' -O bam -l 0 -T {output_sam_path}.sort -'
             + f' | {samtools} view -@ {n_cpu}'

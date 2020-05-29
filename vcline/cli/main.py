@@ -7,6 +7,9 @@ Usage:
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
         [--workers=<int>] [--skip-cleaning] [--print-subprocesses]
         [--ref-dir=<path>] [--dest-dir=<path>]
+    vcline preprocess [--debug|--info] [--yml=<path>] [--cpus=<int>]
+        [--workers=<int>] [--skip-cleaning] [--print-subprocesses]
+        [--ref-dir=<path>] [--dest-dir=<path>]
     vcline download-resources [--debug|--info] [--cpus=<int>]
         [--without-gnomad] [--dest-dir=<path>]
     vcline download-funcotator-data [--debug|--info] [--cpus=<int>]
@@ -30,6 +33,7 @@ Usage:
 Commands:
     init                    Create a config YAML template
     run                     Run the analytical pipeline
+    preprocess              Run the resource preprocessing
     download-resources      Download and process resource data
     download-funcotator-data
                             Download Funcotator data sources
@@ -81,9 +85,10 @@ from psutil import cpu_count, virtual_memory
 from .. import __version__
 from ..task.download import (DownloadAndConvertVCFsIntoPassingAfOnlyVCF,
                              DownloadFuncotatorDataSources,
-                             DownloadResourceFile, DownloadSnpEffDataSource)
+                             DownloadResourceFile, DownloadSnpEffDataSource,
+                             WritePassingAfOnlyVCF)
 from ..task.funcotator import Funcotator
-from ..task.resource import CreateIntervalListWithBED, WritePassingAfOnlyVCF
+from ..task.ref import CreateIntervalListWithBED
 from ..task.snpeff import SnpEff
 from .builder import build_luigi_tasks, run_analytical_pipeline
 from .util import (convert_url_to_dest_file_path, fetch_executable,
@@ -106,14 +111,14 @@ def main():
     logger.debug(f'args:{os.linesep}{args}')
     if args['init']:
         write_config_yml(path=args['--yml'])
-    elif args['run']:
+    elif args['run'] or args['preprocess']:
         run_analytical_pipeline(
             config_yml_path=args['--yml'], ref_dir_path=args['--ref-dir'],
             dest_dir_path=args['--dest-dir'], max_n_cpu=args['--cpus'],
             max_n_worker=args['--workers'],
             skip_cleaning=args['--skip-cleaning'],
             print_subprocesses=args['--print-subprocesses'],
-            console_log_level=log_level
+            console_log_level=log_level, only_preprocessing=args['preprocess']
         )
     else:
         dest_dir_path = str(Path(args['--dest-dir']).resolve())

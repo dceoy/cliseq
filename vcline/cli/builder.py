@@ -16,12 +16,19 @@ from psutil import cpu_count, virtual_memory
 from ..cli.util import (fetch_executable, load_default_dict, parse_cram_id,
                         parse_fq_id, print_log, read_yml, render_template)
 from ..task.align import PrepareCRAMNormal, PrepareCRAMTumor
-from ..task.pipeline import PrintEnvVersions, RunVariantCaller
+from ..task.pipeline import (PreprocessResources, PrintEnvVersions,
+                             RunVariantCaller)
 
 
 def build_luigi_tasks(*args, **kwargs):
     r = luigi.build(
-        *args, **{k: v for k, v in kwargs.items() if k != 'hide_summary'},
+        *args,
+        **{
+            k: v for k, v in kwargs.items() if (
+                k not in {'logging_conf_file', 'hide_summary'}
+                or (k == 'logging_conf_file' and v)
+            )
+        },
         local_scheduler=True, detailed_summary=True
     )
     if not kwargs.get('hide_summary'):
@@ -31,39 +38,31 @@ def build_luigi_tasks(*args, **kwargs):
         )
 
 
-def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
+def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
                             ref_dir_path=None, max_n_cpu=None,
                             max_n_worker=None, skip_cleaning=False,
                             print_subprocesses=False,
                             console_log_level='WARNING',
-                            file_log_level='DEBUG'):
+                            file_log_level='DEBUG', only_preprocessing=False):
     logger = logging.getLogger(__name__)
+    logger.info(f'config_yml_path:\t{config_yml_path}')
+    config = _read_config_yml(
+        path=config_yml_path, only_preprocessing=only_preprocessing
+    )
+    runs = config.get('runs')
     logger.info(f'dest_dir_path:\t{dest_dir_path}')
     dest_dir = Path(dest_dir_path).resolve()
-    logger.info(f'config_yml_path:\t{config_yml_path}')
-    config = _read_config_yml(path=config_yml_path)
-
     log_dir = dest_dir.joinpath('log')
-    log_txt_path = str(
-        log_dir.joinpath(
-            'luigi.{0}.{1}.log.txt'.format(
-                file_log_level, datetime.now().strftime('%Y%m%d_%H%M%S')
-            )
-        )
-    )
-    log_cfg_path = str(log_dir.joinpath('luigi.log.cfg'))
-    ref_dir = (
-        Path(ref_dir_path).resolve() if ref_dir_path
-        else dest_dir.joinpath('ref')
-    )
 
-    read_alignment = bool([
-        r for r in config['runs'] if [v for v in r.values() if v.get('fq')]
-    ])
+    read_alignment = bool(
+        runs and [r for r in runs if [v for v in r.values() if v.get('fq')]]
+    )
     logger.debug(f'read_alignment:\t{read_alignment}')
     adapter_removal = (
-        (config['adapter_removal'] if 'adapter_removal' in config else True)
-        and read_alignment
+        read_alignment and (
+            config['adapter_removal'] if 'adapter_removal' in config
+            else True
+        )
     )
     logger.debug(f'adapter_removal:\t{adapter_removal}')
 
@@ -90,12 +89,12 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
     command_dict = {
         c: fetch_executable(c) for c in {
             'bgzip', 'gatk', 'java', 'pbzip2', 'pigz', 'samtools', 'tabix',
-            *({'bcftools'} if callers else set()),
+            *({'bcftools'} if only_preprocessing or callers else set()),
             *(
                 {'cutadapt', 'fastqc', 'trim_galore'}
                 if adapter_removal else set()
             ),
-            *({'bwa'} if read_alignment else set()),
+            *({'bwa'} if only_preprocessing or read_alignment else set()),
             *(
                 {'python2', 'configureStrelkaSomaticWorkflow.py'}
                 if 'somatic_snv_indel.strelka' in callers else set()
@@ -110,38 +109,38 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
                 if 'somatic_sv.manta' in callers else set()
             ),
             *(
-                {'bedtools', 'delly'}
-                if 'somatic_sv.delly' in callers else set()
+                {'bedtools'}
+                if only_preprocessing or 'somatic_sv.delly' in callers
+                else set()
             ),
+            *({'delly'} if 'somatic_sv.delly' in callers else set()),
             *({'R'} if 'somatic_cnv.gatk' in callers else set()),
             *({'snpEff'} if 'snpeff' in annotators else set()),
-            *({'msisensor'} if 'somatic_msi.msisensor' in callers else set())
+            *(
+                {'msisensor'}
+                if only_preprocessing or 'somatic_msi.msisensor' in callers
+                else set()
+            )
         }
     }
     logger.debug('command_dict:' + os.linesep + pformat(command_dict))
 
-    n_tn = len(config['runs'])
     n_cpu = cpu_count()
     n_worker = min(
         int(max_n_worker or max_n_cpu or n_cpu),
-        ((len(callers) if callers else 2) * n_tn)
+        (((len(callers) if callers else 2) * len(runs)) if runs else 16)
     )
     n_cpu_per_worker = max(1, floor((max_n_cpu or n_cpu) / n_worker))
     memory_mb = virtual_memory().total / 1024 / 1024 / 2
     memory_mb_per_worker = int(memory_mb / n_worker)
     common_arg_dict = {
         **_resolve_input_file_paths(
-            path_dict={
-                k: v for k, v in config['references'].items() if (
-                    callers or k in {
-                        'ref_fa', 'dbsnp_vcf', 'mills_indel_vcf',
-                        'known_indel_vcf'
-                    }
-                )
-            }
+            path_dict={k: v for k, v in config['resources'].items()}
         ),
         'cf': {
-            'log_dir_path': str(log_dir), 'ref_dir_path': str(ref_dir),
+            'log_dir_path': str(log_dir),
+            'ref_dir_path':
+            (str(Path(ref_dir_path).resolve()) if ref_dir_path else None),
             'n_worker': n_worker, 'memory_mb_per_worker': memory_mb_per_worker,
             'n_cpu_per_worker': n_cpu_per_worker,
             'gatk_java_options': ' '.join([
@@ -175,13 +174,24 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
     }
     logger.debug('common_arg_dict:' + os.linesep + pformat(common_arg_dict))
 
-    sample_dict_list = [
-        {**_determine_input_samples(run_dict=r), 'priority': p} for p, r
-        in zip([i * 1000 for i in range(1, (n_tn + 1))[::-1]], config['runs'])
-    ]
+    sample_dict_list = (
+        [
+            {**_determine_input_samples(run_dict=r), 'priority': p} for p, r
+            in zip([i * 1000 for i in range(1, (len(runs) + 1))[::-1]], runs)
+        ] if runs else list()
+    )
     logger.debug('sample_dict_list:' + os.linesep + pformat(sample_dict_list))
 
-    if callers:
+    if only_preprocessing:
+        task_args_list = [{
+            k: v for k, v in common_arg_dict.items() if k in {
+                'ref_fa_path', 'dbsnp_vcf_path', 'known_indel_vcf_path',
+                'mills_indel_vcf_path', 'evaluation_interval_path',
+                'hapmap_vcf_path', 'gnomad_vcf_path', 'cnv_blacklist_path',
+                'cf'
+            }
+        }]
+    elif callers:
         task_args_list = [
             {'caller': c, 'annotators': annotators, **d, **common_arg_dict}
             for d, c in product(sample_dict_list, callers)
@@ -190,35 +200,52 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
         task_args_list = [{**d, **common_arg_dict} for d in sample_dict_list]
     logger.info('task_args_list:' + os.linesep + pformat(task_args_list))
 
-    print_log(f'Run the analytical pipeline:\t{dest_dir}')
-    print(
-        yaml.dump([
-            {'workers': n_worker}, {'runs': n_tn},
-            {
-                'preprocesses': {
-                    'adapter_removal': adapter_removal,
-                    'read_alignment': read_alignment
+    if only_preprocessing:
+        print_log(f'Run the resources preprocessing:\t{dest_dir}')
+        print(
+            yaml.dump([
+                {'workers': n_worker},
+                {
+                    'resources':
+                    {k: v for k, v in task_args_list[0].items() if k != 'cf'}
                 }
-            },
-            {'callers': callers}, {'annotators': annotators},
-            {
-                'samples': [
-                    dict(zip(['tumor', 'normal'], d['sample_names']))
-                    for d in sample_dict_list
-                ]
-            }
-        ])
-    )
+            ])
+        )
+    else:
+        print_log(f'Run the analytical pipeline:\t{dest_dir}')
+        print(
+            yaml.dump([
+                {'workers': n_worker}, {'runs': len(runs)},
+                {'adapter_removal': adapter_removal},
+                {'read_alignment': read_alignment},
+                {'callers': callers}, {'annotators': annotators},
+                {
+                    'samples': [
+                        dict(zip(['tumor', 'normal'], d['sample_names']))
+                        for d in sample_dict_list
+                    ]
+                }
+            ])
+        )
 
     for d in [dest_dir, log_dir]:
         if not d.is_dir():
             print_log(f'Make a directory:\t{d}')
             d.mkdir()
+    log_cfg_path = str(log_dir.joinpath('luigi.log.cfg'))
     render_template(
-        template='{}.j2'.format(Path(log_cfg_path).name),
+        template=(Path(log_cfg_path).name + '.j2'),
         data={
             'console_log_level': console_log_level,
-            'file_log_level': file_log_level, 'log_txt_path': log_txt_path
+            'file_log_level': file_log_level,
+            'log_txt_path': str(
+                log_dir.joinpath(
+                    'luigi.{0}.{1}.log.txt'.format(
+                        file_log_level,
+                        datetime.now().strftime('%Y%m%d_%H%M%S')
+                    )
+                )
+            )
         },
         output_path=log_cfg_path
     )
@@ -233,7 +260,13 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
         workers=1, log_level=console_log_level, logging_conf_file=log_cfg_path,
         hide_summary=True
     )
-    if callers:
+    if only_preprocessing:
+        build_luigi_tasks(
+            tasks=[PreprocessResources(**d) for d in task_args_list],
+            workers=n_worker, log_level=console_log_level,
+            logging_conf_file=log_cfg_path
+        )
+    elif callers:
         build_luigi_tasks(
             tasks=[RunVariantCaller(**d) for d in task_args_list],
             workers=n_worker, log_level=console_log_level,
@@ -250,47 +283,47 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
         )
 
 
-def _read_config_yml(path):
+def _read_config_yml(path, only_preprocessing=False):
     config = read_yml(path=Path(path).resolve())
-    assert isinstance(config, dict), config
-    for k in ['references', 'runs']:
-        assert config.get(k), k
-    assert isinstance(config['references'], dict), config['references']
+    assert (isinstance(config, dict) and config.get('resources')), config
+    assert isinstance(config['resources'], dict), config['resources']
     for k in ['ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
               'hapmap_vcf', 'gnomad_vcf', 'evaluation_interval',
               'funcotator_germline_tar', 'funcotator_somatic_tar',
-              'snpeff_config', 'exome_manifest']:
-        v = config['references'].get(k)
+              'snpeff_config']:
+        v = config['resources'].get(k)
         if k == 'ref_fa' and isinstance(v, list) and v:
             assert _has_unique_elements(v), k
             for s in v:
                 assert isinstance(s, str), k
         elif v:
             assert isinstance(v, str), k
-    assert isinstance(config['runs'], list), config['runs']
-    for r in config['runs']:
-        assert isinstance(r, dict), r
-        assert set(r.keys()).intersection({'tumor', 'normal'}), r
-        for t in ['tumor', 'normal']:
-            s = r[t]
-            assert isinstance(s, dict), s
-            assert (s.get('fq') or s.get('cram')), s
-            if s.get('fq'):
-                assert isinstance(s['fq'], list), s
-                assert _has_unique_elements(s['fq']), s
-                assert (len(s['fq']) <= 2), s
-                for p in s['fq']:
-                    assert p.endswith(('.gz', '.bz2')), p
-            else:
-                assert isinstance(s['cram'], str), s
-                assert s['cram'].endswith('.cram'), s
-            if s.get('read_group'):
-                assert isinstance(s['read_group'], dict), s
-                for k, v in s['read_group'].items():
-                    assert re.fullmatch(r'[A-Z]{2}', k), k
-                    assert isinstance(v, str), k
-            if s.get('sample_name'):
-                assert isinstance(s['sample_name'], str), s
+    if not only_preprocessing:
+        assert config.get('runs'), config
+        assert isinstance(config['runs'], list), config['runs']
+        for r in config['runs']:
+            assert isinstance(r, dict), r
+            assert set(r.keys()).intersection({'tumor', 'normal'}), r
+            for t in ['tumor', 'normal']:
+                s = r[t]
+                assert isinstance(s, dict), s
+                assert (s.get('fq') or s.get('cram')), s
+                if s.get('fq'):
+                    assert isinstance(s['fq'], list), s
+                    assert _has_unique_elements(s['fq']), s
+                    assert (len(s['fq']) <= 2), s
+                    for p in s['fq']:
+                        assert p.endswith(('.gz', '.bz2')), p
+                else:
+                    assert isinstance(s['cram'], str), s
+                    assert s['cram'].endswith('.cram'), s
+                if s.get('read_group'):
+                    assert isinstance(s['read_group'], dict), s
+                    for k, v in s['read_group'].items():
+                        assert re.fullmatch(r'[A-Z]{2}', k), k
+                        assert isinstance(v, str), k
+                if s.get('sample_name'):
+                    assert isinstance(s['sample_name'], str), s
     return config
 
 
