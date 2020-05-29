@@ -114,10 +114,6 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
                 if 'somatic_sv.delly' in callers else set()
             ),
             *({'R'} if 'somatic_cnv.gatk' in callers else set()),
-            *(
-                {'Canvas', 'dotnet', 'delly'}
-                if 'somatic_cnv.canvas' in callers else set()
-            ),
             *({'snpEff'} if 'snpeff' in annotators else set()),
             *({'msisensor'} if 'somatic_msi.msisensor' in callers else set())
         }
@@ -226,9 +222,6 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path='.',
         },
         output_path=log_cfg_path
     )
-    if ({m for m in callers if m.endswith('.canvas')}
-            and not (n_cpu >= 8 and memory_mb >= 25 * 1024)):
-        logger.warning('Canvas requires 8 CPUs and 25 GB RAM.')
 
     build_luigi_tasks(
         tasks=[

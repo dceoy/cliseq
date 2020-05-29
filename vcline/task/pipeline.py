@@ -11,7 +11,6 @@ from luigi.tools import deps_tree
 
 from .base import ShellTask
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
-from .canvas import CallSomaticCopyNumberVariantsWithCanvas
 from .delly import CallStructualVariantsWithDelly
 from .funcotator import FuncotateSegments, FuncotateVariants
 from .haplotypecaller import FilterVariantTranches
@@ -127,21 +126,6 @@ class RunVariantCaller(luigi.Task):
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
                 cnv_blacklist_path=self.cnv_blacklist_path, cf=self.cf
-            )
-        elif 'somatic_cnv.canvas' == self.caller:
-            return CallSomaticCopyNumberVariantsWithCanvas(
-                fq_list=self.fq_list, cram_list=self.cram_list,
-                read_groups=self.read_groups, sample_names=self.sample_names,
-                ref_fa_path=self.ref_fa_path,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path,
-                gnomad_vcf_path=self.gnomad_vcf_path,
-                evaluation_interval_path=self.evaluation_interval_path,
-                cnv_blacklist_path=self.cnv_blacklist_path,
-                genomesize_xml_path=self.genomesize_xml_path,
-                kmer_fa_path=self.kmer_fa_path,
-                exome_manifest_path=self.exome_manifest_path, cf=self.cf
             )
         elif 'somatic_msi.msisensor' == self.caller:
             return ScoreMSIWithMSIsensor(
