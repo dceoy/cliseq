@@ -24,7 +24,7 @@ class AnnotateVariantsWithSnpEff(luigi.Task):
             CreateSequenceDictionary(ref_fa_path=self.ref_fa_path, cf=self.cf),
             CreateSymlinks(
                 src_paths=[self.snpeff_config_path],
-                dest_dir_path=self.cf['ref_dir_path'], cf=self.cf
+                dest_dir_path=self.cf['db_dir_path'], cf=self.cf
             )
         ]
 
@@ -43,7 +43,7 @@ class AnnotateVariantsWithSnpEff(luigi.Task):
             ref_version=self.cf['ref_version'],
             dest_dir_path=self.cf['postproc_snpeff_dir_path'],
             normalize_vcf=self.normalize_vcf,
-            norm_dir_path=self.cf['postproc_bcftools_dir_path'],
+            norm_dir_path=self.cf['postproc_normalization_dir_path'],
             bcftools=self.cf['bcftools'], snpeff=self.cf['snpEff'],
             bgzip=self.cf['bgzip'], n_cpu=self.cf['n_cpu_per_worker'],
             memory_mb=self.cf['memory_mb_per_worker'],

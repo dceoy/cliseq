@@ -26,12 +26,8 @@ class PrepareCanvasGenomeFiles(ShellTask):
     def requires(self):
         return [
             FetchReferenceFASTA(ref_fa_path=self.ref_fa_path, cf=self.cf),
-            FetchResourceFile(
-                resource_file_path=self.genomesize_xml_path, cf=self.cf
-            ),
-            FetchResourceFASTA(
-                resource_file_path=self.kmer_fa_path, cf=self.cf
-            )
+            FetchResourceFile(src_path=self.genomesize_xml_path, cf=self.cf),
+            FetchResourceFASTA(src_path=self.kmer_fa_path, cf=self.cf)
         ]
 
     def output(self):
@@ -128,9 +124,7 @@ class CreateUniqueRegionManifest(ShellTask):
     priority = 30
 
     def requires(self):
-        return FetchResourceFile(
-            resource_file_path=self.exome_manifest_path, cf=self.cf
-        )
+        return FetchResourceFile(src_path=self.exome_manifest_path, cf=self.cf)
 
     def output(self):
         return luigi.LocalTarget(

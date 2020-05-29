@@ -7,7 +7,7 @@ import luigi
 
 from .base import ShellTask
 from .bcftools import NormalizeVCF
-from .ref import CreateSequenceDictionary, ExtractTarFile, FetchReferenceFASTA
+from .ref import CreateSequenceDictionary, FetchReferenceFASTA
 
 
 class FuncotateVariants(luigi.Task):
@@ -26,7 +26,8 @@ class FuncotateVariants(luigi.Task):
             ),
             FetchReferenceFASTA(ref_fa_path=self.ref_fa_path, cf=self.cf),
             CreateSequenceDictionary(
-                ref_fa_path=self.ref_fa_path, cf=self.cf
+                ref_fa_path=self.ref_fa_path,
+                dest_dir_path=self.cf['db_dir_path'], cf=self.cf
             )
         ]
 
@@ -55,7 +56,7 @@ class FuncotateVariants(luigi.Task):
             ref_version=self.cf['ref_version'],
             dest_dir_path=self.cf['postproc_funcotator_dir_path'],
             normalize_vcf=self.normalize_vcf,
-            norm_dir_path=self.cf['postproc_bcftools_dir_path'],
+            norm_dir_path=self.cf['postproc_normalization_dir_path'],
             bcftools=self.cf['bcftools'], gatk=self.cf['gatk'],
             gatk_java_options=self.cf['gatk_java_options'],
             n_cpu=self.cf['n_cpu_per_worker'],
@@ -66,6 +67,42 @@ class FuncotateVariants(luigi.Task):
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
+
+
+class ExtractTarFile(ShellTask):
+    tar_path = luigi.Parameter()
+    dest_dir_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    recursive = luigi.BoolParameter(default=True)
+    priority = 70
+
+    def output(self):
+        return luigi.LocalTarget(
+            Path(self.dest_dir_path).joinpath(
+                re.sub(r'\.tar\.(gz|bz2)$', '', Path(self.tar_path).name)
+            )
+        )
+
+    def run(self):
+        target_dir = Path(self.output().path)
+        run_id = target_dir.name
+        self.print_log(f'Create a resource:\t{run_id}')
+        self.setup_shell(
+            run_id=run_id, log_dir_path=self.cf['log_dir_path'], cwd=target_dir
+        )
+        self.run_shell(
+            args=f'tar -xvf {self.tar_path}',
+            input_files_or_dirs=self.tar_path, output_files_or_dirs=target_dir
+        )
+        if self.recursive and target_dir.is_dir():
+            for o in target_dir.iterdir():
+                if o.name.endswith(('.tar.gz', '.tar.bz2')):
+                    p = str(o)
+                    self.run_shell(
+                        args=f'tar -xvf {p}',
+                        cwd=target_dir, input_files_or_dirs=p,
+                        output_files_or_dirs=re.sub(r'\.tar\.(gz|bz2)$', '', p)
+                    )
 
 
 class Funcotator(ShellTask):

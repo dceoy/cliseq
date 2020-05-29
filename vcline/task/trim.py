@@ -16,18 +16,22 @@ class PrepareFASTQs(ShellTask):
 
     def output(self):
         if self.cf['adapter_removal']:
+            dest_dir = Path(self.cf['trim_dir_path']).joinpath(
+                self.sample_name
+            )
             return [
                 luigi.LocalTarget(o) for o in _generate_trimmed_fqs(
-                    raw_fq_paths=self.fq_paths,
-                    dest_dir_path=self.cf['trim_dir_path']
+                    raw_fq_paths=self.fq_paths, dest_dir_path=str(dest_dir)
                 )
             ]
         else:
+            dest_dir = Path(self.cf['align_dir_path']).joinpath(
+                self.sample_name
+            )
             return [
                 luigi.LocalTarget(
-                    Path(self.cf['align_dir_path']).joinpath(
-                        Path(p).stem + '.gz'
-                    ) if p.endswith('.bz2') else p
+                    dest_dir.joinpath(Path(p).stem + '.gz')
+                    if p.endswith('.bz2') else p
                 ) for p in self.fq_paths
             ]
 
@@ -55,7 +59,9 @@ class TrimAdapters(ShellTask):
         return [
             luigi.LocalTarget(o) for o in _generate_trimmed_fqs(
                 raw_fq_paths=self.fq_paths,
-                dest_dir_path=self.cf['trim_dir_path']
+                dest_dir_path=str(
+                    Path(self.cf['trim_dir_path']).joinpath(self.sample_name)
+                )
             )
         ]
 
@@ -68,17 +74,17 @@ class TrimAdapters(ShellTask):
         trim_galore = self.cf['trim_galore']
         pbzip2 = self.cf['pbzip2']
         n_cpu = self.cf['n_cpu_per_worker']
+        output_fq_paths = [o.path for o in self.output()]
+        run_dir = Path(output_fq_paths[0]).parent
         tmp_fq_paths = {
-            p: '{}.gz'.format(
-                Path(self.cf['trim_dir_path']).joinpath(Path(p).stem)
-            ) for p in self.fq_paths if p.endswith('.bz2')
+            p: str(run_dir.joinpath(Path(p).stem + '.gz'))
+            for p in self.fq_paths if p.endswith('.bz2')
         }
         work_fq_paths = [(tmp_fq_paths.get(p) or p) for p in self.fq_paths]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[cutadapt, fastqc, pigz, trim_galore, pbzip2],
-            cwd=self.cf['trim_dir_path'],
-            remove_if_failed=self.cf['remove_if_failed'],
+            cwd=run_dir, remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
         for i, o in tmp_fq_paths.items():
@@ -93,13 +99,13 @@ class TrimAdapters(ShellTask):
         self.run_shell(
             args=(
                 f'set -e && {trim_galore} --cores={n_cpu} --illumina'
-                + ' --output_dir {}'.format(self.cf['trim_dir_path'])
+                + f' --output_dir {run_dir}'
                 + ' --fastqc'
                 + (' --paired ' if len(work_fq_paths) > 1 else ' ')
                 + ' '.join(work_fq_paths)
             ),
             input_files_or_dirs=work_fq_paths,
-            output_files_or_dirs=[o.path for o in self.output()]
+            output_files_or_dirs=[*output_fq_paths, run_dir]
         )
         if tmp_fq_paths:
             self.run_shell(

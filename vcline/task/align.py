@@ -6,7 +6,6 @@ from pathlib import Path
 import luigi
 from luigi.util import requires
 
-from ..cli.util import parse_fq_id
 from .base import ShellTask
 from .ref import (CreateBWAIndices, CreateSequenceDictionary, FetchDbsnpVCF,
                   FetchKnownIndelVCF, FetchMillsIndelVCF, FetchReferenceFASTA)
@@ -17,22 +16,24 @@ from .trim import PrepareFASTQs
 
 @requires(PrepareFASTQs, FetchReferenceFASTA, CreateBWAIndices)
 class AlignReads(ShellTask):
+    sample_name = luigi.Parameter()
     read_group = luigi.DictParameter()
     cf = luigi.DictParameter()
     priority = 70
 
     def output(self):
-        cram = Path(self.cf['align_dir_path']).joinpath(
-            '{0}.trim.{1}.cram'.format(
-                parse_fq_id(fq_path=self.input()[0][0].path),
-                Path(self.input()[1][0].path).stem
+        output_cram = Path(self.cf['align_dir_path']).joinpath(
+            '{0}/{0}{1}.{2}.cram'.format(
+                self.sample_name,
+                ('.trim' if self.cf['adapter_removal'] else ''),
+                self.cf['ref_version']
             )
         )
-        return [luigi.LocalTarget(f'{cram}{s}') for s in ['', '.crai']]
+        return [luigi.LocalTarget(f'{output_cram}{s}') for s in ['', '.crai']]
 
     def run(self):
-        cram_path = self.output()[0].path
-        run_id = Path(cram_path).stem
+        output_cram = Path(self.output()[0].path)
+        run_id = output_cram.stem
         self.print_log(f'Align reads:\t{run_id}')
         bwa = self.cf['bwa']
         samtools = self.cf['samtools']
@@ -44,10 +45,7 @@ class AlignReads(ShellTask):
                 '@RG',
                 'ID:{}'.format(self.read_group.get('ID') or 1),
                 'PU:{}'.format(self.read_group.get('PU') or 'UNIT-1'),
-                'SM:{}'.format(
-                    self.read_group.get('SM')
-                    or parse_fq_id(fq_path=fq_paths[0])
-                ),
+                'SM:{}'.format(self.read_group.get('SM') or self.sample_name),
                 'PL:{}'.format(self.read_group.get('PL') or 'ILLUMINA'),
                 'LB:{}'.format(self.read_group.get('LB') or 'LIBRARY-1')
             ] + [
@@ -59,7 +57,7 @@ class AlignReads(ShellTask):
         index_paths = [o.path for o in self.input()[2]]
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[bwa, samtools], cwd=self.cf['align_dir_path'],
+            commands=[bwa, samtools], cwd=output_cram.parent,
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet'], env={'REF_CACHE': '.ref_cache'}
         )
@@ -69,15 +67,16 @@ class AlignReads(ShellTask):
                 + f'{bwa} mem -t {n_cpu} -R \'{rg}\' -T 0 -P {fa_path}'
                 + ''.join([f' {a}' for a in fq_paths])
                 + f' | {samtools} sort -@ {n_cpu} -m {memory_mb_per_thread}M'
-                + f' -O bam -l 0 -T {cram_path}.sort -'
+                + f' -O bam -l 0 -T {output_cram}.sort -'
                 + f' | {samtools} view -@ {n_cpu} -T {fa_path} -CS'
-                + f' -o {cram_path} -'
+                + f' -o {output_cram} -'
             ),
             input_files_or_dirs=[fa_path, *index_paths, *fq_paths],
-            output_files_or_dirs=cram_path
+            output_files_or_dirs=[output_cram, output_cram.parent]
         )
         samtools_index(
-            shelltask=self, samtools=samtools, sam_path=cram_path, n_cpu=n_cpu
+            shelltask=self, samtools=samtools, sam_path=output_cram,
+            n_cpu=n_cpu
         )
 
 
@@ -87,19 +86,16 @@ class MarkDuplicates(ShellTask):
     priority = 70
 
     def output(self):
-        output_path_prefix = str(
-            Path(self.cf['align_dir_path']).joinpath(
-                Path(self.input()[0][0].path).stem + '.markdup'
-            )
-        )
+        input_cram = Path(self.input()[0][0].path)
         return [
-            luigi.LocalTarget(f'{output_path_prefix}.{s}')
-            for s in ['cram', 'cram.crai', 'metrics.txt']
+            luigi.LocalTarget(
+                input_cram.parent.joinpath(f'{input_cram.stem}.markdup.{s}')
+            ) for s in ['cram', 'cram.crai', 'metrics.txt']
         ]
 
     def run(self):
-        input_cram_path = self.input()[0][0].path
-        run_id = Path(input_cram_path).stem
+        input_cram = Path(self.input()[0][0].path)
+        run_id = input_cram.stem
         self.print_log(f'Mark duplicates:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
@@ -115,20 +111,20 @@ class MarkDuplicates(ShellTask):
         markdup_metrics_txt_path = self.output()[2].path
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[gatk, samtools], cwd=self.cf['align_dir_path'],
+            commands=[gatk, samtools], cwd=input_cram.parent,
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet'], env={'REF_CACHE': '.ref_cache'}
         )
         self.run_shell(
             args=(
                 f'set -e && {gatk}{gatk_opts} MarkDuplicates'
-                + f' --INPUT {input_cram_path}'
+                + f' --INPUT {input_cram}'
                 + f' --REFERENCE_SEQUENCE {fa_path}'
                 + f' --METRICS_FILE {markdup_metrics_txt_path}'
                 + f' --OUTPUT {tmp_bam_paths[0]}'
                 + ' --ASSUME_SORT_ORDER coordinate'
             ),
-            input_files_or_dirs=[input_cram_path, fa_path],
+            input_files_or_dirs=[input_cram, fa_path],
             output_files_or_dirs=tmp_bam_paths[0]
         )
         self.run_shell(
@@ -161,19 +157,16 @@ class ApplyBQSR(ShellTask):
     priority = 70
 
     def output(self):
-        output_path_prefix = str(
-            Path(self.cf['align_dir_path']).joinpath(
-                Path(self.input()[0][0].path).stem + '.bqsr'
-            )
-        )
+        input_cram = Path(self.input()[0][0].path)
         return [
-            luigi.LocalTarget(f'{output_path_prefix}.{s}')
-            for s in ['cram', 'cram.crai', 'data.csv']
+            luigi.LocalTarget(
+                input_cram.parent.joinpath(f'{input_cram.stem}.bqsr.{s}')
+            ) for s in ['cram', 'cram.crai', 'data.csv']
         ]
 
     def run(self):
-        input_cram_path = self.input()[0][0].path
-        run_id = Path(input_cram_path).stem
+        input_cram = Path(self.input()[0][0].path)
+        run_id = input_cram.stem
         self.print_log(f'Apply Base Quality Score Recalibration:\t{run_id}')
         gatk = self.cf['gatk']
         gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
@@ -188,14 +181,14 @@ class ApplyBQSR(ShellTask):
         tmp_bam_path = re.sub(r'\.cram', '.bam', output_cram_path)
         self.setup_shell(
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[gatk, samtools], cwd=self.cf['align_dir_path'],
+            commands=[gatk, samtools], cwd=input_cram.parent,
             remove_if_failed=self.cf['remove_if_failed'],
             quiet=self.cf['quiet']
         )
         self.run_shell(
             args=(
                 f'set -e && {gatk}{gatk_opts} BaseRecalibrator'
-                + f' --input {input_cram_path}'
+                + f' --input {input_cram}'
                 + f' --reference {fa_path}'
                 + f' --output {bqsr_csv_path}'
                 + ' --use-original-qualities'
@@ -204,7 +197,7 @@ class ApplyBQSR(ShellTask):
                 ])
             ),
             input_files_or_dirs=[
-                input_cram_path, fa_path, fa_dict_path,
+                input_cram, fa_path, fa_dict_path,
                 *known_site_vcf_gz_paths
             ],
             output_files_or_dirs=bqsr_csv_path
@@ -212,7 +205,7 @@ class ApplyBQSR(ShellTask):
         self.run_shell(
             args=(
                 f'set -e && {gatk}{gatk_opts} ApplyBQSR'
-                + f' --input {input_cram_path}'
+                + f' --input {input_cram}'
                 + f' --reference {fa_path}'
                 + f' --bqsr-recal-file {bqsr_csv_path}'
                 + f' --output {tmp_bam_path}'
@@ -224,7 +217,7 @@ class ApplyBQSR(ShellTask):
                 + ' --create-output-bam-index false'
                 + f' --disable-bam-index-caching {save_memory}'
             ),
-            input_files_or_dirs=[input_cram_path, fa_path, bqsr_csv_path],
+            input_files_or_dirs=[input_cram, fa_path, bqsr_csv_path],
             output_files_or_dirs=tmp_bam_path
         )
         samtools_view_and_index(
@@ -238,14 +231,17 @@ class ApplyBQSR(ShellTask):
 
 @requires(ApplyBQSR, FetchReferenceFASTA)
 class RemoveDuplicates(luigi.Task):
+    sample_name = luigi.Parameter()
     cf = luigi.DictParameter()
     priority = 70
 
     def output(self):
-        output_cram = Path(self.cf['align_dir_path']).joinpath(
-            Path(self.input()[0][0].path).stem + '.dedup.cram'
-        )
-        return [luigi.LocalTarget(f'{output_cram}{s}') for s in ['', '.crai']]
+        input_cram = Path(self.input()[0][0].path)
+        return [
+            luigi.LocalTarget(
+                input_cram.parent.joinpath(f'{input_cram.stem}.dedup.cram{s}')
+            ) for s in ['', '.crai']
+        ]
 
     def run(self):
         yield SamtoolsView(
@@ -292,8 +288,8 @@ class PrepareCRAMTumor(luigi.Task):
                 self.cram_list[0] if self.cram_list[0].endswith('.cram')
                 else str(
                     Path(self.cf['align_dir_path']).joinpath(
-                        Path(self.cram_list[0]).stem + '.cram'
-                    )
+                        self.sample_names[0]
+                    ).joinpath(Path(self.cram_list[0]).stem + '.cram')
                 )
             )
             return [luigi.LocalTarget(cram_path + s) for s in ['', '.crai']]
@@ -356,8 +352,8 @@ class PrepareCRAMNormal(luigi.Task):
                 self.cram_list[1] if self.cram_list[1].endswith('.cram')
                 else str(
                     Path(self.cf['align_dir_path']).joinpath(
-                        Path(self.cram_list[1]).stem + '.cram'
-                    )
+                        self.sample_names[1]
+                    ).joinpath(Path(self.cram_list[1]).stem + '.cram')
                 )
             )
             return [luigi.LocalTarget(cram_path + s) for s in ['', '.crai']]
