@@ -73,9 +73,8 @@ class DownloadFuncotatorDataSources(ShellTask):
             return super().output()
 
     def complete(self):
-        return (
-            ({'s', 'g'} <= set(self._fetch_existing_funcotator_data().keys()))
-            or super().complete()
+        return bool(
+            {'s', 'g'} <= set(self._fetch_existing_funcotator_data().keys())
         )
 
     def _fetch_existing_funcotator_data(self):

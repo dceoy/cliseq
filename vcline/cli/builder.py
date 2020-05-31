@@ -161,8 +161,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
             **{
                 (k.replace('/', '_') + '_dir_path'): str(dest_dir.joinpath(k))
                 for k in {
-                    'trim', 'align', 'qc', 'db', 'postproc/normalization',
-                    *[f'postproc/{a}' for a in annotators],
+                    'trim', 'align', 'qc', 'postproc',
                     *chain.from_iterable([
                         [f'{k}/{c}' for c in v.keys()]
                         for k, v in default_dict['callers'].items()

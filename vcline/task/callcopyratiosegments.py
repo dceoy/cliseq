@@ -258,9 +258,19 @@ class ModelSegments(ShellTask):
     priority = 30
 
     def output(self):
-        run_dir = Path(self.dest_dir_path)
+        output_path_prefix = str(
+            Path(self.dest_dir_path).joinpath(
+                Path(
+                    create_matched_id(
+                        self.case_allelic_counts_tsv_path,
+                        self.normal_allelic_counts_tsv_path
+                    ) if self.case_allelic_counts_tsv_path else
+                    Path(self.normal_allelic_counts_tsv_path).stem
+                ).stem
+            )
+        )
         return [
-            luigi.LocalTarget(run_dir.joinpath(f'{run_dir.name}.{s}'))
+            luigi.LocalTarget(f'{output_path_prefix}.{s}')
             for s in ['cr.seg', 'hets.tsv', 'modelFinal.seg']
         ]
 
@@ -372,55 +382,57 @@ class CallCopyRatioSegments(ShellTask):
         )
 
 
-@requires(PrepareCRAMTumor, PreprocessIntervals, FetchReferenceFASTA,
-          CreateSequenceDictionary, CollectAllelicCountsTumor,
-          CollectAllelicCountsNormal)
+@requires(PrepareCRAMTumor, PrepareCRAMNormal, PreprocessIntervals,
+          FetchReferenceFASTA, CreateSequenceDictionary,
+          CollectAllelicCountsTumor, CollectAllelicCountsNormal)
 class CallCopyRatioSegmentsTumor(luigi.Task):
     cf = luigi.DictParameter()
     priority = 30
 
     def output(self):
-        allelic_counts_paths = [i.path for i in self.input()[4:6]]
-        run_dir = Path(allelic_counts_paths[0]).parent
+        run_dir = Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+            create_matched_id(*[i[0].path for i in self.input()[0:2]])
+        )
         return luigi.LocalTarget(
-            run_dir.joinpath(
-                Path(create_matched_id(*allelic_counts_paths)).stem
-                + '.cr.called.seg'
-            )
+            run_dir.joinpath(f'{run_dir.name}.cr.called.seg')
         )
 
     def run(self):
         yield CallCopyRatioSegments(
             cram_path=self.input()[0][0].path,
-            preprocessed_interval_path=self.input()[1].path,
-            fa_path=self.input()[2][0].path,
-            seq_dict_path=self.input()[3].path,
-            case_allelic_counts_tsv_path=self.input()[4].path,
-            normal_allelic_counts_tsv_path=self.input()[5].path,
+            preprocessed_interval_path=self.input()[2].path,
+            fa_path=self.input()[3][0].path,
+            seq_dict_path=self.input()[4].path,
+            case_allelic_counts_tsv_path=self.input()[5].path,
+            normal_allelic_counts_tsv_path=self.input()[6].path,
             dest_dir_path=str(Path(self.output().path).parent), cf=self.cf
         )
 
 
-@requires(PrepareCRAMNormal, PreprocessIntervals, FetchReferenceFASTA,
-          CreateSequenceDictionary, CollectAllelicCountsNormal)
+@requires(PrepareCRAMTumor, PrepareCRAMNormal, PreprocessIntervals,
+          FetchReferenceFASTA, CreateSequenceDictionary,
+          CollectAllelicCountsNormal)
 class CallCopyRatioSegmentsNormal(luigi.Task):
     cf = luigi.DictParameter()
     priority = 30
 
     def output(self):
+        input_cram_paths = [i[0].path for i in self.input()[0:2]]
         return luigi.LocalTarget(
-            Path(self.input()[4].path).parent.joinpath(
-                Path(Path(self.input()[4].path).stem).stem + '.cr.called.seg'
+            Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
+                create_matched_id(*input_cram_paths)
+            ).joinpath(
+                Path(input_cram_paths[1]).stem + '.cr.called.seg'
             )
         )
 
     def run(self):
         yield CallCopyRatioSegments(
-            cram_path=self.input()[0][0].path,
-            preprocessed_interval_path=self.input()[1].path,
-            fa_path=self.input()[2][0].path,
-            seq_dict_path=self.input()[3].path,
-            normal_allelic_counts_tsv_path=self.input()[4].path,
+            cram_path=self.input()[1][0].path,
+            preprocessed_interval_path=self.input()[2].path,
+            fa_path=self.input()[3][0].path,
+            seq_dict_path=self.input()[4].path,
+            normal_allelic_counts_tsv_path=self.input()[5].path,
             dest_dir_path=str(Path(self.output().path).parent), cf=self.cf
         )
 

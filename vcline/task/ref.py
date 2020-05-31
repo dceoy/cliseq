@@ -57,7 +57,7 @@ class FetchResourceFile(ShellTask):
         else:
             a = f'cp {self.src_path} {dest_file}'
         self.run_shell(
-            args=a, input_files_or_dirs=self.src_path,
+            args=f'set -e && {a}', input_files_or_dirs=self.src_path,
             output_files_or_dirs=dest_file
         )
 

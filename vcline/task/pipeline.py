@@ -11,6 +11,7 @@ from luigi.tools import deps_tree
 from luigi.util import requires
 
 from .base import ShellTask
+from .bcftools import NormalizeVCF
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
 from .delly import CallStructualVariantsWithDelly
 from .funcotator import FuncotateSegments, FuncotateVariants
@@ -148,76 +149,82 @@ class RunVariantCaller(luigi.Task):
             raise ValueError(f'invalid caller: {self.caller}')
 
     def output(self):
-        output_pos = list(
+        output_files = list(
             chain.from_iterable([
                 [
-                    Path(self.cf[f'postproc_{k}_dir_path']).joinpath(
-                        (Path(p).name + f'.{k}.tsv') if p.endswith('.seg')
-                        else (Path(Path(p).stem).stem + f'.norm.{k}.vcf.gz')
-                    ) for p in v
-                ] for k, v in self._find_annotation_targets().items()
+                    Path(self.cf['postproc_dir_path']).joinpath(
+                        'normalization' if a == 'normalize' else 'annotation'
+                    ).joinpath(
+                        (Path(p).name + f'.{a}.tsv') if p.endswith('.seg')
+                        else (
+                            Path(Path(p).stem).stem
+                            + ('.norm' if self.normalize_vcf else '')
+                            + ('' if a == 'normalize' else f'.{a}')
+                            + '.vcf.gz'
+                        )
+                    )
+                ] for p, a in self._generate_annotation_targets()
             ])
         )
         return (
-            [luigi.LocalTarget(o) for o in output_pos]
-            if output_pos else self.input()
+            [luigi.LocalTarget(o) for o in output_files]
+            if output_files else self.input()
         )
 
-    def _find_annotation_targets(self):
-        input_paths = [i.path for i in self.input()]
-        if 'somatic_sv.delly' == self.caller:
-            suffix_dict = {'funcotator': None, 'snpeff': '.vcf.gz'}
-        elif 'somatic_sv.manta' == self.caller:
-            suffix_dict = {
-                'funcotator': '.manta.somaticSV.vcf.gz', 'snpeff': '.vcf.gz'
-            }
-        else:
-            suffix_dict = {
-                'funcotator': ('.vcf.gz', '.called.seg'), 'snpeff': '.vcf.gz'
-            }
-        return {
-            k: (
-                [p for p in input_paths if v and p.endswith(v)]
-                if k in self.annotators else list()
-            ) for k, v in suffix_dict.items()
-        }
+    def _generate_annotation_targets(self):
+        for i in self.input():
+            p = i.path
+            if p.endswith('.called.seg') and 'funcotator' in self.annotators:
+                yield p, 'funcotator'
+            elif p.endswith('.vcf.gz'):
+                if self.normalize_vcf:
+                    yield p, 'normalize'
+                if ('funcotator' in self.annotators
+                        and not self.caller.startswith('somatic_sv.')):
+                    yield p, 'funcotator'
+                if 'snpeff' in self.annotators:
+                    yield p, 'snpeff'
 
     def run(self):
-        if self.annotators:
-            tasks = list()
-            funcotator_common_kwargs = {
-                'data_src_tar_path': (
+        for p, a in self._generate_annotation_targets():
+            if a == 'funcotator':
+                data_src_tar_path = (
                     self.funcotator_germline_tar_path
                     if self.caller.startswith('germline_')
                     else self.funcotator_somatic_tar_path
-                ),
-                'ref_fa_path': self.ref_fa_path, 'cf': self.cf
-            }
-            for k, v in self._find_annotation_targets().items():
-                if k == 'funcotator':
-                    tasks.extend([
-                        (
-                            FuncotateSegments(
-                                input_seg_path=p, **funcotator_common_kwargs
-                            ) if p.endswith('.seg') else FuncotateVariants(
-                                input_vcf_path=p,
-                                normalize_vcf=self.normalize_vcf,
-                                **funcotator_common_kwargs
-                            )
-                        ) for p in v
-                    ])
-                elif k == 'snpeff':
-                    tasks.extend([
-                        AnnotateVariantsWithSnpEff(
-                            input_vcf_path=p,
-                            snpeff_config_path=self.snpeff_config_path,
-                            ref_fa_path=self.ref_fa_path, cf=self.cf,
-                            normalize_vcf=self.normalize_vcf
-                        ) for p in v
-                    ])
-            yield tasks
-        else:
-            pass
+                )
+                if p.endswith('.seg'):
+                    yield FuncotateSegments(
+                        input_seg_path=p, ref_fa_path=self.ref_fa_path,
+                        data_src_tar_path=data_src_tar_path, cf=self.cf
+                    )
+                else:
+                    yield FuncotateVariants(
+                        input_vcf_path=p, ref_fa_path=self.ref_fa_path,
+                        data_src_tar_path=data_src_tar_path, cf=self.cf,
+                        normalize_vcf=self.normalize_vcf
+                    )
+            elif a == 'snpeff':
+                yield AnnotateVariantsWithSnpEff(
+                    input_vcf_path=p,
+                    snpeff_config_path=self.snpeff_config_path,
+                    ref_fa_path=self.ref_fa_path, cf=self.cf,
+                    normalize_vcf=self.normalize_vcf
+                )
+            elif a == 'normalize' and not self.annotators:
+                ref_target = yield FetchReferenceFASTA(
+                    ref_fa_path=self.ref_fa_path, cf=self.cf
+                )
+                yield NormalizeVCF(
+                    input_vcf_path=p, fa_path=ref_target[0].path,
+                    dest_dir_path=str(Path(self.output()[0].path).parent),
+                    n_cpu=self.cf['n_cpu_per_worker'],
+                    memory_mb=self.cf['memory_mb_per_worker'],
+                    bcftools=self.cf['bcftools'],
+                    log_dir_path=self.cf['log_dir_path'],
+                    remove_if_failed=self.cf['remove_if_failed'],
+                    quiet=self.cf['quiet']
+                )
         logger = logging.getLogger(__name__)
         logger.debug('Task tree:' + os.linesep + deps_tree.print_tree(self))
 
@@ -281,7 +288,7 @@ class PreprocessResources(luigi.Task):
         return self.__is_completed
 
     def run(self):
-        targets = yield [
+        yield [
             PreprocessIntervals(
                 ref_fa_path=self.ref_fa_path,
                 evaluation_interval_path=self.evaluation_interval_path,

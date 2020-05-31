@@ -169,7 +169,7 @@ def main():
                         ]
                     )
                 ],
-                console_log_level=log_level
+                log_level=log_level
             )
         elif args['download-funcotator-data']:
             build_luigi_tasks(
@@ -179,7 +179,7 @@ def main():
                         gatk=fetch_executable('gatk')
                     )
                 ],
-                console_log_level=log_level
+                log_level=log_level
             )
         elif args['download-snpeff-data']:
             build_luigi_tasks(
@@ -189,7 +189,7 @@ def main():
                         snpeff=fetch_executable('snpEff')
                     )
                 ],
-                console_log_level=log_level
+                log_level=log_level
             )
         elif args['download-gnomad-af-only-vcf']:
             build_luigi_tasks(
@@ -200,7 +200,7 @@ def main():
                         **{c: fetch_executable(c) for c in ['wget', 'bgzip']}
                     )
                 ],
-                console_log_level=log_level
+                log_level=log_level
             )
         elif args['write-af-only-vcf']:
             build_luigi_tasks(
@@ -218,7 +218,7 @@ def main():
                         **{c: fetch_executable(c) for c in ['curl', 'bgzip']}
                     )
                 ],
-                console_log_level=log_level
+                log_level=log_level
             )
         elif args['create-interval-list']:
             build_luigi_tasks(
@@ -230,7 +230,7 @@ def main():
                         gatk=fetch_executable('gatk')
                     )
                 ],
-                console_log_level=log_level
+                log_level=log_level
             )
         elif args['funcotator'] or args['snpeff']:
             n_vcf = len(args['<vcf_path>'])
@@ -258,7 +258,7 @@ def main():
                             input_vcf_path=str(Path(p).resolve()), **kwargs
                         ) for p in args['<vcf_path>']
                     ],
-                    workers=n_worker, console_log_level=log_level
+                    workers=n_worker, log_level=log_level
                 )
             else:
                 kwargs = {
@@ -275,5 +275,5 @@ def main():
                         SnpEff(input_vcf_path=str(Path(p).resolve()), **kwargs)
                         for p in args['<vcf_path>']
                     ],
-                    workers=n_worker, console_log_level=log_level
+                    workers=n_worker, log_level=log_level
                 )

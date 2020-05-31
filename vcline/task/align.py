@@ -312,7 +312,7 @@ class PrepareCRAMTumor(luigi.Task):
             yield SamtoolsView(
                 input_sam_path=self.cram_list[0],
                 output_sam_path=self.output()[0].path,
-                fa_path=ref_target.path, samtools=self.cf['samtools'],
+                fa_path=ref_target[0].path, samtools=self.cf['samtools'],
                 n_cpu=self.cf['n_cpu_per_worker'], remove_input=False,
                 index_sam=True, log_dir_path=self.cf['log_dir_path'],
                 remove_if_failed=self.cf['remove_if_failed'],
@@ -376,7 +376,7 @@ class PrepareCRAMNormal(luigi.Task):
             yield SamtoolsView(
                 input_sam_path=self.cram_list[1],
                 output_sam_path=self.output()[0].path,
-                fa_path=ref_target.path, samtools=self.cf['samtools'],
+                fa_path=ref_target[0].path, samtools=self.cf['samtools'],
                 n_cpu=self.cf['n_cpu_per_worker'], remove_input=False,
                 index_sam=True, log_dir_path=self.cf['log_dir_path'],
                 remove_if_failed=self.cf['remove_if_failed'],
