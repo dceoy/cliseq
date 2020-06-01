@@ -93,14 +93,14 @@ class ExtractTarFile(ShellTask):
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[pigz, pbzip2], cwd=self.dest_dir_path
         )
-        self._tar_xvf(
+        self._tar_xf(
             tar_path=self.tar_path, pigz=pigz, pbzip2=pbzip2, n_cpu=n_cpu,
             input_files_or_dirs=self.tar_path, output_files_or_dirs=target_dir
         )
         if self.recursive and target_dir.is_dir():
             for f in target_dir.iterdir():
                 if f.name.endswith(('.tar.gz', '.tar.bz2')):
-                    self._tar_xvf(
+                    self._tar_xf(
                         tar_path=f, pigz=pigz, pbzip2=pbzip2, n_cpu=n_cpu,
                         cwd=target_dir, input_files_or_dirs=f,
                         output_files_or_dirs=target_dir.joinpath(
@@ -108,14 +108,14 @@ class ExtractTarFile(ShellTask):
                         )
                     )
 
-    def _tar_xvf(self, tar_path, pigz, pbzip2, n_cpu, **kwargs):
+    def _tar_xf(self, tar_path, pigz, pbzip2, n_cpu, **kwargs):
         self.run_shell(
             args=(
                 'set -eo pipefail && ' + (
                     f'{pbzip2} -p{n_cpu} -dc {tar_path}'
                     if str(tar_path).endswith('.bz2') else
                     f'{pigz} -p {n_cpu} -dc {tar_path}'
-                ) + ' | tar xvf -'
+                ) + ' | tar xmvf -'
             ),
             **kwargs
         )

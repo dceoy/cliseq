@@ -107,7 +107,7 @@ class TrimAdapters(ShellTask):
                 )
         self.run_shell(
             args=(
-                f'set -e && {trim_galore} --cores={n_cpu} --illumina'
+                f'set -e && {trim_galore} --cores {n_cpu}'
                 + f' --output_dir {run_dir}'
                 + (' --paired' if len(work_fq_paths) > 1 else '')
                 + (' --fastqc' if self.fastqc else '')
