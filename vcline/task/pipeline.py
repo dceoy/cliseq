@@ -10,6 +10,7 @@ import luigi
 from luigi.tools import deps_tree
 from luigi.util import requires
 
+from .align import PrepareCRAMNormal, PrepareCRAMTumor
 from .base import ShellTask
 from .bcftools import NormalizeVCF
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
@@ -267,6 +268,14 @@ class PrintEnvVersions(ShellTask):
             ]
         )
         self.__is_completed = True
+
+
+@requires(PrepareCRAMTumor, PrepareCRAMNormal)
+class PrepareCRAMsMatched(luigi.WrapperTask):
+    priority = luigi.IntParameter(default=sys.maxsize)
+
+    def output(self):
+        return self.input()
 
 
 @requires(FetchReferenceFASTA, CreateBWAIndices, CreateSequenceDictionary,

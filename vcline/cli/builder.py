@@ -15,9 +15,8 @@ from psutil import cpu_count, virtual_memory
 
 from ..cli.util import (fetch_executable, load_default_dict, parse_cram_id,
                         parse_fq_id, print_log, read_yml, render_template)
-from ..task.align import PrepareCRAMNormal, PrepareCRAMTumor
-from ..task.pipeline import (PreprocessResources, PrintEnvVersions,
-                             RunVariantCaller)
+from ..task.pipeline import (PrepareCRAMsMatched, PreprocessResources,
+                             PrintEnvVersions, RunVariantCaller)
 
 
 def build_luigi_tasks(*args, **kwargs):
@@ -133,45 +132,65 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     n_cpu_per_worker = max(1, floor((max_n_cpu or n_cpu) / n_worker))
     memory_mb = virtual_memory().total / 1024 / 1024 / 2
     memory_mb_per_worker = int(memory_mb / n_worker)
-    common_arg_dict = {
-        **_resolve_input_file_paths(
-            path_dict={k: v for k, v in config['resources'].items()}
-        ),
-        'cf': {
-            'log_dir_path': str(log_dir),
-            'ref_dir_path':
-            (str(Path(ref_dir_path).resolve()) if ref_dir_path else None),
-            'n_worker': n_worker, 'memory_mb_per_worker': memory_mb_per_worker,
-            'n_cpu_per_worker': n_cpu_per_worker,
-            'gatk_java_options': ' '.join([
-                '-Dsamjdk.compression_level=5',
-                '-Dsamjdk.use_async_io_read_samtools=true',
-                '-Dsamjdk.use_async_io_write_samtools=true',
-                '-Dsamjdk.use_async_io_write_tribble=false',
-                f'-Xmx{memory_mb_per_worker:d}m',
-                '-XX:+UseParallelGC',
-                f'-XX:ParallelGCThreads={n_cpu_per_worker}'
-            ]),
-            'ref_version': (config.get('reference_version') or 'hg38'),
-            'exome': bool(config.get('exome')),
-            'adapter_removal': adapter_removal,
-            'save_memory': (memory_mb_per_worker < 8 * 1024),
-            'remove_if_failed': (not skip_cleaning),
-            'quiet': (not print_subprocesses),
-            **{
-                (k.replace('/', '_') + '_dir_path'): str(dest_dir.joinpath(k))
-                for k in {
-                    'trim', 'align', 'qc', 'postproc',
-                    *chain.from_iterable([
-                        [f'{k}/{c}' for c in v.keys()]
-                        for k, v in default_dict['callers'].items()
-                    ])
-                }
-            },
-            **command_dict
-        }
+    cf_dict = {
+        'log_dir_path': str(log_dir),
+        'ref_dir_path':
+        (str(Path(ref_dir_path).resolve()) if ref_dir_path else None),
+        'n_worker': n_worker, 'memory_mb_per_worker': memory_mb_per_worker,
+        'n_cpu_per_worker': n_cpu_per_worker,
+        'gatk_java_options': ' '.join([
+            '-Dsamjdk.compression_level=5',
+            '-Dsamjdk.use_async_io_read_samtools=true',
+            '-Dsamjdk.use_async_io_write_samtools=true',
+            '-Dsamjdk.use_async_io_write_tribble=false',
+            f'-Xmx{memory_mb_per_worker:d}m',
+            '-XX:+UseParallelGC',
+            f'-XX:ParallelGCThreads={n_cpu_per_worker}'
+        ]),
+        'ref_version': (config.get('reference_version') or 'hg38'),
+        'exome': bool(config.get('exome')),
+        'adapter_removal': adapter_removal,
+        'save_memory': (memory_mb_per_worker < 8 * 1024),
+        'remove_if_failed': (not skip_cleaning),
+        'quiet': (not print_subprocesses),
+        **{
+            (k.replace('/', '_') + '_dir_path'): str(dest_dir.joinpath(k))
+            for k in {
+                'trim', 'align', 'qc', 'postproc',
+                *chain.from_iterable([
+                    [f'{k}/{c}' for c in v.keys()]
+                    for k, v in default_dict['callers'].items()
+                ])
+            }
+        },
+        **command_dict
     }
-    logger.debug('common_arg_dict:' + os.linesep + pformat(common_arg_dict))
+    logger.debug('cf_dict:' + os.linesep + pformat(cf_dict))
+
+    if only_preprocessing:
+        resource_keys = {
+            'ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
+            'evaluation_interval', 'hapmap_vcf', 'gnomad_vcf', 'cnv_blacklist'
+        }
+    elif callers:
+        resource_keys = {
+            'ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
+            'evaluation_interval', 'hapmap_vcf', 'gnomad_vcf', 'cnv_blacklist',
+            'funcotator_somatic_tar', 'funcotator_germline_tar',
+            'snpeff_config'
+        }
+    else:
+        resource_keys = {
+            'ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf'
+        }
+    resource_path_dict = _resolve_input_file_paths(
+        path_dict={
+            k: v for k, v in config['resources'].items() if k in resource_keys
+        }
+    )
+    logger.debug(
+        'resource_path_dict:' + os.linesep + pformat(resource_path_dict)
+    )
 
     sample_dict_list = (
         [
@@ -182,36 +201,19 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     logger.debug('sample_dict_list:' + os.linesep + pformat(sample_dict_list))
 
     if only_preprocessing:
-        task_args_list = [{
-            k: v for k, v in common_arg_dict.items() if k in {
-                'ref_fa_path', 'dbsnp_vcf_path', 'known_indel_vcf_path',
-                'mills_indel_vcf_path', 'evaluation_interval_path',
-                'hapmap_vcf_path', 'gnomad_vcf_path', 'cnv_blacklist_path',
-                'cf'
-            }
-        }]
-    elif callers:
-        task_args_list = [
-            {'caller': c, 'annotators': annotators, **d, **common_arg_dict}
-            for d, c in product(sample_dict_list, callers)
-        ]
-    else:
-        task_args_list = [{**d, **common_arg_dict} for d in sample_dict_list]
-    logger.info('task_args_list:' + os.linesep + pformat(task_args_list))
-
-    if only_preprocessing:
         print_log(f'Run the resources preprocessing:\t{dest_dir}')
         print(
             yaml.dump([
-                {'workers': n_worker},
-                {
-                    'resources':
-                    {k: v for k, v in task_args_list[0].items() if k != 'cf'}
-                }
+                {'workers': n_worker}, {'resources': resource_path_dict}
             ])
         )
     else:
-        print_log(f'Run the analytical pipeline:\t{dest_dir}')
+        print_log(
+            (
+                'Run the analytical pipeline' if callers
+                else 'Prepare CRAM files'
+            ) + f'\t{dest_dir}'
+        )
         print(
             yaml.dump([
                 {'workers': n_worker}, {'runs': len(runs)},
@@ -261,21 +263,26 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     )
     if only_preprocessing:
         build_luigi_tasks(
-            tasks=[PreprocessResources(**d) for d in task_args_list],
+            tasks=[PreprocessResources(**resource_path_dict, cf=cf_dict)],
             workers=n_worker, log_level=console_log_level,
             logging_conf_file=log_cfg_path
         )
     elif callers:
         build_luigi_tasks(
-            tasks=[RunVariantCaller(**d) for d in task_args_list],
+            tasks=[
+                RunVariantCaller(
+                    **d, **resource_path_dict, cf=cf_dict, caller=c,
+                    annotators=annotators
+                ) for d, c in product(sample_dict_list, callers)
+            ],
             workers=n_worker, log_level=console_log_level,
             logging_conf_file=log_cfg_path
         )
     else:
         build_luigi_tasks(
             tasks=[
-                *[PrepareCRAMTumor(**d) for d in task_args_list],
-                *[PrepareCRAMNormal(**d) for d in task_args_list]
+                PrepareCRAMsMatched(**d, **resource_path_dict, cf=cf_dict)
+                for d in sample_dict_list
             ],
             workers=n_worker, log_level=console_log_level,
             logging_conf_file=log_cfg_path
