@@ -47,7 +47,9 @@ class DownloadResourceFile(ShellTask):
             commands = [self.wget, self.pbzip2]
             postproc_args = f'{self.pbzip2} -p{self.n_cpu} {tmp_path}'
         else:
-            raise ValueError(f'invalid dest_path: {self.dest_path}')
+            tmp_path = str(dest_file)
+            commands = self.wget
+            postproc_args = None
         self.setup_shell(commands=commands, cwd=dest_file.parent, quiet=False)
         self.run_shell(
             args=f'set -e && {self.wget} -qSL {self.src_url} -O {tmp_path}',
@@ -129,10 +131,26 @@ class DownloadSnpEffDataSource(ShellTask):
         return bool(self._fetch_existing_snpeff_data())
 
     def _fetch_existing_snpeff_data(self):
-        return [
-            str(o) for o in Path(self.dest_dir_path).iterdir()
-            if o.name.startswith(self.genome_version) and o.is_dir()
-        ]
+        dest_dir = Path(self.dest_dir_path)
+        snpeff_config = dest_dir.joinpath('snpEff.config')
+        if not snpeff_config.is_file():
+            return list()
+        else:
+            data_dir = dest_dir.joinpath('data')
+            with open(snpeff_config, 'r') as f:
+                for s in f:
+                    if re.match(r'\s*data\.dir\s*=\s*\./data/', s):
+                        data_dir = dest_dir.joinpath(
+                            re.sub(r'\s*data\.dir\s*=\s*', '', s.strip())
+                        )
+                        break
+            if not data_dir.is_dir():
+                return list()
+            else:
+                return [
+                    str(o) for o in data_dir.iterdir()
+                    if o.name.startswith(self.genome_version) and o.is_dir()
+                ]
 
     def run(self):
         self.print_log(f'Download SnpEff data source:\t{self.dest_dir_path}')

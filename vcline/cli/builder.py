@@ -31,7 +31,7 @@ def build_luigi_tasks(*args, **kwargs):
         local_scheduler=True, detailed_summary=True
     )
     if not kwargs.get('hide_summary'):
-        print_log(
+        print(
             os.linesep
             + os.linesep.join(['Execution summary:', r.summary_text, str(r)])
         )

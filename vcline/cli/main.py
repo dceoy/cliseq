@@ -91,8 +91,7 @@ from ..task.funcotator import Funcotator
 from ..task.ref import CreateIntervalListWithBED
 from ..task.snpeff import SnpEff
 from .builder import build_luigi_tasks, run_analytical_pipeline
-from .util import (convert_url_to_dest_file_path, fetch_executable,
-                   load_default_dict, write_config_yml)
+from .util import fetch_executable, load_default_dict, write_config_yml
 
 
 def main():
@@ -137,21 +136,22 @@ def main():
                             n_cpu=n_cpu, wget=cmds['wget'],
                             pbzip2=cmds['pbzip2'], bgzip=cmds['bgzip']
                         ) for k, v in url_dict.items()
-                        if k not in {'gnomad_vcf', 'genomesize_xml', 'kmer_fa'}
+                        if k not in {'gnomad_vcf', 'ref_fa_version'}
                     ],
-                    *[
-                        DownloadResourceFile(
-                            src_url=v,
-                            dest_file_path=(
-                                convert_url_to_dest_file_path(
-                                    url=v, dest_dir_path=dest_dir_path
-                                ) + '.bz2'
-                            ),
-                            n_cpu=n_cpu, wget=cmds['wget'],
-                            pbzip2=cmds['pbzip2'], bgzip=cmds['bgzip']
-                        ) for k, v in url_dict.items()
-                        if k in {'genomesize_xml', 'kmer_fa'}
-                    ],
+                    *(
+                        [
+                            DownloadResourceFile(
+                                src_url=url_dict['ref_fa_version'],
+                                dest_path=str(
+                                    Path(dest_dir_path).joinpath(
+                                        'ref_fa_version.txt'
+                                    )
+                                ),
+                                n_cpu=n_cpu, wget=cmds['wget'],
+                                pbzip2=cmds['pbzip2'], bgzip=cmds['bgzip']
+                            )
+                        ] if 'ref_fa_version' in url_dict else list()
+                    ),
                     DownloadFuncotatorDataSources(
                         dest_dir_path=dest_dir_path, n_cpu=n_cpu,
                         gatk=cmds['gatk']

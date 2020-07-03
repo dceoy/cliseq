@@ -6,7 +6,6 @@ import re
 import shutil
 from pathlib import Path
 from pprint import pformat
-from urllib.parse import urlsplit
 
 import yaml
 from jinja2 import Environment, FileSystemLoader
@@ -21,15 +20,6 @@ def write_config_yml(path):
             str(Path(__file__).parent.joinpath('../static/vcline.yml')),
             Path(path).resolve()
         )
-
-
-def convert_url_to_dest_file_path(url, dest_dir_path='.'):
-    res = urlsplit(url)
-    return str(
-        Path(dest_dir_path).joinpath(
-            '.'.join((res.netloc.split('.')[0] + res.path).split('/'))
-        )
-    )
 
 
 def print_log(message):
