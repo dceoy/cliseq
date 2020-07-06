@@ -56,7 +56,12 @@ RUN set -eo pipefail \
       && rm -rf /root/.cache/pip
 
 RUN set -e \
-      && Rscript /opt/gatk/install_R_packages.R
+      && R -e "\
+pkgs <- c('getopt', 'optparse', 'data.table', 'gsalib', 'ggplot2', 'dplyr', 'HMM'); \
+options(repos = 'https://cran.rstudio.com/'); \
+update.packages(ask = FALSE, dependencies = TRUE); \
+install.packages(pkgs = pkgs, dependencies = TRUE, clean = TRUE); \
+sapply(pkgs, library, character.only = TRUE);"
 
 RUN set -e \
       && cd /usr/local/src/bwa \

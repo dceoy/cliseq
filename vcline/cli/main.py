@@ -234,7 +234,7 @@ def main():
             )
         elif args['funcotator'] or args['snpeff']:
             n_vcf = len(args['<vcf_path>'])
-            n_worker = min(n_vcf)
+            n_worker = min(n_vcf, n_cpu)
             common_kwargs = {
                 'fa_path': str(Path(args['<fa_path>']).resolve()),
                 'ref_version': args['--ref-ver'],
@@ -266,9 +266,10 @@ def main():
                     str(Path(args['<snpeff_config_path>']).resolve()),
                     'snpeff_genome_version': args['--snpeff-genome'],
                     **{
-                        c: fetch_executable(c)
-                        for c in ['snpeff', 'bcftools', 'bgzip']
-                    }
+                        c.lower(): fetch_executable(c)
+                        for c in ['snpEff', 'bcftools', 'bgzip']
+                    },
+                    **common_kwargs
                 }
                 build_luigi_tasks(
                     tasks=[
