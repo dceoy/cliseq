@@ -52,13 +52,13 @@ class NormalizeVCF(ShellTask):
             ],
             output_files_or_dirs=output_vcf_path
         )
-        bcftools_index(
+        _bcftools_index(
             shelltask=self, bcftools=self.bcftools, vcf_path=output_vcf_path,
             n_cpu=self.n_cpu, tbi=True
         )
 
 
-def bcftools_index(shelltask, bcftools, vcf_path, n_cpu, tbi=True):
+def _bcftools_index(shelltask, bcftools, vcf_path, n_cpu, tbi=True):
     shelltask.run_shell(
         args=(
             f'set -e && {bcftools} index --threads {n_cpu}'
@@ -80,7 +80,7 @@ def bcftools_concat_and_index(shelltask, bcftools, input_vcf_paths,
         input_vcf_paths=input_vcf_paths, output_vcf_path=output_vcf_path,
         n_cpu=n_cpu, memory_mb=memory_mb
     )
-    bcftools_index(
+    _bcftools_index(
         shelltask=shelltask, bcftools=bcftools, vcf_path=output_vcf_path,
         n_cpu=n_cpu, tbi=True
     )
@@ -107,7 +107,7 @@ def bcftools_sort_and_index(shelltask, bcftools, input_vcf_path,
         shelltask=shelltask, bcftools=bcftools, input_vcf_path=input_vcf_path,
         output_vcf_path=output_vcf_path, memory_mb=memory_mb
     )
-    bcftools_index(
+    _bcftools_index(
         shelltask=shelltask, bcftools=bcftools, vcf_path=output_vcf_path,
         n_cpu=n_cpu, tbi=True
     )

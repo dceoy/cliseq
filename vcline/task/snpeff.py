@@ -6,8 +6,9 @@ from pathlib import Path
 import luigi
 
 from .base import ShellTask
-from .bcftools import NormalizeVCF, bcftools_index
+from .bcftools import NormalizeVCF
 from .ref import CreateSequenceDictionary, FetchReferenceFASTA
+from .samtools import tabix_tbi
 
 
 class AnnotateVariantsWithSnpEff(luigi.Task):
@@ -43,7 +44,8 @@ class AnnotateVariantsWithSnpEff(luigi.Task):
             normalize_vcf=self.normalize_vcf,
             norm_dir_path=str(dest_dir.parent.joinpath('normalization')),
             bcftools=self.cf['bcftools'], snpeff=self.cf['snpEff'],
-            bgzip=self.cf['bgzip'], n_cpu=self.cf['n_cpu_per_worker'],
+            bgzip=self.cf['bgzip'], tabix=self.cf['tabix'],
+            n_cpu=self.cf['n_cpu_per_worker'],
             memory_mb=self.cf['memory_mb_per_worker'],
             log_dir_path=self.cf['log_dir_path'],
             remove_if_failed=self.cf['remove_if_failed'],
@@ -63,6 +65,7 @@ class SnpEff(ShellTask):
     bcftools = luigi.Parameter()
     snpeff = luigi.Parameter()
     bgzip = luigi.Parameter()
+    tabix = luigi.Parameter()
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.IntParameter(default=(4 * 1024))
     log_dir_path = luigi.Parameter(default='')
@@ -121,7 +124,7 @@ class SnpEff(ShellTask):
         output_vcf_path = self.output()[0].path
         self.setup_shell(
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
-            commands=[self.snpeff, self.bgzip, self.bcftools],
+            commands=[self.snpeff, self.bgzip, self.tabix],
             cwd=self.dest_dir_path, remove_if_failed=self.remove_if_failed,
             quiet=self.quiet
         )
@@ -145,9 +148,9 @@ class SnpEff(ShellTask):
                     output_files_or_dirs=str(o)
                 )
         self.run_shell(args=f'rm -rf {tmp_dir}', input_files_or_dirs=tmp_dir)
-        bcftools_index(
-            shelltask=self, bcftools=self.bcftools, vcf_path=output_vcf_path,
-            n_cpu=self.n_cpu, tbi=True
+        tabix_tbi(
+            shelltask=self, tabix=self.tabix, tsv_path=output_vcf_path,
+            preset='vcf'
         )
 
 

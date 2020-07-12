@@ -195,5 +195,12 @@ def samtools_merge(shelltask, samtools, input_sam_paths, fa_path,
     )
 
 
+def tabix_tbi(shelltask, tabix, tsv_path, preset='bed'):
+    shelltask.run_shell(
+        args=f'set -e && {tabix} --preset {preset} {tsv_path}',
+        input_files_or_dirs=tsv_path, output_files_or_dirs=f'{tsv_path}.tbi'
+    )
+
+
 if __name__ == '__main__':
     luigi.run()

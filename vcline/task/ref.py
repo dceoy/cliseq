@@ -9,7 +9,7 @@ import luigi
 from luigi.util import requires
 
 from .base import ShellTask
-from .samtools import samtools_faidx
+from .samtools import samtools_faidx, tabix_tbi
 
 
 class FetchReferenceFASTA(luigi.WrapperTask):
@@ -152,14 +152,7 @@ class FetchResourceVCF(ShellTask):
             ),
             input_files_or_dirs=self.src_path, output_files_or_dirs=dest_vcf
         )
-        _tabix(shelltask=self, tabix=tabix, tsv_path=dest_vcf, preset='vcf')
-
-
-def _tabix(shelltask, tabix, tsv_path, preset='bed'):
-    shelltask.run_shell(
-        args=f'set -e && {tabix} --preset {preset} {tsv_path}',
-        input_files_or_dirs=tsv_path, output_files_or_dirs=f'{tsv_path}.tbi'
-    )
+        tabix_tbi(shelltask=self, tabix=tabix, tsv_path=dest_vcf, preset='vcf')
 
 
 class FetchDbsnpVCF(luigi.WrapperTask):
@@ -281,7 +274,7 @@ class CreateEvaluationIntervalListBED(ShellTask):
             ),
             input_files_or_dirs=interval, output_files_or_dirs=bed_path
         )
-        _tabix(shelltask=self, tabix=tabix, tsv_path=bed_path, preset='bed')
+        tabix_tbi(shelltask=self, tabix=tabix, tsv_path=bed_path, preset='bed')
 
 
 @requires(CreateEvaluationIntervalListBED, FetchReferenceFASTA)
@@ -342,7 +335,7 @@ class CreateExclusionIntervalListBED(ShellTask):
             output_files_or_dirs=exclusion_bed_path
         )
         for p in [genome_bed_path, exclusion_bed_path]:
-            _tabix(shelltask=self, tabix=tabix, tsv_path=p, preset='bed')
+            tabix_tbi(shelltask=self, tabix=tabix, tsv_path=p, preset='bed')
 
 
 class FetchHapmapVCF(luigi.WrapperTask):
@@ -415,7 +408,7 @@ class CreateGnomadBiallelicSnpVCF(ShellTask):
             input_files_or_dirs=[input_vcf, fa_path, evaluation_interval_path],
             output_files_or_dirs=biallelic_snp_vcf_path
         )
-        _tabix(
+        tabix_tbi(
             shelltask=self, tabix=tabix, tsv_path=biallelic_snp_vcf_path,
             preset='vcf'
         )
@@ -475,7 +468,7 @@ class CreateCnvBlackListBED(ShellTask):
             ),
             input_files_or_dirs=blacklist, output_files_or_dirs=bed_path
         )
-        _tabix(shelltask=self, tabix=tabix, tsv_path=bed_path, preset='bed')
+        tabix_tbi(shelltask=self, tabix=tabix, tsv_path=bed_path, preset='bed')
 
 
 @requires(FetchEvaluationIntervalList, FetchCnvBlackList,

@@ -267,7 +267,7 @@ def main():
                     'snpeff_genome_version': args['--snpeff-genome'],
                     **{
                         c.lower(): fetch_executable(c)
-                        for c in ['snpEff', 'bcftools', 'bgzip']
+                        for c in ['snpEff', 'bcftools', 'bgzip', 'tabix']
                     },
                     **common_kwargs
                 }
