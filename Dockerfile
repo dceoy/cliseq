@@ -4,6 +4,7 @@ ENV DEBIAN_FRONTEND noninteractive
 
 COPY --from=dceoy/samtools:latest /usr/local/src/samtools /usr/local/src/samtools
 COPY --from=dceoy/bwa:latest /usr/local/src/bwa /usr/local/src/bwa
+COPY --from=dceoy/bwa-mem2:latest /usr/local/src/bwa-mem2 /usr/local/src/bwa-mem2
 COPY --from=dceoy/trim_galore:latest /usr/local/src/FastQC /usr/local/src/FastQC
 COPY --from=dceoy/trim_galore:latest /usr/local/src/TrimGalore /usr/local/src/TrimGalore
 COPY --from=dceoy/bcftools:latest /usr/local/src/bcftools /usr/local/src/bcftools
@@ -91,7 +92,8 @@ RUN set -e \
       && make \
       && make install \
       && find \
-        /usr/local/src/bwa /usr/local/src/FastQC /usr/local/src/TrimGalore \
+        /usr/local/src/bwa /usr/local/src/bwa-mem2 /usr/local/src/FastQC \
+        /usr/local/src/TrimGalore \
         -maxdepth 1 -type f -executable -exec ln -s {} /usr/local/bin \;
 
 FROM ubuntu:20.04
