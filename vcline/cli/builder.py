@@ -42,7 +42,8 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
                             max_n_worker=None, skip_cleaning=False,
                             print_subprocesses=False,
                             console_log_level='WARNING',
-                            file_log_level='DEBUG', only_preprocessing=False):
+                            file_log_level='DEBUG', only_preprocessing=False,
+                            use_bwa_mem2=True):
     logger = logging.getLogger(__name__)
     logger.info(f'config_yml_path:\t{config_yml_path}')
     config = _read_config_yml(
@@ -93,7 +94,6 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
                 {'cutadapt', 'fastqc', 'trim_galore'}
                 if adapter_removal else set()
             ),
-            *({'bwa'} if only_preprocessing or read_alignment else set()),
             *(
                 {'python2', 'configureStrelkaSomaticWorkflow.py'}
                 if 'somatic_snv_indel.strelka' in callers else set()
@@ -122,6 +122,10 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
             )
         }
     }
+    if only_preprocessing or read_alignment:
+        command_dict['bwa'] = fetch_executable(
+            'bwa-mem2' if use_bwa_mem2 else 'bwa'
+        )
     logger.debug('command_dict:' + os.linesep + pformat(command_dict))
 
     n_cpu = cpu_count()

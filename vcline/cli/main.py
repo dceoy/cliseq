@@ -6,10 +6,10 @@ Usage:
     vcline init [--debug|--info] [--yml=<path>]
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
         [--workers=<int>] [--skip-cleaning] [--print-subprocesses]
-        [--ref-dir=<path>] [--dest-dir=<path>]
+        [--use-bwa-mem2] [--ref-dir=<path>] [--dest-dir=<path>]
     vcline preprocess [--debug|--info] [--yml=<path>] [--cpus=<int>]
         [--workers=<int>] [--skip-cleaning] [--print-subprocesses]
-        [--ref-dir=<path>] [--dest-dir=<path>]
+        [--use-bwa-mem2] [--ref-dir=<path>] [--dest-dir=<path>]
     vcline download-resources [--debug|--info] [--cpus=<int>]
         [--without-gnomad] [--dest-dir=<path>]
     vcline download-funcotator-data [--debug|--info] [--cpus=<int>]
@@ -54,6 +54,7 @@ Options:
     --workers=<int>         Specify the maximum number of workers [default: 1]
     --skip-cleaning         Skip incomlete file removal when a task fails
     --print-subprocesses    Print STDOUT/STDERR outputs from subprocesses
+    --use-bwa-mem2          Use BWA-MEM2 for read alignment
     --ref-dir=<path>        Specify a reference directory path
     --dest-dir=<path>       Specify a destination directory path [default: .]
     --without-gnomad        Skip downloading gnomAD VCF (>200GB)
@@ -117,7 +118,8 @@ def main():
             max_n_worker=args['--workers'],
             skip_cleaning=args['--skip-cleaning'],
             print_subprocesses=args['--print-subprocesses'],
-            console_log_level=log_level, only_preprocessing=args['preprocess']
+            console_log_level=log_level, only_preprocessing=args['preprocess'],
+            use_bwa_mem2=args['--use-bwa-mem2']
         )
     else:
         dest_dir_path = str(Path(args['--dest-dir']).resolve())
