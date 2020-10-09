@@ -117,6 +117,22 @@ RUN set -ea pipefail \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
 
+RUN set -e \
+      && unlink /usr/lib/ssl/openssl.cnf \
+      && echo -e 'openssl_conf = default_conf' > /usr/lib/ssl/openssl.cnf \
+      && echo >> /usr/lib/ssl/openssl.cnf \
+      && cat /etc/ssl/openssl.cnf >> /usr/lib/ssl/openssl.cnf \
+      && echo >> /usr/lib/ssl/openssl.cnf \
+      && echo -e '[default_conf]' >> /usr/lib/ssl/openssl.cnf \
+      && echo -e 'ssl_conf = ssl_sect' >> /usr/lib/ssl/openssl.cnf \
+      && echo >> /usr/lib/ssl/openssl.cnf \
+      && echo -e '[ssl_sect]' >> /usr/lib/ssl/openssl.cnf \
+      && echo -e 'system_default = system_default_sect' >> /usr/lib/ssl/openssl.cnf \
+      && echo >> /usr/lib/ssl/openssl.cnf \
+      && echo -e '[system_default_sect]' >> /usr/lib/ssl/openssl.cnf \
+      && echo -e 'MinProtocol = TLSv1.2' >> /usr/lib/ssl/openssl.cnf \
+      && echo -e 'CipherString = DEFAULT:@SECLEVEL=1' >> /usr/lib/ssl/openssl.cnf
+
 ENV PYTHONPATH /opt/manta/lib/python:/opt/strelka/lib/python:${PYTHONPATH}
 ENV PATH /opt/gatk/bin:/opt/manta/bin:/opt/strelka/bin:/opt/snpEff/bin:/opt/conda/envs/gatk/bin:/opt/conda/bin:${PATH}
 ENV BCFTOOLS_PLUGINS /usr/local/src/bcftools/plugins
