@@ -20,8 +20,8 @@ annotators:
   funcotator: true
   snpeff: true
 resources:  # These files can be downloaded with vcline download-resources.
-  ref_fa: /path/to/Homo_sapiens_assembly38.fasta
-  # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta
+  ref_fa: /path/to/hg38.fa.gz
+  # https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/latest/hg38.fa.gz
   dbsnp_vcf: /path/to/Homo_sapiens_assembly38.dbsnp138.vcf.gz
   # https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.dbsnp138.vcf
   mills_indel_vcf: /path/to/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
