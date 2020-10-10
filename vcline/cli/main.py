@@ -12,6 +12,9 @@ Usage:
         [--use-bwa-mem2] [--ref-dir=<path>] [--dest-dir=<path>]
     vcline download-resources [--debug|--info] [--cpus=<int>]
         [--without-gnomad] [--dest-dir=<path>]
+    vcline download-and-preprocess [--debug|--info] [--cpus=<int>]
+        [--workers=<int>] [--skip-cleaning] [--print-subprocesses]
+        [--use-bwa-mem2] [--dest-dir=<path>]
     vcline download-funcotator-data [--debug|--info] [--cpus=<int>]
         [--dest-dir=<path>]
     vcline download-snpeff-data [--debug|--info] [--dest-dir=<path>]
@@ -35,6 +38,8 @@ Commands:
     run                     Run the analytical pipeline
     preprocess              Run the resource preprocessing
     download-resources      Download and process resource data
+    download-and-preprocess
+                            Download and preprocess resources
     download-funcotator-data
                             Download Funcotator data sources
     download-snpeff-data    Download snpEff data sources
@@ -92,7 +97,8 @@ from ..task.funcotator import Funcotator
 from ..task.ref import CreateIntervalListWithBED
 from ..task.snpeff import SnpEff
 from .builder import build_luigi_tasks, run_analytical_pipeline
-from .util import fetch_executable, load_default_dict, write_config_yml
+from .util import (fetch_executable, load_default_dict, render_template,
+                   write_config_yml)
 
 
 def main():
@@ -124,7 +130,7 @@ def main():
     else:
         dest_dir_path = str(Path(args['--dest-dir']).resolve())
         n_cpu = int(args['--cpus'] or cpu_count())
-        if args['download-resources']:
+        if args['download-resources'] or args['download-and-preprocess']:
             url_dict = load_default_dict(stem='urls')
             cmds = {
                 c: fetch_executable(c)
@@ -173,6 +179,24 @@ def main():
                 ],
                 log_level=log_level
             )
+            if args['download-and-preprocess']:
+                ref_dir = Path(args['--dest-dir']).resolve()
+                ref_dir_path = str(ref_dir)
+                vcline_yml_path = str(ref_dir.joinpath('resource_vcline.yml'))
+                render_template(
+                    template='resource_vcline.yml.j2',
+                    data={'resource_dir_path': ref_dir_path},
+                    output_path=vcline_yml_path
+                )
+                run_analytical_pipeline(
+                    config_yml_path=vcline_yml_path, ref_dir_path=ref_dir_path,
+                    dest_dir_path=ref_dir_path, max_n_cpu=args['--cpus'],
+                    max_n_worker=args['--workers'],
+                    skip_cleaning=args['--skip-cleaning'],
+                    print_subprocesses=args['--print-subprocesses'],
+                    console_log_level=log_level, only_preprocessing=True,
+                    use_bwa_mem2=args['--use-bwa-mem2']
+                )
         elif args['download-funcotator-data']:
             build_luigi_tasks(
                 tasks=[

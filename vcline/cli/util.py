@@ -11,13 +11,13 @@ import yaml
 from jinja2 import Environment, FileSystemLoader
 
 
-def write_config_yml(path):
+def write_config_yml(path, src_yml='example_vcline.yml'):
     if Path(path).is_file():
         print_log(f'The file exists:\t{path}')
     else:
         print_log(f'Create a config YAML:\t{path}')
         shutil.copyfile(
-            str(Path(__file__).parent.joinpath('../static/vcline.yml')),
+            str(Path(__file__).parent.joinpath('../static').joinpath(src_yml)),
             Path(path).resolve()
         )
 

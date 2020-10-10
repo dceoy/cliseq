@@ -66,7 +66,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     )
     logger.debug(f'adapter_removal:\t{adapter_removal}')
 
-    default_dict = load_default_dict(stem='vcline')
+    default_dict = load_default_dict(stem='example_vcline')
     callers = (
         list(
             chain.from_iterable([

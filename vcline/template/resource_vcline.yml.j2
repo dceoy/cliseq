@@ -1,0 +1,34 @@
+---
+reference_version: hg38
+exome: false
+adapter_removal: true
+callers:
+  somatic_snv_indel:
+    gatk: true
+    strelka: false
+  somatic_sv:
+    manta: true
+    delly: true
+  somatic_cnv:
+    gatk: true
+  somatic_msi:
+    msisensor: true
+  germline_snv_indel:
+    gatk: true
+    strelka: false
+annotators:
+  funcotator: true
+  snpeff: true
+resources:
+  ref_fa: {{ resource_dir_path }}/hg38.fa.gz
+  dbsnp_vcf: {{ resource_dir_path }}/Homo_sapiens_assembly38.dbsnp138.vcf.gz
+  mills_indel_vcf: {{ resource_dir_path }}/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
+  known_indel_vcf: {{ resource_dir_path }}/Homo_sapiens_assembly38.known_indels.vcf.gz
+  hapmap_vcf: {{ resource_dir_path }}/hapmap_3.3.hg38.vcf.gz
+  gnomad_vcf: {{ resource_dir_path }}/gnomad.genomes.r3.0.sites.af-only.vcf.gz
+  evaluation_interval: {{ resource_dir_path }}/wgs_calling_regions.hg38.interval_list
+  cnv_blacklist: {{ resource_dir_path }}/CNV_and_centromere_blacklist.hg38liftover.list
+  funcotator_germline_tar: {{ resource_dir_path }}/funcotator_dataSources.v1.6.20190124g.tar.gz
+  funcotator_somatic_tar: {{ resource_dir_path }}/funcotator_dataSources.v1.6.20190124s.tar.gz
+  snpeff_config: {{ resource_dir_path }}/snpEff.config
+runs: []
