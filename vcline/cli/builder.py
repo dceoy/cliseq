@@ -152,7 +152,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
             f'-XX:ParallelGCThreads={n_cpu_per_worker}'
         ]),
         'ref_version': (config.get('reference_version') or 'hg38'),
-        'exome': bool(config.get('exome')),
+        'exome': bool(config.get('exome')), 'use_bwa_mem2': use_bwa_mem2,
         'adapter_removal': adapter_removal,
         'save_memory': (memory_mb_per_worker < 8 * 1024),
         'remove_if_failed': (not skip_cleaning),
