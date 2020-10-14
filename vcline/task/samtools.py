@@ -202,5 +202,21 @@ def tabix_tbi(shelltask, tabix, tsv_path, preset='bed'):
     )
 
 
+def samtools_collect_stats(shelltask, samtools, input_sam_path, fa_path,
+                           output_dir_path, n_cpu=1):
+    for c in ['flagstat', 'idxstats', 'stats']:
+        output_txt = Path(output_dir_path).joinpath(
+            Path(input_sam_path).stem + f'.{c}.txt'
+        )
+        shelltask.run_shell(
+            args=(
+                f'set -e && {samtools} '
+                + (f'{c} --ref-seq {fa_path}' if c == 'stats' else c)
+                + f' -@ {n_cpu} {input_sam_path} > {output_txt}'
+            ),
+            input_files_or_dirs=input_sam_path, output_files_or_dirs=output_txt
+        )
+
+
 if __name__ == '__main__':
     luigi.run()
