@@ -85,6 +85,7 @@ class TrimAdapters(ShellTask):
         trim_galore = self.cf['trim_galore']
         pbzip2 = self.cf['pbzip2']
         n_cpu = self.cf['n_cpu_per_worker']
+        java_options = '-Xmx{}m'.format(int(self.cf['memory_mb_per_worker']))
         output_fq_paths = [o.path for o in self.output()]
         run_dir = Path(output_fq_paths[0]).parent
         work_fq_paths = [
@@ -97,7 +98,7 @@ class TrimAdapters(ShellTask):
             run_id=run_id, log_dir_path=self.cf['log_dir_path'],
             commands=[cutadapt, fastqc, pigz, trim_galore, pbzip2],
             cwd=run_dir, remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+            quiet=self.cf['quiet'], env={'JAVA_TOOL_OPTIONS': java_options}
         )
         for i, o in zip(self.fq_paths, work_fq_paths):
             if i.endswith('.bz2'):

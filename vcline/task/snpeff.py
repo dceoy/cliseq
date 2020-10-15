@@ -126,7 +126,8 @@ class SnpEff(ShellTask):
             run_id=run_id, log_dir_path=(self.log_dir_path or None),
             commands=[self.snpeff, self.bgzip, self.tabix],
             cwd=self.dest_dir_path, remove_if_failed=self.remove_if_failed,
-            quiet=self.quiet
+            quiet=self.quiet,
+            env={'JAVA_TOOL_OPTIONS': f'-Xmx{self.memory_mb:d}m'}
         )
         self.run_shell(args=f'mkdir {tmp_dir}', output_files_or_dirs=tmp_dir)
         self.run_shell(
