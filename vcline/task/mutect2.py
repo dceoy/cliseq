@@ -5,16 +5,18 @@ from itertools import chain
 from pathlib import Path
 
 import luigi
+from ftarc.task.base import ShellTask
+from ftarc.task.picard import CreateSequenceDictionary
+from ftarc.task.resource import FetchReferenceFASTA
+from ftarc.task.samtools import samtools_view_and_index
 from luigi.util import requires
 
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
-from .base import ShellTask
 from .haplotypecaller import SplitEvaluationIntervals
-from .ref import (CreateGnomadBiallelicSnpVCF, CreateSequenceDictionary,
-                  FetchEvaluationIntervalList, FetchGnomadVCF,
-                  FetchReferenceFASTA)
-from .samtools import samtools_merge_and_index, samtools_view_and_index
+from .ref import (CreateGnomadBiallelicSnpVCF, FetchEvaluationIntervalList,
+                  FetchGnomadVCF)
+from .samtools import samtools_merge_and_index
 
 
 class GetPileupSummaries(ShellTask):

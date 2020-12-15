@@ -5,12 +5,13 @@ from math import floor
 from pathlib import Path
 
 import luigi
+from ftarc.task.base import ShellTask
+from ftarc.task.resource import FetchReferenceFASTA
 from luigi.util import requires
 
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
-from .base import ShellTask
-from .ref import CreateEvaluationIntervalListBED, FetchReferenceFASTA
+from .ref import CreateEvaluationIntervalListBED
 
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFASTA,

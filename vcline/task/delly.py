@@ -3,13 +3,14 @@
 from pathlib import Path
 
 import luigi
+from ftarc.task.base import ShellTask
+from ftarc.task.resource import FetchReferenceFASTA
 from luigi.util import requires
 
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
-from .base import ShellTask
 from .bcftools import bcftools_sort_and_index
-from .ref import CreateExclusionIntervalListBED, FetchReferenceFASTA
+from .ref import CreateExclusionIntervalListBED
 
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFASTA,

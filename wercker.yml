@@ -5,7 +5,7 @@ box:
 test:
   steps:
     - script:
-        name: Install create-pypkg
+        name: Install vcline
         code: |
           pip install -U .
     - script:

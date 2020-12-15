@@ -7,11 +7,14 @@ from itertools import chain
 from pathlib import Path
 
 import luigi
+from ftarc.task.bwa import CreateBWAIndices
+from ftarc.task.picard import CreateSequenceDictionary
+from ftarc.task.resource import (FetchDbsnpVCF, FetchKnownIndelVCF,
+                                 FetchMillsIndelVCF, FetchReferenceFASTA)
 from luigi.tools import deps_tree
 from luigi.util import requires
 
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
-from .base import ShellTask
 from .bcftools import NormalizeVCF
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
 from .delly import CallStructualVariantsWithDelly
@@ -20,14 +23,11 @@ from .haplotypecaller import FilterVariantTranches
 from .manta import CallStructualVariantsWithManta
 from .msisensor import ScoreMSIWithMSIsensor
 from .mutect2 import FilterMutectCalls
-from .ref import (CreateBWAIndices, CreateCnvBlackListBED,
-                  CreateEvaluationIntervalListBED,
+from .ref import (CreateCnvBlackListBED, CreateEvaluationIntervalListBED,
                   CreateExclusionIntervalListBED, CreateGnomadBiallelicSnpVCF,
-                  CreateSequenceDictionary, FetchCnvBlackList, FetchDbsnpVCF,
-                  FetchEvaluationIntervalList, FetchGnomadVCF, FetchHapmapVCF,
-                  FetchKnownIndelVCF, FetchMillsIndelVCF, FetchReferenceFASTA,
-                  PreprocessIntervals, ScanMicrosatellites,
-                  UncompressEvaluationIntervalListBED)
+                  FetchCnvBlackList, FetchEvaluationIntervalList,
+                  FetchGnomadVCF, FetchHapmapVCF, PreprocessIntervals,
+                  ScanMicrosatellites, UncompressEvaluationIntervalListBED)
 from .snpeff import AnnotateVariantsWithSnpEff
 from .strelka import (CallGermlineVariantsWithStrelka,
                       CallSomaticVariantsWithStrelka)
@@ -228,46 +228,6 @@ class RunVariantCaller(luigi.Task):
                 )
         logger = logging.getLogger(__name__)
         logger.debug('Task tree:' + os.linesep + deps_tree.print_tree(self))
-
-
-class PrintEnvVersions(ShellTask):
-    log_dir_path = luigi.Parameter()
-    command_paths = luigi.ListParameter(default=list())
-    run_id = luigi.Parameter(default='env')
-    quiet = luigi.BoolParameter(default=False)
-    priority = luigi.IntParameter(default=sys.maxsize)
-    __is_completed = False
-
-    def complete(self):
-        return self.__is_completed
-
-    def run(self):
-        python = sys.executable
-        self.print_log(f'Print environment versions: {python}')
-        version_files = [
-            Path('/proc/version'),
-            *[
-                o for o in Path('/etc').iterdir()
-                if o.name.endswith(('-release', '_version'))
-            ]
-        ]
-        self.setup_shell(
-            run_id=self.run_id, log_dir_path=self.log_dir_path,
-            commands=[python, *self.command_paths], quiet=self.quiet
-        )
-        self.run_shell(
-            args=[
-                f'{python} -m pip --version',
-                f'{python} -m pip freeze --no-cache-dir'
-            ]
-        )
-        self.run_shell(
-            args=[
-                'uname -a',
-                *[f'cat {o}' for o in version_files if o.is_file()]
-            ]
-        )
-        self.__is_completed = True
 
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal)

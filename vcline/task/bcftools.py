@@ -4,8 +4,7 @@ import re
 from pathlib import Path
 
 import luigi
-
-from .base import ShellTask
+from ftarc.task.base import ShellTask
 
 
 class NormalizeVCF(ShellTask):

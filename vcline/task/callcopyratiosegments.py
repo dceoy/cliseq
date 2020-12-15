@@ -4,14 +4,15 @@ import re
 from pathlib import Path
 
 import luigi
+from ftarc.task.base import ShellTask
+from ftarc.task.picard import CreateSequenceDictionary
+from ftarc.task.resource import FetchReferenceFASTA
 from luigi.util import requires
 
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
-from .base import ShellTask
 from .haplotypecaller import GenotypeHaplotypeCallerGVCF
-from .ref import (CreateSequenceDictionary, FetchReferenceFASTA,
-                  PreprocessIntervals)
+from .ref import PreprocessIntervals
 
 
 @requires(GenotypeHaplotypeCallerGVCF)

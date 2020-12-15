@@ -11,12 +11,13 @@ from pprint import pformat
 
 import luigi
 import yaml
+from ftarc.task.controller import PrintEnvVersions
 from psutil import cpu_count, virtual_memory
 
 from ..cli.util import (fetch_executable, load_default_dict, parse_cram_id,
                         parse_fq_id, print_log, read_yml, render_template)
 from ..task.pipeline import (PrepareCRAMsMatched, PreprocessResources,
-                             PrintEnvVersions, RunVariantCaller)
+                             RunVariantCaller)
 
 
 def build_luigi_tasks(*args, **kwargs):

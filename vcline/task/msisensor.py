@@ -3,14 +3,14 @@
 from pathlib import Path
 
 import luigi
+from ftarc.task.base import ShellTask
+from ftarc.task.resource import FetchReferenceFASTA
+from ftarc.task.samtools import SamtoolsView
 from luigi.util import requires
 
 from ..cli.util import create_matched_id
 from .align import PrepareCRAMNormal, PrepareCRAMTumor
-from .base import ShellTask
-from .ref import (FetchReferenceFASTA, ScanMicrosatellites,
-                  UncompressEvaluationIntervalListBED)
-from .samtools import SamtoolsView
+from .ref import ScanMicrosatellites, UncompressEvaluationIntervalListBED
 
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFASTA,

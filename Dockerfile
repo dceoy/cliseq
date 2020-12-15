@@ -50,7 +50,8 @@ RUN set -eo pipefail \
         /opt/gatk/gatkcondaenv.yml > /tmp/gatkcondaenv.yml \
       && /opt/conda/bin/conda env create -n gatk -f /tmp/gatkcondaenv.yml \
       && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
-          cutadapt pip /tmp/vcline \
+          cutadapt pip https://github.com/dceoy/ftarc/archive/main.tar.gz \
+          /tmp/vcline \
       && /opt/conda/bin/conda clean -yaf \
       && find /opt/conda -follow -type f -name '*.a' -delete \
       && find /opt/conda -follow -type f -name '*.pyc' -delete \

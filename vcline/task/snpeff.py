@@ -4,11 +4,12 @@ import re
 from pathlib import Path
 
 import luigi
+from ftarc.task.base import ShellTask
+from ftarc.task.picard import CreateSequenceDictionary
+from ftarc.task.resource import FetchReferenceFASTA
+from ftarc.task.samtools import tabix_tbi
 
-from .base import ShellTask
 from .bcftools import NormalizeVCF
-from .ref import CreateSequenceDictionary, FetchReferenceFASTA
-from .samtools import tabix_tbi
 
 
 class AnnotateVariantsWithSnpEff(luigi.Task):
