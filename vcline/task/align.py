@@ -5,7 +5,9 @@ from pathlib import Path
 import luigi
 from ftarc.task.controller import PrepareAnalysisReadyCRAM
 from ftarc.task.resource import FetchReferenceFASTA
-from ftarc.task.samtools import SamtoolsIndex, SamtoolsView
+from ftarc.task.samtools import SamtoolsView
+
+from .samtools import SamtoolsIndex
 
 
 class PrepareCRAMTumor(luigi.Task):

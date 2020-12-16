@@ -86,13 +86,13 @@ from math import floor
 from pathlib import Path
 
 from docopt import docopt
+from ftarc.task.downloader import DownloadResourceFiles
 from psutil import cpu_count, virtual_memory
 
 from .. import __version__
 from ..task.download import (DownloadAndConvertVCFsIntoPassingAfOnlyVCF,
                              DownloadFuncotatorDataSources,
-                             DownloadResourceFile, DownloadSnpEffDataSource,
-                             WritePassingAfOnlyVCF)
+                             DownloadSnpEffDataSource, WritePassingAfOnlyVCF)
 from ..task.funcotator import Funcotator
 from ..task.ref import CreateIntervalListWithBED
 from ..task.snpeff import SnpEff
@@ -138,27 +138,13 @@ def main():
             }
             build_luigi_tasks(
                 tasks=[
-                    *[
-                        DownloadResourceFile(
-                            src_url=v, dest_dir_path=dest_dir_path,
-                            n_cpu=n_cpu, wget=cmds['wget'],
-                            pbzip2=cmds['pbzip2'], bgzip=cmds['bgzip']
-                        ) for k, v in url_dict.items()
-                        if k not in {'gnomad_vcf', 'ref_fa_version'}
-                    ],
-                    *(
-                        [
-                            DownloadResourceFile(
-                                src_url=url_dict['ref_fa_version'],
-                                dest_path=str(
-                                    Path(dest_dir_path).joinpath(
-                                        'ref_fa_version.txt'
-                                    )
-                                ),
-                                n_cpu=n_cpu, wget=cmds['wget'],
-                                pbzip2=cmds['pbzip2'], bgzip=cmds['bgzip']
-                            )
-                        ] if 'ref_fa_version' in url_dict else list()
+                    DownloadResourceFiles(
+                        src_url=[
+                            v for k, v in url_dict.items() if k != 'gnomad_vcf'
+                        ],
+                        dest_dir_path=dest_dir_path,
+                        n_cpu=n_cpu, wget=cmds['wget'],
+                        pbzip2=cmds['pbzip2'], bgzip=cmds['bgzip']
                     ),
                     DownloadFuncotatorDataSources(
                         dest_dir_path=dest_dir_path, n_cpu=n_cpu,
