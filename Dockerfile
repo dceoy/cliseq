@@ -15,6 +15,10 @@ COPY --from=dceoy/strelka:latest /opt/strelka /opt/strelka
 COPY --from=dceoy/delly:latest /usr/local/bin/delly /usr/local/bin/delly
 COPY --from=dceoy/msisensor:latest /usr/local/bin/msisensor /usr/local/bin/msisensor
 COPY --from=dceoy/snpeff:latest /opt/snpEff /opt/snpEff
+COPY --from=dceoy/vep:latest /usr/local/src/kent /usr/local/src/kent
+COPY --from=dceoy/vep:latest /usr/local/src/bioperl-ext /usr/local/src/bioperl-ext
+COPY --from=dceoy/vep:latest /usr/local/src/ensembl-xs /usr/local/src/ensembl-xs
+COPY --from=dceoy/vep:latest /usr/local/src/ensembl-vep /usr/local/src/ensembl-vep
 ADD https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh /tmp/miniconda.sh
 ADD https://raw.githubusercontent.com/dceoy/print-github-tags/master/print-github-tags /usr/local/bin/print-github-tags
 ADD . /tmp/vcline
@@ -92,9 +96,36 @@ RUN set -e \
       && make clean \
       && make \
       && make install \
+      && cd /usr/local/src/kent/src/lib \
+      && export KENT_SRC=/usr/local/src/kent/src \
+      && export MACHTYPE=$(uname -m) \
+      && export CFLAGS="-fPIC" \
+      && export MYSQLINC=`mysql_config --include | sed -e 's/^-I//g'` \
+      && export MYSQLLIBS=`mysql_config --libs` \
+      && echo 'CFLAGS="-fPIC"' > ../inc/localEnvironment.mk \
+      && make clean \
+      && make \
+      && cd ../jkOwnLib \
+      && make clean \
+      && make \
+      && cpanm Bio::DB::BigFile Test::Warnings \
+      && cd /usr/local/src/bioperl-ext/Bio/Ext/Align \
+      && perl -pi -e "s|(cd libs.+)CFLAGS=\\\'|\$1CFLAGS=\\\'-fPIC |" \
+        Makefile.PL \
+      && perl Makefile.PL \
+      && make \
+      && make install \
+      && cd /usr/local/src/ensembl-xs \
+      && cpanm --installdeps --with-recommends . \
+      && perl Makefile.PL \
+      && make \
+      && make install \
+      && cd /usr/local/src/ensembl-vep \
+      && cpanm --installdeps --with-recommends . \
+      && perl INSTALL.pl \
       && find \
         /usr/local/src/bwa /usr/local/src/bwa-mem2 /usr/local/src/FastQC \
-        /usr/local/src/TrimGalore \
+        /usr/local/src/TrimGalore /usr/local/src/ensembl-vep \
         -maxdepth 1 -type f -executable -exec ln -s {} /usr/local/bin \;
 
 FROM ubuntu:20.04
