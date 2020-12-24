@@ -5,24 +5,26 @@ from math import floor
 from pathlib import Path
 
 import luigi
-from ftarc.task.base import ShellTask
-from ftarc.task.resource import FetchReferenceFASTA
+from ftarc.task.resource import FetchReferenceFasta
 from luigi.util import requires
 
-from ..cli.util import create_matched_id
-from .align import PrepareCRAMNormal, PrepareCRAMTumor
-from .ref import CreateEvaluationIntervalListBED
+from .core import VclineTask
+from .cram import PrepareCRAMNormal, PrepareCRAMTumor
+from .resource import CreateEvaluationIntervalListBed
 
 
-@requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFASTA,
-          CreateEvaluationIntervalListBED)
-class CallStructualVariantsWithManta(ShellTask):
+@requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFasta,
+          CreateEvaluationIntervalListBed)
+class CallStructualVariantsWithManta(VclineTask):
     cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
     priority = 40
 
     def output(self):
         run_dir = Path(self.cf['somatic_sv_manta_dir_path']).joinpath(
-            create_matched_id(*[i[0].path for i in self.input()[0:2]])
+            self.create_matched_id(*[i[0].path for i in self.input()[0:2]])
         )
         return [
             luigi.LocalTarget(
@@ -31,19 +33,18 @@ class CallStructualVariantsWithManta(ShellTask):
         ]
 
     def run(self):
-        output_link_paths = [o.path for o in self.output()]
-        run_dir = Path(output_link_paths[0]).parent
+        output_links = [Path(o.path) for o in self.output()]
+        run_dir = output_links[0].parent
         run_id = run_dir.name
         self.print_log(f'Call somatic SVs with Manta:\t{run_id}')
-        config_script = self.cf['configManta.py']
+        config_script = Path(self.cf['configManta.py']).resolve()
         run_script = run_dir.joinpath('runWorkflow.py')
         pythonpath = Path(config_script).parent.parent.joinpath('lib/python')
         python2 = self.cf['python2']
-        n_cpu = self.cf['n_cpu_per_worker']
-        memory_gb = max(floor(self.cf['memory_mb_per_worker'] / 1024), 4)
-        input_cram_paths = [i[0].path for i in self.input()[0:2]]
-        fa_path = self.input()[2][0].path
-        bed_path = self.input()[3][0].path
+        memory_gb = max(floor(self.memory_mb / 1024), 4)
+        input_crams = [Path(i[0].path) for i in self.input()[0:2]]
+        fa = Path(self.input()[2][0].path)
+        bed = Path(self.input()[3][0].path)
         result_files = [
             run_dir.joinpath(f'results/variants/{v}.vcf.gz{s}')
             for v, s in product(
@@ -55,41 +56,35 @@ class CallStructualVariantsWithManta(ShellTask):
             )
         ]
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[python2, config_script], cwd=run_dir,
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+            run_id=run_id, commands=[python2, config_script], cwd=run_dir,
+            **self.sh_config, env={'PYTHONPATH': str(pythonpath)}
         )
         self.run_shell(
             args=(
-                f'set -e && PYTHONPATH="{pythonpath}" && {config_script}'
-                + f' --tumorBam={input_cram_paths[0]}'
-                + f' --normalBam={input_cram_paths[1]}'
-                + f' --referenceFasta={fa_path}'
-                + f' --callRegions={bed_path}'
+                f'set -e && {config_script}'
+                + f' --tumorBam={input_crams[0]}'
+                + f' --normalBam={input_crams[1]}'
+                + f' --referenceFasta={fa}'
+                + f' --callRegions={bed}'
                 + f' --runDir={run_dir}'
                 + (' --exome' if self.cf['exome'] else '')
             ),
-            input_files_or_dirs=[*input_cram_paths, fa_path, bed_path],
+            input_files_or_dirs=[*input_crams, fa, bed],
             output_files_or_dirs=[run_script, run_dir]
         )
         self.run_shell(
             args=(
-                f'set -e && PYTHONPATH="{pythonpath}" && {run_script}'
-                + f' --jobs={n_cpu}'
-                + f' --memGb={memory_gb}'
-                + ' --mode=local'
+                f'set -e && {run_script} --mode=local'
+                + f' --jobs={self.n_cpu} --memGb={memory_gb}'
             ),
-            input_files_or_dirs=[
-                run_script, *input_cram_paths, fa_path, bed_path
-            ],
+            input_files_or_dirs=[run_script, *input_crams, fa, bed],
             output_files_or_dirs=[*result_files, run_dir]
         )
-        for p in output_link_paths:
+        for o in output_links:
             f = run_dir.joinpath('results/variants').joinpath(
-                Path(p).name.split('.manta.')[-1]
+                o.name.split('.manta.')[-1]
             ).relative_to(run_dir)
-            self.run_shell(args=f'ln -s {f} {p}', output_files_or_dirs=p)
+            self.run_shell(args=f'ln -s {f} {o}', output_files_or_dirs=o)
 
 
 if __name__ == '__main__':

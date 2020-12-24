@@ -4,20 +4,85 @@ import re
 from pathlib import Path
 
 import luigi
-from ftarc.task.base import ShellTask
 from ftarc.task.picard import CreateSequenceDictionary
-from ftarc.task.resource import FetchReferenceFASTA
+from ftarc.task.resource import FetchReferenceFasta
 from luigi.util import requires
 
-from ..cli.util import create_matched_id
-from .align import PrepareCRAMNormal, PrepareCRAMTumor
-from .haplotypecaller import GenotypeHaplotypeCallerGVCF
-from .ref import PreprocessIntervals
+from .core import VclineTask
+from .cram import PrepareCRAMNormal, PrepareCRAMTumor
+from .haplotypecaller import GenotypeHaplotypeCallerGvcf
+from .resource import FetchCnvBlackList, FetchEvaluationIntervalList
 
 
-@requires(GenotypeHaplotypeCallerGVCF)
-class CreateGermlineSnpIntervalList(ShellTask):
+@requires(FetchEvaluationIntervalList, FetchCnvBlackList,
+          FetchReferenceFasta, CreateSequenceDictionary)
+class PreprocessIntervals(VclineTask):
     cf = luigi.DictParameter()
+    param_dict = luigi.DictParameter(default=dict())
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
+    priority = 60
+
+    def output(self):
+        evaluation_interval = Path(self.input()[0].path)
+        return luigi.LocalTarget(
+            evaluation_interval.parent.joinpath(
+                '{0}.preprocessed.w{1}s.interval_list'.format(
+                    evaluation_interval.stem,
+                    ('e' if self.cf['exome'] else 'g')
+                )
+            )
+        )
+
+    def run(self):
+        preprocessed_interval = Path(self.output().path)
+        run_id = preprocessed_interval.stem
+        self.print_log(f'Prepare bins for coverage collection:\t{run_id}')
+        gatk = self.cf['gatk']
+        evaluation_interval = Path(self.input()[0].path)
+        cnv_blacklist = Path(self.input()[1].path)
+        fa = Path(self.input()[2][0].path)
+        seq_dict = Path(self.input()[3].path)
+        param_dict = (
+            self.param_dict or (
+                {'bin-length': 0, 'padding': 250} if self.cf['exome']
+                else {'bin-length': 1000, 'padding': 0}
+            )
+        )
+        self.setup_shell(
+            run_id=run_id, commands=gatk, cwd=preprocessed_interval.parent,
+            **self.sh_config,
+            env={
+                'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
+                    n_cpu=self.n_cpu, memory_mb=self.memory_mb
+                )
+            }
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {gatk} PreprocessIntervals'
+                + f' --intervals {evaluation_interval}'
+                + f' --exclude-intervals {cnv_blacklist}'
+                + f' --sequence-dictionary {seq_dict}'
+                + f' --reference {fa}'
+                + ''.join([f' --{k} {v}' for k, v in param_dict.items()])
+                + ' --interval-merging-rule OVERLAPPING_ONLY'
+                + f' --output {preprocessed_interval}'
+            ),
+            input_files_or_dirs=[
+                evaluation_interval, cnv_blacklist, seq_dict, fa
+            ],
+            output_files_or_dirs=preprocessed_interval
+        )
+
+
+@requires(GenotypeHaplotypeCallerGvcf)
+class CreateGermlineSnpIntervalList(VclineTask):
+    cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
     priority = 30
 
     def output(self):
@@ -32,17 +97,19 @@ class CreateGermlineSnpIntervalList(ShellTask):
         run_id = input_vcf.stem
         self.print_log(f'Create a germline SNP interval_list:\t{run_id}')
         gatk = self.cf['gatk']
-        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         output_interval = Path(self.output().path)
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=output_interval.parent,
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+            run_id=run_id, commands=gatk, cwd=output_interval.parent,
+            **self.sh_config,
+            env={
+                'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
+                    n_cpu=self.n_cpu, memory_mb=self.memory_mb
+                )
+            }
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk}{gatk_opts} VcfToIntervalList'
+                f'set -e && {gatk} VcfToIntervalList'
                 + f' --INPUT {input_vcf}'
                 + ' --INCLUDE_FILTERED true'
                 + f' --OUTPUT {output_interval}'
@@ -51,11 +118,14 @@ class CreateGermlineSnpIntervalList(ShellTask):
         )
 
 
-class CollectAllelicCounts(ShellTask):
+class CollectAllelicCounts(VclineTask):
     cram_path = luigi.Parameter()
     common_sites_interval_path = luigi.Parameter()
     fa_path = luigi.Parameter()
     cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
     priority = 30
 
     def output(self):
@@ -69,35 +139,41 @@ class CollectAllelicCounts(ShellTask):
         run_id = Path(self.cram_path).stem
         self.print_log(f'Collects allele counts:\t{run_id}')
         gatk = self.cf['gatk']
-        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        save_memory = str(self.cf['save_memory']).lower()
         allelic_counts_tsv = Path(self.output().path)
+        cram = Path(self.cram_path).resolve()
+        fa = Path(self.fa_path).resolve()
+        common_sites_interval = Path(self.common_sites_interval_path).resolve()
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=allelic_counts_tsv.parent,
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+            run_id=run_id, commands=gatk, cwd=allelic_counts_tsv.parent,
+            **self.sh_config,
+            env={
+                'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
+                    n_cpu=self.n_cpu, memory_mb=self.memory_mb
+                )
+            }
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk}{gatk_opts} CollectAllelicCounts'
-                + f' --intervals {self.common_sites_interval_path}'
-                + f' --input {self.cram_path}'
-                + f' --reference {self.fa_path}'
+                f'set -e && {gatk} CollectAllelicCounts'
+                + f' --intervals {common_sites_interval}'
+                + f' --input {cram}'
+                + f' --reference {fa}'
                 + f' --output {allelic_counts_tsv}'
-                + f' --disable-bam-index-caching {save_memory}'
+                + ' --disable-bam-index-caching '
+                + str(self.cf['save_memory']).lower()
             ),
-            input_files_or_dirs=[
-                self.cram_path, self.common_sites_interval_path, self.fa_path
-            ],
+            input_files_or_dirs=[cram, common_sites_interval, fa],
             output_files_or_dirs=allelic_counts_tsv
         )
 
 
-@requires(PrepareCRAMTumor, CreateGermlineSnpIntervalList, FetchReferenceFASTA,
+@requires(PrepareCRAMTumor, CreateGermlineSnpIntervalList, FetchReferenceFasta,
           CreateSequenceDictionary)
 class CollectAllelicCountsTumor(luigi.Task):
     cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
     priority = 30
 
     def output(self):
@@ -111,14 +187,19 @@ class CollectAllelicCountsTumor(luigi.Task):
         yield CollectAllelicCounts(
             cram_path=self.input()[0][0].path,
             common_sites_interval_path=self.input()[1].path,
-            fa_path=self.input()[2][0].path, cf=self.cf
+            fa_path=self.input()[2][0].path, cf=self.cf,
+            n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+            sh_config=self.sh_config
         )
 
 
 @requires(PrepareCRAMNormal, CreateGermlineSnpIntervalList,
-          FetchReferenceFASTA, CreateSequenceDictionary)
+          FetchReferenceFasta, CreateSequenceDictionary)
 class CollectAllelicCountsNormal(luigi.Task):
     cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
     priority = 30
 
     def output(self):
@@ -132,15 +213,20 @@ class CollectAllelicCountsNormal(luigi.Task):
         yield CollectAllelicCounts(
             cram_path=self.input()[0][0].path,
             common_sites_interval_path=self.input()[1].path,
-            fa_path=self.input()[2][0].path, cf=self.cf
+            fa_path=self.input()[2][0].path, cf=self.cf,
+            n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+            sh_config=self.sh_config
         )
 
 
-class CollectReadCounts(ShellTask):
+class CollectReadCounts(VclineTask):
     cram_path = luigi.Parameter()
     preprocessed_interval_path = luigi.Parameter()
     fa_path = luigi.Parameter()
     cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
     priority = 30
 
     def output(self):
@@ -153,39 +239,45 @@ class CollectReadCounts(ShellTask):
     def run(self):
         run_id = Path(self.cram_path).stem
         self.print_log(f'Collects read counts:\t{run_id}')
+        cram = Path(self.cram_path).resolve()
+        fa = Path(self.fa_path).resolve()
+        preprocessed_interval = Path(self.preprocessed_interval_path).resolve()
         gatk = self.cf['gatk']
-        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
-        save_memory = str(self.cf['save_memory']).lower()
         counts_hdf5 = Path(self.output().path)
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=counts_hdf5.parent,
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+            run_id=run_id, commands=gatk, cwd=counts_hdf5.parent,
+            **self.sh_config,
+            env={
+                'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
+                    n_cpu=self.n_cpu, memory_mb=self.memory_mb
+                )
+            }
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk}{gatk_opts} CollectReadCounts'
-                + f' --intervals {self.preprocessed_interval_path}'
-                + f' --input {self.cram_path}'
-                + f' --reference {self.fa_path}'
+                f'set -e && {gatk} CollectReadCounts'
+                + f' --intervals {preprocessed_interval}'
+                + f' --input {cram}'
+                + f' --reference {fa}'
                 + ' --format HDF5'
                 + ' --interval-merging-rule OVERLAPPING_ONLY'
                 + f' --output {counts_hdf5}'
-                + f' --disable-bam-index-caching {save_memory}'
+                + ' --disable-bam-index-caching '
+                + str(self.cf['save_memory']).lower()
             ),
-            input_files_or_dirs=[
-                self.cram_path, self.preprocessed_interval_path, self.fa_path
-            ],
+            input_files_or_dirs=[cram, preprocessed_interval, fa],
             output_files_or_dirs=counts_hdf5
         )
 
 
 @requires(CollectReadCounts)
-class DenoiseReadCounts(ShellTask):
+class DenoiseReadCounts(VclineTask):
     seq_dict_path = luigi.Parameter()
     cf = luigi.DictParameter()
     create_plots = luigi.BoolParameter(default=True)
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
     priority = 30
 
     def output(self):
@@ -196,48 +288,46 @@ class DenoiseReadCounts(ShellTask):
         ]
 
     def run(self):
-        counts_hdf5_path = self.input().path
-        run_id = Path(Path(counts_hdf5_path).stem).stem
+        counts_hdf5 = Path(self.input().path)
+        run_id = Path(counts_hdf5.stem).stem
         self.print_log(f'Produce denoised copy ratios:\t{run_id}')
         gatk = self.cf['gatk']
-        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         r = self.cf['R']
-        denoised_cr_tsv_path = self.output()[0].path
-        standardized_cr_tsv_path = self.output()[1].path
-        run_dir = Path(denoised_cr_tsv_path).parent
+        denoised_cr_tsv = Path(self.output()[0].path)
+        standardized_cr_tsv = Path(self.output()[1].path)
+        run_dir = denoised_cr_tsv.parent
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[gatk, r], cwd=run_dir,
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+            run_id=run_id, commands=[gatk, r], cwd=run_dir, **self.sh_config,
+            env={
+                'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
+                    n_cpu=self.n_cpu, memory_mb=self.memory_mb
+                )
+            }
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk}{gatk_opts} DenoiseReadCounts'
-                + f' --input {counts_hdf5_path}'
-                + f' --standardized-copy-ratios {standardized_cr_tsv_path}'
-                + f' --denoised-copy-ratios {denoised_cr_tsv_path}'
+                f'set -e && {gatk} DenoiseReadCounts'
+                + f' --input {counts_hdf5}'
+                + f' --standardized-copy-ratios {standardized_cr_tsv}'
+                + f' --denoised-copy-ratios {denoised_cr_tsv}'
             ),
-            input_files_or_dirs=counts_hdf5_path,
-            output_files_or_dirs=[
-                standardized_cr_tsv_path, denoised_cr_tsv_path
-            ]
+            input_files_or_dirs=counts_hdf5,
+            output_files_or_dirs=[standardized_cr_tsv, denoised_cr_tsv]
         )
         if self.create_plots:
             plots_dir = run_dir.joinpath(f'{run_id}.plots')
             self.run_shell(
                 args=(
-                    f'set -e && {gatk}{gatk_opts} PlotDenoisedCopyRatios'
-                    + f' --standardized-copy-ratios {standardized_cr_tsv_path}'
-                    + f' --denoised-copy-ratios {denoised_cr_tsv_path}'
-                    + f' --sequence-dictionary {self.seq_dict_path}'
+                    f'set -e && {gatk} PlotDenoisedCopyRatios'
+                    + f' --standardized-copy-ratios {standardized_cr_tsv}'
+                    + f' --denoised-copy-ratios {denoised_cr_tsv}'
+                    + f' --sequence-dictionary {self.seq_dict}'
                     + f' --output {plots_dir}'
                     + f' --output-prefix {run_id}'
 
                 ),
                 input_files_or_dirs=[
-                    standardized_cr_tsv_path, denoised_cr_tsv_path,
-                    self.seq_dict_path
+                    standardized_cr_tsv, denoised_cr_tsv, self.seq_dict
                 ],
                 output_files_or_dirs=[
                     plots_dir.joinpath(f'{run_id}.denoised.png'), plots_dir
@@ -246,23 +336,26 @@ class DenoiseReadCounts(ShellTask):
 
 
 @requires(DenoiseReadCounts)
-class ModelSegments(ShellTask):
+class ModelSegments(VclineTask):
+    normal_allelic_counts_tsv_path = luigi.Parameter()
     seq_dict_path = luigi.Parameter()
     case_allelic_counts_tsv_path = luigi.Parameter(default='')
-    normal_allelic_counts_tsv_path = luigi.Parameter()
-    dest_dir_path = luigi.Parameter()
     cf = luigi.DictParameter()
+    dest_dir_path = luigi.Parameter(default='.')
     min_total_allele_counts = luigi.DictParameter(
         default={'case': 0, 'normal': 30}
     )
     create_plots = luigi.BoolParameter(default=True)
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
     priority = 30
 
     def output(self):
         output_path_prefix = str(
             Path(self.dest_dir_path).joinpath(
                 Path(
-                    create_matched_id(
+                    self.create_matched_id(
                         self.case_allelic_counts_tsv_path,
                         self.normal_allelic_counts_tsv_path
                     ) if self.case_allelic_counts_tsv_path else
@@ -276,73 +369,78 @@ class ModelSegments(ShellTask):
         ]
 
     def run(self):
-        output_file_paths = [o.path for o in self.output()]
-        run_id = Path(Path(output_file_paths[0]).stem).stem
+        output_files = [Path(o.path) for o in self.output()]
+        run_id = Path(output_files[0].stem).stem
         self.print_log(f'Produce denoised copy ratios:\t{run_id}')
         gatk = self.cf['gatk']
-        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         r = self.cf['R']
-        denoised_cr_tsv_path = self.input()[0].path
-        run_dir = Path(output_file_paths[0]).parent
+        denoised_cr_tsv = Path(self.input()[0].path)
+        normal_allelic_counts_tsv = Path(
+            self.normal_allelic_counts_tsv_path
+        ).resolve()
+        run_dir = output_files[0].parent
         if self.case_allelic_counts_tsv_path:
+            case_allelic_counts_tsv = Path(
+                self.case_allelic_counts_tsv_path
+            ).resolve()
             allelic_count_args = (
-                f' --allelic-counts {self.case_allelic_counts_tsv_path}'
-                + ' --normal-allelic-counts'
-                + f' {self.normal_allelic_counts_tsv_path}'
+                f' --allelic-counts {case_allelic_counts_tsv}'
+                + f' --normal-allelic-counts {normal_allelic_counts_tsv}'
                 + ''.join([
                     f' --minimum-total-allele-count-{k} {v}'
                     for k, v in self.min_total_allele_counts.items()
                 ])
             )
-            input_file_paths = [
-                denoised_cr_tsv_path, self.case_allelic_counts_tsv_path,
-                self.normal_allelic_counts_tsv_path
+            input_files = [
+                denoised_cr_tsv, case_allelic_counts_tsv,
+                normal_allelic_counts_tsv
             ]
         else:
             allelic_count_args = (
-                f' --allelic-counts {self.normal_allelic_counts_tsv_path}'
+                f' --allelic-counts {normal_allelic_counts_tsv}'
                 + ' --minimum-total-allele-count-case {}'.format(
                     self.min_total_allele_counts['normal']
                 )
             )
-            input_file_paths = [
-                denoised_cr_tsv_path, self.normal_allelic_counts_tsv_path
-            ]
+            input_files = [denoised_cr_tsv, normal_allelic_counts_tsv]
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'],
-            commands=[gatk, r], cwd=run_dir,
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+            run_id=run_id, commands=[gatk, r], cwd=run_dir, **self.sh_config,
+            env={
+                'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
+                    n_cpu=self.n_cpu, memory_mb=self.memory_mb
+                )
+            }
+
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk}{gatk_opts} ModelSegments'
-                + f' --denoised-copy-ratios {denoised_cr_tsv_path}'
+                f'set -e && {gatk} ModelSegments'
+                + f' --denoised-copy-ratios {denoised_cr_tsv}'
                 + allelic_count_args
                 + f' --output-prefix {run_id}'
                 + f' --output {run_dir}'
             ),
-            input_files_or_dirs=input_file_paths,
-            output_files_or_dirs=[*output_file_paths, run_dir]
+            input_files_or_dirs=input_files,
+            output_files_or_dirs=[*output_files, run_dir]
         )
         if self.create_plots:
             plots_dir = run_dir.joinpath(f'{run_id}.plots')
-            het_allelic_counts_tsv_path = output_file_paths[1]
-            modeled_segments_path = output_file_paths[2]
+            seq_dict = Path(self.seq_dict_path)
+            het_allelic_counts_tsv = output_files[1]
+            modeled_segments = output_files[2]
             self.run_shell(
                 args=(
-                    f'set -e && {gatk}{gatk_opts} PlotModeledSegments'
-                    + f' --denoised-copy-ratios {denoised_cr_tsv_path}'
-                    + f' --allelic-counts {het_allelic_counts_tsv_path}'
-                    + f' --segments {modeled_segments_path}'
-                    + f' --sequence-dictionary {self.seq_dict_path}'
+                    f'set -e && {gatk} PlotModeledSegments'
+                    + f' --denoised-copy-ratios {denoised_cr_tsv}'
+                    + f' --allelic-counts {het_allelic_counts_tsv}'
+                    + f' --segments {modeled_segments}'
+                    + f' --sequence-dictionary {seq_dict}'
                     + f' --output {plots_dir}'
                     + f' --output-prefix {run_id}'
-
                 ),
                 input_files_or_dirs=[
-                    denoised_cr_tsv_path, het_allelic_counts_tsv_path,
-                    modeled_segments_path, self.seq_dict_path
+                    denoised_cr_tsv, het_allelic_counts_tsv, modeled_segments,
+                    seq_dict
                 ],
                 output_files_or_dirs=[
                     plots_dir.joinpath(f'{run_id}.modeled.png'), plots_dir
@@ -351,8 +449,11 @@ class ModelSegments(ShellTask):
 
 
 @requires(ModelSegments)
-class CallCopyRatioSegments(ShellTask):
+class CallCopyRatioSegments(VclineTask):
     cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
     priority = 30
 
     def output(self):
@@ -361,38 +462,42 @@ class CallCopyRatioSegments(ShellTask):
         )
 
     def run(self):
-        cr_seg_path = self.input()[0].path
-        run_id = Path(cr_seg_path).stem
+        cr_seg = Path(self.input()[0].path)
+        run_id = cr_seg.stem
         self.print_log(f'Produce denoised copy ratios:\t{run_id}')
         gatk = self.cf['gatk']
-        gatk_opts = ' --java-options "{}"'.format(self.cf['gatk_java_options'])
         output_seg = Path(self.output().path)
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=output_seg.parent,
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+            run_id=run_id, commands=gatk, cwd=output_seg.parent,
+            **self.sh_config,
+            env={
+                'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
+                    n_cpu=self.n_cpu, memory_mb=self.memory_mb
+                )
+            }
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk}{gatk_opts} CallCopyRatioSegments'
-                + f' --input {cr_seg_path}'
-                + f' --output {output_seg}'
+                f'set -e && {gatk} CallCopyRatioSegments'
+                + f' --input {cr_seg} --output {output_seg}'
             ),
-            input_files_or_dirs=cr_seg_path, output_files_or_dirs=output_seg
+            input_files_or_dirs=cr_seg, output_files_or_dirs=output_seg
         )
 
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal, PreprocessIntervals,
-          FetchReferenceFASTA, CreateSequenceDictionary,
+          FetchReferenceFasta, CreateSequenceDictionary,
           CollectAllelicCountsTumor, CollectAllelicCountsNormal)
 class CallCopyRatioSegmentsTumor(luigi.Task):
     cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
     priority = 30
 
     def output(self):
         run_dir = Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-            create_matched_id(*[i[0].path for i in self.input()[0:2]])
+            self.create_matched_id(*[i[0].path for i in self.input()[0:2]])
         )
         return luigi.LocalTarget(
             run_dir.joinpath(f'{run_dir.name}.cr.called.seg')
@@ -406,22 +511,27 @@ class CallCopyRatioSegmentsTumor(luigi.Task):
             seq_dict_path=self.input()[4].path,
             case_allelic_counts_tsv_path=self.input()[5].path,
             normal_allelic_counts_tsv_path=self.input()[6].path,
-            dest_dir_path=str(Path(self.output().path).parent), cf=self.cf
+            dest_dir_path=str(Path(self.output().path).parent), cf=self.cf,
+            n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+            sh_config=self.sh_config
         )
 
 
 @requires(PrepareCRAMTumor, PrepareCRAMNormal, PreprocessIntervals,
-          FetchReferenceFASTA, CreateSequenceDictionary,
+          FetchReferenceFasta, CreateSequenceDictionary,
           CollectAllelicCountsNormal)
 class CallCopyRatioSegmentsNormal(luigi.Task):
     cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
     priority = 30
 
     def output(self):
         input_cram_paths = [i[0].path for i in self.input()[0:2]]
         return luigi.LocalTarget(
             Path(self.cf['somatic_cnv_gatk_dir_path']).joinpath(
-                create_matched_id(*input_cram_paths)
+                self.create_matched_id(*input_cram_paths)
             ).joinpath(
                 Path(input_cram_paths[1]).stem + '.cr.called.seg'
             )
@@ -434,7 +544,9 @@ class CallCopyRatioSegmentsNormal(luigi.Task):
             fa_path=self.input()[3][0].path,
             seq_dict_path=self.input()[4].path,
             normal_allelic_counts_tsv_path=self.input()[5].path,
-            dest_dir_path=str(Path(self.output().path).parent), cf=self.cf
+            dest_dir_path=str(Path(self.output().path).parent), cf=self.cf,
+            n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+            sh_config=self.sh_config
         )
 
 

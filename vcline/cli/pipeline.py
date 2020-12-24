@@ -9,47 +9,27 @@ from math import floor
 from pathlib import Path
 from pprint import pformat
 
-import luigi
 import yaml
+from ftarc.cli.pipeline import (_has_unique_elements, _parse_fq_id,
+                                _resolve_input_file_paths)
+from ftarc.cli.util import (build_luigi_tasks, fetch_executable, print_log,
+                            read_yml)
 from ftarc.task.controller import PrintEnvVersions
 from psutil import cpu_count, virtual_memory
 
-from ..cli.util import (fetch_executable, load_default_dict, parse_cram_id,
-                        parse_fq_id, print_log, read_yml, render_template)
-from ..task.pipeline import (PrepareCRAMsMatched, PreprocessResources,
-                             RunVariantCaller)
-
-
-def build_luigi_tasks(*args, **kwargs):
-    r = luigi.build(
-        *args,
-        **{
-            k: v for k, v in kwargs.items() if (
-                k not in {'logging_conf_file', 'hide_summary'}
-                or (k == 'logging_conf_file' and v)
-            )
-        },
-        local_scheduler=True, detailed_summary=True
-    )
-    if not kwargs.get('hide_summary'):
-        print(
-            os.linesep
-            + os.linesep.join(['Execution summary:', r.summary_text, str(r)])
-        )
+from ..cli.util import load_default_dict, render_template
+from ..task.controller import RunVariantCaller
+from ..task.cram import PrepareCRAMsMatched
 
 
 def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
-                            ref_dir_path=None, max_n_cpu=None,
-                            max_n_worker=None, skip_cleaning=False,
-                            print_subprocesses=False,
+                            max_n_cpu=None, max_n_worker=None,
+                            skip_cleaning=False, print_subprocesses=False,
                             console_log_level='WARNING',
-                            file_log_level='DEBUG', only_preprocessing=False,
-                            use_bwa_mem2=True):
+                            file_log_level='DEBUG', use_bwa_mem2=True):
     logger = logging.getLogger(__name__)
     logger.info(f'config_yml_path:\t{config_yml_path}')
-    config = _read_config_yml(
-        path=config_yml_path, only_preprocessing=only_preprocessing
-    )
+    config = _read_config_yml(path=config_yml_path)
     runs = config.get('runs')
     logger.info(f'dest_dir_path:\t{dest_dir_path}')
     dest_dir = Path(dest_dir_path).resolve()
@@ -70,13 +50,13 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     default_dict = load_default_dict(stem='example_vcline')
     callers = (
         list(
-            chain.from_iterable([
+            chain.from_iterable(
                 [
                     f'{k}.{c}' for c, b in v.items()
                     if b and c in default_dict['callers'][k]
                 ] for k, v in config['callers'].items()
                 if default_dict['callers'].get(k)
-            ])
+            )
         ) if 'callers' in config else list()
     )
     logger.debug('callers:' + os.linesep + pformat(callers))
@@ -88,45 +68,45 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     logger.debug('annotators:' + os.linesep + pformat(annotators))
 
     command_dict = {
-        c: fetch_executable(c) for c in {
-            'bgzip', 'gatk', 'java', 'pbzip2', 'pigz', 'samtools', 'tabix',
-            *({'bcftools'} if only_preprocessing or callers else set()),
-            *(
-                {'cutadapt', 'fastqc', 'trim_galore'}
-                if adapter_removal else set()
-            ),
-            *(
-                {'python2', 'configureStrelkaSomaticWorkflow.py'}
-                if 'somatic_snv_indel.strelka' in callers else set()
-            ),
-            *({'python3'} if 'germline_snv_indel.gatk' in callers else set()),
-            *(
-                {'python2', 'configureStrelkaGermlineWorkflow.py'}
-                if 'germline_snv_indel.strelka' in callers else set()
-            ),
-            *(
-                {'python2', 'configManta.py'}
-                if 'somatic_sv.manta' in callers else set()
-            ),
-            *(
-                {'bedtools'}
-                if only_preprocessing or 'somatic_sv.delly' in callers
-                else set()
-            ),
-            *({'delly'} if 'somatic_sv.delly' in callers else set()),
-            *({'R'} if 'somatic_cnv.gatk' in callers else set()),
-            *({'snpEff'} if 'snpeff' in annotators else set()),
-            *(
-                {'msisensor'}
-                if only_preprocessing or 'somatic_msi.msisensor' in callers
-                else set()
-            )
+        **(
+            {'bwa': fetch_executable('bwa-mem2' if use_bwa_mem2 else 'bwa')}
+            if read_alignment else dict()
+        ),
+        **{
+            {'msisensor_pro': fetch_executable('msisensor-pro')}
+            if 'somatic_msi.msisensor' in callers else dict()
+        },
+        **{
+            c: fetch_executable(c) for c in {
+                'bgzip', 'gatk', 'java', 'pbzip2', 'pigz', 'samtools', 'tabix',
+                *({'bcftools'} if callers else set()),
+                *(
+                    {'cutadapt', 'fastqc', 'trim_galore'}
+                    if adapter_removal else set()
+                ),
+                *(
+                    {'python2', 'configureStrelkaSomaticWorkflow.py'}
+                    if 'somatic_snv_indel.strelka' in callers else set()
+                ),
+                *(
+                    {'python3'}
+                    if 'germline_snv_indel.gatk' in callers else set()
+                ),
+                *(
+                    {'python2', 'configureStrelkaGermlineWorkflow.py'}
+                    if 'germline_snv_indel.strelka' in callers else set()
+                ),
+                *(
+                    {'python2', 'configManta.py'}
+                    if 'somatic_sv.manta' in callers else set()
+                ),
+                *({'bedtools'} if 'somatic_sv.delly' in callers else set()),
+                *({'delly'} if 'somatic_sv.delly' in callers else set()),
+                *({'R'} if 'somatic_cnv.gatk' in callers else set()),
+                *({'snpEff'} if 'snpeff' in annotators else set())
+            }
         }
     }
-    if only_preprocessing or read_alignment:
-        command_dict['bwa'] = fetch_executable(
-            'bwa-mem2' if use_bwa_mem2 else 'bwa'
-        )
     logger.debug('command_dict:' + os.linesep + pformat(command_dict))
 
     n_cpu = cpu_count()
@@ -137,22 +117,12 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     n_cpu_per_worker = max(1, floor((max_n_cpu or n_cpu) / n_worker))
     memory_mb = virtual_memory().total / 1024 / 1024 / 2
     memory_mb_per_worker = int(memory_mb / n_worker)
+    ucsc_hg = (config.get('reference_version') or 'hg38')
     cf_dict = {
         'log_dir_path': str(log_dir),
-        'ref_dir_path':
-        (str(Path(ref_dir_path).resolve()) if ref_dir_path else None),
         'n_worker': n_worker, 'memory_mb_per_worker': memory_mb_per_worker,
-        'n_cpu_per_worker': n_cpu_per_worker,
-        'gatk_java_options': ' '.join([
-            '-Dsamjdk.compression_level=5',
-            '-Dsamjdk.use_async_io_read_samtools=true',
-            '-Dsamjdk.use_async_io_write_samtools=true',
-            '-Dsamjdk.use_async_io_write_tribble=false',
-            f'-Xmx{memory_mb_per_worker:d}m',
-            '-XX:+UseParallelGC',
-            f'-XX:ParallelGCThreads={n_cpu_per_worker}'
-        ]),
-        'ref_version': (config.get('reference_version') or 'hg38'),
+        'n_cpu_per_worker': n_cpu_per_worker, 'ucsc_hg_version': ucsc_hg,
+        'ncbi_hg_version': ('GRCh37' if ucsc_hg == 'hg19' else 'GRCh38'),
         'exome': bool(config.get('exome')), 'use_bwa_mem2': use_bwa_mem2,
         'adapter_removal': adapter_removal,
         'save_memory': (memory_mb_per_worker < 8 * 1024),
@@ -162,22 +132,17 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
             (k.replace('/', '_') + '_dir_path'): str(dest_dir.joinpath(k))
             for k in {
                 'trim', 'align', 'qc', 'postproc',
-                *chain.from_iterable([
+                *chain.from_iterable(
                     [f'{k}/{c}' for c in v.keys()]
                     for k, v in default_dict['callers'].items()
-                ])
+                )
             }
         },
         **command_dict
     }
     logger.debug('cf_dict:' + os.linesep + pformat(cf_dict))
 
-    if only_preprocessing:
-        resource_keys = {
-            'ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
-            'evaluation_interval', 'hapmap_vcf', 'gnomad_vcf', 'cnv_blacklist'
-        }
-    elif callers:
+    if callers:
         resource_keys = {
             'ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
             'evaluation_interval', 'hapmap_vcf', 'gnomad_vcf', 'cnv_blacklist',
@@ -205,34 +170,26 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     )
     logger.debug('sample_dict_list:' + os.linesep + pformat(sample_dict_list))
 
-    if only_preprocessing:
-        print_log(f'Run the resources preprocessing:\t{dest_dir}')
-        print(
-            yaml.dump([
-                {'workers': n_worker}, {'resources': resource_path_dict}
-            ])
-        )
-    else:
-        print_log(
-            (
-                'Run the analytical pipeline' if callers
-                else 'Prepare CRAM files'
-            ) + f'\t{dest_dir}'
-        )
-        print(
-            yaml.dump([
-                {'workers': n_worker}, {'runs': len(runs)},
-                {'adapter_removal': adapter_removal},
-                {'read_alignment': read_alignment},
-                {'callers': callers}, {'annotators': annotators},
-                {
-                    'samples': [
-                        dict(zip(['tumor', 'normal'], d['sample_names']))
-                        for d in sample_dict_list
-                    ]
-                }
-            ])
-        )
+    print_log(
+        (
+            'Run the analytical pipeline' if callers
+            else 'Prepare CRAM files'
+        ) + f'\t{dest_dir}'
+    )
+    print(
+        yaml.dump([
+            {'workers': n_worker}, {'runs': len(runs)},
+            {'adapter_removal': adapter_removal},
+            {'read_alignment': read_alignment},
+            {'callers': callers}, {'annotators': annotators},
+            {
+                'samples': [
+                    dict(zip(['tumor', 'normal'], d['sample_names']))
+                    for d in sample_dict_list
+                ]
+            }
+        ])
+    )
 
     for d in [dest_dir, log_dir]:
         if not d.is_dir():
@@ -266,13 +223,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
         workers=1, log_level=console_log_level, logging_conf_file=log_cfg_path,
         hide_summary=True
     )
-    if only_preprocessing:
-        build_luigi_tasks(
-            tasks=[PreprocessResources(**resource_path_dict, cf=cf_dict)],
-            workers=n_worker, log_level=console_log_level,
-            logging_conf_file=log_cfg_path
-        )
-    elif callers:
+    if callers:
         build_luigi_tasks(
             tasks=[
                 RunVariantCaller(
@@ -294,7 +245,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
         )
 
 
-def _read_config_yml(path, only_preprocessing=False):
+def _read_config_yml(path):
     config = read_yml(path=Path(path).resolve())
     assert (isinstance(config, dict) and config.get('resources')), config
     assert isinstance(config['resources'], dict), config['resources']
@@ -309,58 +260,32 @@ def _read_config_yml(path, only_preprocessing=False):
                 assert isinstance(s, str), k
         elif v:
             assert isinstance(v, str), k
-    if not only_preprocessing:
-        assert config.get('runs'), config
-        assert isinstance(config['runs'], list), config['runs']
-        for r in config['runs']:
-            assert isinstance(r, dict), r
-            assert set(r.keys()).intersection({'tumor', 'normal'}), r
-            for t in ['tumor', 'normal']:
-                s = r[t]
-                assert isinstance(s, dict), s
-                assert (s.get('fq') or s.get('cram')), s
-                if s.get('fq'):
-                    assert isinstance(s['fq'], list), s
-                    assert _has_unique_elements(s['fq']), s
-                    assert (len(s['fq']) <= 2), s
-                    for p in s['fq']:
-                        assert p.endswith(('.gz', '.bz2')), p
-                else:
-                    assert isinstance(s['cram'], str), s
-                    assert s['cram'].endswith('.cram'), s
-                if s.get('read_group'):
-                    assert isinstance(s['read_group'], dict), s
-                    for k, v in s['read_group'].items():
-                        assert re.fullmatch(r'[A-Z]{2}', k), k
-                        assert isinstance(v, str), k
-                if s.get('sample_name'):
-                    assert isinstance(s['sample_name'], str), s
+    assert config.get('runs'), config
+    assert isinstance(config['runs'], list), config['runs']
+    for r in config['runs']:
+        assert isinstance(r, dict), r
+        assert set(r.keys()).intersection({'tumor', 'normal'}), r
+        for t in ['tumor', 'normal']:
+            s = r[t]
+            assert isinstance(s, dict), s
+            assert (s.get('fq') or s.get('cram')), s
+            if s.get('fq'):
+                assert isinstance(s['fq'], list), s
+                assert _has_unique_elements(s['fq']), s
+                assert (len(s['fq']) <= 2), s
+                for p in s['fq']:
+                    assert p.endswith(('.gz', '.bz2')), p
+            else:
+                assert isinstance(s['cram'], str), s
+                assert s['cram'].endswith('.cram'), s
+            if s.get('read_group'):
+                assert isinstance(s['read_group'], dict), s
+                for k, v in s['read_group'].items():
+                    assert re.fullmatch(r'[A-Z]{2}', k), k
+                    assert isinstance(v, str), k
+            if s.get('sample_name'):
+                assert isinstance(s['sample_name'], str), s
     return config
-
-
-def _has_unique_elements(elements):
-    return len(set(elements)) == len(tuple(elements))
-
-
-def _resolve_file_path(path):
-    p = Path(path).resolve()
-    assert p.is_file(), f'file not found: {p}'
-    return str(p)
-
-
-def _resolve_input_file_paths(path_list=None, path_dict=None):
-    if path_list:
-        return [_resolve_file_path(s) for s in path_list]
-    elif path_dict:
-        new_dict = dict()
-        for k, v in path_dict.items():
-            if isinstance(v, str):
-                new_dict[f'{k}_path'] = _resolve_file_path(v)
-            elif v:
-                new_dict[f'{k}_paths'] = [
-                    _resolve_file_path(s) for s in v
-                ]
-        return new_dict
 
 
 def _determine_input_samples(run_dict):
@@ -372,7 +297,7 @@ def _determine_input_samples(run_dict):
             'fq_list': list(), 'read_groups': list(),
             'cram_list': cram_list,
             'sample_names': [
-                (d.get('sample_name') or parse_cram_id(cram_path=d['cram']))
+                (d.get('sample_name') or _parse_cram_id(cram_path=d['cram']))
                 for d in tn
             ]
         }
@@ -385,7 +310,16 @@ def _determine_input_samples(run_dict):
             'sample_names': [
                 (
                     (d.get('read_group') or dict()).get('SM')
-                    or parse_fq_id(fq_path=d['fq'][0])
+                    or _parse_fq_id(fq_path=d['fq'][0])
                 ) for d in tn
             ]
         }
+
+
+def _parse_cram_id(cram_path):
+    prefix = Path(cram_path).stem
+    if '.trim.' not in prefix:
+        return prefix
+    else:
+        t = Path(cram_path).stem.split('.')
+        return '.'.join(t[:-(t[::-1].index('trim') + 1)])

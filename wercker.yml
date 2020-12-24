@@ -7,7 +7,10 @@ test:
     - script:
         name: Install vcline
         code: |
-          pip install -U https://github.com/dceoy/ftarc/archive/main.tar.gz .
+          pip install -U \
+            https://github.com/dceoy/ftarc/archive/main.tar.gz \
+            https://github.com/dceoy/vanqc/archive/main.tar.gz \
+            .
     - script:
         name: Validate the codes using flake8
         code: |

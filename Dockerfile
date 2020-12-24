@@ -13,7 +13,7 @@ COPY --from=dceoy/gatk:latest /opt/gatk /opt/gatk
 COPY --from=dceoy/manta:latest /opt/manta /opt/manta
 COPY --from=dceoy/strelka:latest /opt/strelka /opt/strelka
 COPY --from=dceoy/delly:latest /usr/local/bin/delly /usr/local/bin/delly
-COPY --from=dceoy/msisensor:latest /usr/local/bin/msisensor /usr/local/bin/msisensor
+COPY --from=dceoy/msisensor-pro:latest /usr/local/bin/msisensor-pro /usr/local/bin/msisensor-pro
 COPY --from=dceoy/snpeff:latest /opt/snpEff /opt/snpEff
 COPY --from=dceoy/vep:latest /usr/local/src/kent /usr/local/src/kent
 COPY --from=dceoy/vep:latest /usr/local/src/bioperl-ext /usr/local/src/bioperl-ext
@@ -30,10 +30,10 @@ RUN set -e \
       && apt-get -y update \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
-        apt-transport-https apt-utils ca-certificates curl g++ gcc gnupg \
-        libbz2-dev libc-dev libcurl4-gnutls-dev libfreetype6-dev libgsl-dev \
-        liblzma-dev libncurses5-dev libperl-dev libpng-dev libssl-dev \
-        libz-dev make pkg-config python r-base \
+        apt-transport-https apt-utils ca-certificates curl file g++ gcc git \
+        gnupg libbz2-dev libc-dev libcurl4-gnutls-dev libfreetype6-dev \
+        libgsl-dev liblzma-dev libncurses5-dev libperl-dev libpng-dev \
+        libssl-dev libz-dev make pkg-config python r-base \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
@@ -55,7 +55,7 @@ RUN set -eo pipefail \
       && /opt/conda/bin/conda env create -n gatk -f /tmp/gatkcondaenv.yml \
       && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
           cutadapt pip https://github.com/dceoy/ftarc/archive/main.tar.gz \
-          /tmp/vcline \
+          https://github.com/dceoy/vanqc/archive/main.tar.gz /tmp/vcline \
       && /opt/conda/bin/conda clean -yaf \
       && find /opt/conda -follow -type f -name '*.a' -delete \
       && find /opt/conda -follow -type f -name '*.pyc' -delete \
@@ -97,25 +97,27 @@ RUN set -e \
       && make \
       && make install \
       && cd /usr/local/src/kent/src/lib \
+      && make clean \
       && export KENT_SRC=/usr/local/src/kent/src \
       && export MACHTYPE=$(uname -m) \
       && export CFLAGS="-fPIC" \
       && export MYSQLINC=`mysql_config --include | sed -e 's/^-I//g'` \
       && export MYSQLLIBS=`mysql_config --libs` \
       && echo 'CFLAGS="-fPIC"' > ../inc/localEnvironment.mk \
-      && make clean \
       && make \
       && cd ../jkOwnLib \
       && make clean \
       && make \
       && cpanm Bio::DB::BigFile Test::Warnings \
       && cd /usr/local/src/bioperl-ext/Bio/Ext/Align \
+      && make clean \
       && perl -pi -e "s|(cd libs.+)CFLAGS=\\\'|\$1CFLAGS=\\\'-fPIC |" \
         Makefile.PL \
       && perl Makefile.PL \
       && make \
       && make install \
       && cd /usr/local/src/ensembl-xs \
+      && make clean \
       && cpanm --installdeps --with-recommends . \
       && perl Makefile.PL \
       && make \

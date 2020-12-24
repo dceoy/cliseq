@@ -2,33 +2,23 @@
 
 import logging
 import os
-import sys
 from itertools import chain
 from pathlib import Path
 
 import luigi
-from ftarc.task.bwa import CreateBWAIndices
-from ftarc.task.picard import CreateSequenceDictionary
-from ftarc.task.resource import (FetchDbsnpVCF, FetchKnownIndelVCF,
-                                 FetchMillsIndelVCF, FetchReferenceFASTA)
 from luigi.tools import deps_tree
-from luigi.util import requires
+from vanqc.task.bcftools import NormalizeVcf
+from vanqc.task.gatk import (AnnotateSegWithFuncotateSegments,
+                             AnnotateVariantsWithFuncotator)
+from vanqc.task.snpeff import AnnotateVariantsWithSnpEff
+from vanqc.task.vep import AnnotateVariantsWithEnsemblVep
 
-from .align import PrepareCRAMNormal, PrepareCRAMTumor
-from .bcftools import NormalizeVCF
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
 from .delly import CallStructualVariantsWithDelly
-from .funcotator import FuncotateSegments, FuncotateVariants
 from .haplotypecaller import FilterVariantTranches
 from .manta import CallStructualVariantsWithManta
-from .msisensor import ScoreMSIWithMSIsensor
+from .msisensorpro import ScoreMsiWithMsisensorPro
 from .mutect2 import FilterMutectCalls
-from .ref import (CreateCnvBlackListBED, CreateEvaluationIntervalListBED,
-                  CreateExclusionIntervalListBED, CreateGnomadBiallelicSnpVCF,
-                  FetchCnvBlackList, FetchEvaluationIntervalList,
-                  FetchGnomadVCF, FetchHapmapVCF, PreprocessIntervals,
-                  ScanMicrosatellites, UncompressEvaluationIntervalListBED)
-from .snpeff import AnnotateVariantsWithSnpEff
 from .strelka import (CallGermlineVariantsWithStrelka,
                       CallSomaticVariantsWithStrelka)
 
@@ -39,6 +29,7 @@ class RunVariantCaller(luigi.Task):
     cram_list = luigi.ListParameter()
     read_groups = luigi.ListParameter()
     sample_names = luigi.ListParameter()
+    cf = luigi.DictParameter()
     dbsnp_vcf_path = luigi.Parameter(default='')
     mills_indel_vcf_path = luigi.Parameter(default='')
     known_indel_vcf_path = luigi.Parameter(default='')
@@ -46,13 +37,16 @@ class RunVariantCaller(luigi.Task):
     gnomad_vcf_path = luigi.Parameter(default='')
     evaluation_interval_path = luigi.Parameter(default='')
     cnv_blacklist_path = luigi.Parameter(default='')
-    funcotator_somatic_tar_path = luigi.Parameter(default='')
-    funcotator_germline_tar_path = luigi.Parameter(default='')
-    snpeff_config_path = luigi.Parameter(default='')
-    cf = luigi.DictParameter()
-    caller = luigi.Parameter()
+    funcotator_somatic_data_dir_path = luigi.Parameter(default='')
+    funcotator_germline_data_dir_path = luigi.Parameter(default='')
+    snpeff_data_dir_path = luigi.Parameter(default='')
+    vep_cache_dir_path = luigi.Parameter(default='')
+    caller = luigi.Parameter(default='')
     annotators = luigi.ListParameter(default=list())
     normalize_vcf = luigi.BoolParameter(default=True)
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
     priority = luigi.IntParameter(default=1000)
 
     def requires(self):
@@ -136,7 +130,7 @@ class RunVariantCaller(luigi.Task):
                 cnv_blacklist_path=self.cnv_blacklist_path, cf=self.cf
             )
         elif 'somatic_msi.msisensor' == self.caller:
-            return ScoreMSIWithMSIsensor(
+            return ScoreMsiWithMsisensorPro(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
                 ref_fa_path=self.ref_fa_path,
@@ -151,21 +145,18 @@ class RunVariantCaller(luigi.Task):
 
     def output(self):
         output_files = list(
-            chain.from_iterable([
+            chain.from_iterable(
                 [
-                    Path(self.cf['postproc_dir_path']).joinpath(
-                        'normalization' if a == 'normalize' else 'annotation'
-                    ).joinpath(
-                        (Path(p).name + f'.{a}.tsv') if p.endswith('.seg')
+                    Path(self.cf['postproc_dir_path']).joinpath(a).joinpath(
+                        (Path(p).stem + f'.{a}.seg.tsv') if p.endswith('.seg')
                         else (
                             Path(Path(p).stem).stem
                             + ('.norm' if self.normalize_vcf else '')
-                            + ('' if a == 'normalize' else f'.{a}')
-                            + '.vcf.gz'
+                            + ('.vcf.gz' if a == 'norm' else f'.{a}.vcf.gz')
                         )
                     )
                 ] for p, a in self._generate_annotation_targets()
-            ])
+            )
         )
         return (
             [luigi.LocalTarget(o) for o in output_files]
@@ -179,7 +170,7 @@ class RunVariantCaller(luigi.Task):
                 yield p, 'funcotator'
             elif p.endswith('.vcf.gz'):
                 if self.normalize_vcf:
-                    yield p, 'normalize'
+                    yield p, 'norm'
                 if ('funcotator' in self.annotators
                         and not self.caller.startswith('somatic_sv.')):
                     yield p, 'funcotator'
@@ -187,88 +178,68 @@ class RunVariantCaller(luigi.Task):
                     yield p, 'snpeff'
 
     def run(self):
+        postproc_dir = Path(self.cf['postproc_dir_path'])
+        norm_dir = postproc_dir.joinpath('norm')
         for p, a in self._generate_annotation_targets():
             if a == 'funcotator':
-                data_src_tar_path = (
-                    self.funcotator_germline_tar_path
+                data_src_dir_path = (
+                    self.funcotator_germline_data_dir_path
                     if self.caller.startswith('germline_')
-                    else self.funcotator_somatic_tar_path
+                    else self.funcotator_somatic_data_dir_path
                 )
                 if p.endswith('.seg'):
-                    yield FuncotateSegments(
-                        input_seg_path=p, ref_fa_path=self.ref_fa_path,
-                        data_src_tar_path=data_src_tar_path, cf=self.cf
+                    yield AnnotateSegWithFuncotateSegments(
+                        input_seg_path=p, fa_path=self.ref_fa_path,
+                        data_src_dir_path=data_src_dir_path,
+                        ref_version=self.cf['ucsc_hg_version'],
+                        dest_dir_path=str(postproc_dir.joinpath(a)),
+                        gatk=self.cf['gatk'], n_cpu=self.n_cpu,
+                        memory_mb=self.memory_mb, sh_config=self.sh_config
                     )
                 else:
-                    yield FuncotateVariants(
-                        input_vcf_path=p, ref_fa_path=self.ref_fa_path,
-                        data_src_tar_path=data_src_tar_path, cf=self.cf,
-                        normalize_vcf=self.normalize_vcf
+                    yield AnnotateVariantsWithFuncotator(
+                        input_vcf_path=p, fa_path=self.ref_fa_path,
+                        data_src_dir_path=data_src_dir_path,
+                        ref_version=self.cf['ucsc_hg_version'],
+                        dest_dir_path=str(postproc_dir.joinpath(a)),
+                        normalize_vcf=self.normalize_vcf,
+                        norm_dir_path=str(norm_dir),
+                        bcftools=self.cf['bcftools'], gatk=self.cf['gatk'],
+                        n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                        sh_config=self.sh_config
                     )
             elif a == 'snpeff':
                 yield AnnotateVariantsWithSnpEff(
-                    input_vcf_path=p,
-                    snpeff_config_path=self.snpeff_config_path,
-                    ref_fa_path=self.ref_fa_path, cf=self.cf,
-                    normalize_vcf=self.normalize_vcf
+                    input_vcf_path=p, fa_path=self.ref_fa_path,
+                    snpeff_data_dir_path=self.snpeff_data_dir_path,
+                    dest_dir_path=str(postproc_dir.joinpath(a)),
+                    genome_version=self.cf['ncbi_hg_version'],
+                    normalize_vcf=self.normalize_vcf,
+                    norm_dir_path=str(norm_dir), bcftools=self.cf['bcftools'],
+                    snpeff=self.cf['snpeff'], bgzip=self.cf['bgzip'],
+                    tabix=self.cf['tabix'], n_cpu=self.n_cpu,
+                    memory_mb=self.memory_mb, sh_config=self.sh_config
                 )
-            elif a == 'normalize' and not self.annotators:
-                ref_target = yield FetchReferenceFASTA(
-                    ref_fa_path=self.ref_fa_path, cf=self.cf
+            elif a == 'vep':
+                yield AnnotateVariantsWithEnsemblVep(
+                    input_vcf_path=p, fa_path=self.ref_fa_path,
+                    cache_dir_path=self.vep_cache_dir_path,
+                    dest_dir_path=str(postproc_dir.joinpath(a)),
+                    normalize_vcf=self.normalize_vcf,
+                    norm_dir_path=str(norm_dir), bcftools=self.cf['bcftools'],
+                    vep=self.cf['vep'], pigz=self.cf['pigz'],
+                    n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                    sh_config=self.sh_config
                 )
-                yield NormalizeVCF(
-                    input_vcf_path=p, fa_path=ref_target[0].path,
-                    dest_dir_path=str(Path(self.output()[0].path).parent),
-                    n_cpu=self.cf['n_cpu_per_worker'],
-                    memory_mb=self.cf['memory_mb_per_worker'],
-                    bcftools=self.cf['bcftools'],
-                    log_dir_path=self.cf['log_dir_path'],
-                    remove_if_failed=self.cf['remove_if_failed'],
-                    quiet=self.cf['quiet']
+            elif a == 'norm' and not self.annotators:
+                yield NormalizeVcf(
+                    input_vcf_path=p, fa_path=self.ref_fa_path,
+                    dest_dir_path=str(norm_dir), bcftools=self.cf['bcftools'],
+                    n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                    sh_config=self.sh_config
                 )
         logger = logging.getLogger(__name__)
         logger.debug('Task tree:' + os.linesep + deps_tree.print_tree(self))
-
-
-@requires(PrepareCRAMTumor, PrepareCRAMNormal)
-class PrepareCRAMsMatched(luigi.WrapperTask):
-    priority = luigi.IntParameter(default=sys.maxsize)
-
-    def output(self):
-        return self.input()
-
-
-@requires(FetchReferenceFASTA, CreateBWAIndices, CreateSequenceDictionary,
-          FetchDbsnpVCF, FetchMillsIndelVCF, FetchKnownIndelVCF,
-          FetchEvaluationIntervalList, CreateEvaluationIntervalListBED,
-          CreateExclusionIntervalListBED, FetchHapmapVCF, FetchGnomadVCF,
-          CreateGnomadBiallelicSnpVCF, FetchCnvBlackList,
-          CreateCnvBlackListBED, ScanMicrosatellites,
-          UncompressEvaluationIntervalListBED)
-class PreprocessResources(luigi.Task):
-    ref_fa_path = luigi.Parameter()
-    evaluation_interval_path = luigi.Parameter()
-    cnv_blacklist_path = luigi.Parameter()
-    cf = luigi.DictParameter()
-    priority = luigi.IntParameter(default=sys.maxsize)
-    __is_completed = False
-
-    def complete(self):
-        return self.__is_completed
-
-    def run(self):
-        yield [
-            PreprocessIntervals(
-                ref_fa_path=self.ref_fa_path,
-                evaluation_interval_path=self.evaluation_interval_path,
-                cnv_blacklist_path=self.cnv_blacklist_path,
-                cf={
-                    k: (bool(i) if k == 'exome' else v)
-                    for k, v in self.cf.items()
-                }
-            ) for i in range(2)
-        ]
-        self.__is_completed = True
 
 
 if __name__ == '__main__':

@@ -11,6 +11,7 @@ Installation
 ```sh
 $ pip install -U \
     https://github.com/dceoy/ftarc/archive/main.tar.gz \
+    https://github.com/dceoy/vanqc/archive/main.tar.gz \
     https://github.com/dceoy/vcline/archive/master.tar.gz
 ```
 
@@ -35,7 +36,9 @@ Dependent commands:
 - configureStrelkaGermlineWorkflow.py
 - delly
 - R
+- msisensor-pro
 - snpEff (`java -jar /path/to/snpEff.jar`)
+- vep
 
 Docker image
 ------------
