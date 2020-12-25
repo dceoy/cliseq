@@ -43,15 +43,14 @@ import os
 from pathlib import Path
 
 from docopt import docopt
-from ftarc.task.downloader import PreprocessResources
-from ftarc.task.util import build_luigi_tasks, fetch_executable, print_log
+from ftarc.cli.util import build_luigi_tasks, fetch_executable, print_log
 from psutil import cpu_count, virtual_memory
 from vanqc.task.gatk import DownloadFuncotatorDataSources
 from vanqc.task.snpeff import DownloadSnpeffDataSources
 from vanqc.task.vep import DownloadEnsemblVepCache
 
 from .. import __version__
-from ..task.resource import WritePassingAfOnlyVcf
+from ..task.downloader import PreprocessResources, WritePassingAfOnlyVcf
 from .pipeline import run_analytical_pipeline
 from .util import load_default_dict, write_config_yml
 
@@ -112,9 +111,8 @@ def main():
             build_luigi_tasks(
                 tasks=[
                     PreprocessResources(
-                        src_url_dict=url_dict,
-                        dest_dir_path=args['--dest-dir'], **command_dict,
-                        n_cpu=n_cpu, memory_mb=memory_mb,
+                        src_url_dict=url_dict, **command_dict, n_cpu=n_cpu,
+                        memory_mb=memory_mb,
                         use_bwa_mem2=args['--use-bwa-mem2'], **common_kwargs
                     ),
                     *(
@@ -129,8 +127,7 @@ def main():
                     *(
                         [
                             DownloadFuncotatorDataSources(
-                                gatk=command_dict['gatk'],
-                                pigz=command_dict['pigz'], n_cpu=n_cpu,
+                                gatk=command_dict['gatk'], n_cpu=n_cpu,
                                 memory_mb=memory_mb, **common_kwargs
                             )
                         ] if 'funcotator' in anns else list()
@@ -140,9 +137,7 @@ def main():
                             DownloadEnsemblVepCache(
                                 genome_version='GRCh38',
                                 vep=fetch_executable('vep'),
-                                wget=command_dict['wget'],
-                                pigz=command_dict['pigz'], n_cpu=n_cpu,
-                                **common_kwargs
+                                wget=command_dict['wget'], **common_kwargs
                             )
                         ] if 'vep' in anns else list()
                     )

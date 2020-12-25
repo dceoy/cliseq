@@ -19,7 +19,7 @@ from psutil import cpu_count, virtual_memory
 
 from ..cli.util import load_default_dict, render_template
 from ..task.controller import RunVariantCaller
-from ..task.cram import PrepareCRAMsMatched
+from ..task.cram import PrepareCramsMatched
 
 
 def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
@@ -237,7 +237,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     else:
         build_luigi_tasks(
             tasks=[
-                PrepareCRAMsMatched(**d, **resource_path_dict, cf=cf_dict)
+                PrepareCramsMatched(**d, **resource_path_dict, cf=cf_dict)
                 for d in sample_dict_list
             ],
             workers=n_worker, log_level=console_log_level,

@@ -10,9 +10,9 @@ from ftarc.task.resource import FetchReferenceFasta
 from luigi.util import requires
 
 from .core import VclineTask
-from .cram import PrepareCRAMNormal, PrepareCRAMTumor
+from .cram import PrepareCramNormal, PrepareCramTumor
 from .haplotypecaller import SplitEvaluationIntervals
-from .resource import (CreateGnomadBiallelicSnpVCF,
+from .resource import (CreateGnomadBiallelicSnpVcf,
                        FetchEvaluationIntervalList, FetchGnomadVcf)
 
 
@@ -73,8 +73,8 @@ class GetPileupSummaries(VclineTask):
         )
 
 
-@requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFasta,
-          FetchEvaluationIntervalList, CreateGnomadBiallelicSnpVCF,
+@requires(PrepareCramTumor, PrepareCramNormal, FetchReferenceFasta,
+          FetchEvaluationIntervalList, CreateGnomadBiallelicSnpVcf,
           CreateSequenceDictionary)
 class CalculateContamination(VclineTask):
     cf = luigi.DictParameter()
@@ -135,7 +135,7 @@ class CalculateContamination(VclineTask):
         )
 
 
-@requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFasta,
+@requires(PrepareCramTumor, PrepareCramNormal, FetchReferenceFasta,
           SplitEvaluationIntervals, FetchGnomadVcf,
           CreateSequenceDictionary)
 class CallVariantsWithMutect2(VclineTask):

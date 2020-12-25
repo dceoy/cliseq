@@ -6,12 +6,12 @@ from pathlib import Path
 
 import luigi
 from ftarc.task.picard import CreateSequenceDictionary
-from ftarc.task.resource import (FetchDbsnpVcf, FetchMillsIndelVCF,
+from ftarc.task.resource import (FetchDbsnpVcf, FetchMillsIndelVcf,
                                  FetchReferenceFasta)
 from luigi.util import requires
 
 from .core import VclineTask
-from .cram import PrepareCRAMNormal
+from .cram import PrepareCramNormal
 from .resource import FetchEvaluationIntervalList, FetchHapmapVcf
 
 
@@ -69,7 +69,7 @@ class SplitEvaluationIntervals(VclineTask):
         )
 
 
-@requires(PrepareCRAMNormal, FetchReferenceFasta, FetchDbsnpVcf,
+@requires(PrepareCramNormal, FetchReferenceFasta, FetchDbsnpVcf,
           SplitEvaluationIntervals, CreateSequenceDictionary)
 class CallVariantsWithHaplotypeCaller(VclineTask):
     cf = luigi.DictParameter()
@@ -328,7 +328,7 @@ class CNNScoreVariants(VclineTask):
         )
 
 
-@requires(CNNScoreVariants, FetchHapmapVcf, FetchMillsIndelVCF,
+@requires(CNNScoreVariants, FetchHapmapVcf, FetchMillsIndelVcf,
           FetchEvaluationIntervalList)
 class FilterVariantTranches(VclineTask):
     cf = luigi.DictParameter()

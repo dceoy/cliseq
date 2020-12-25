@@ -8,7 +8,7 @@ from ftarc.task.samtools import SamtoolsView
 from luigi.util import requires
 
 from .core import VclineTask
-from .cram import PrepareCRAMNormal, PrepareCRAMTumor
+from .cram import PrepareCramNormal, PrepareCramTumor
 from .resource import CreateEvaluationIntervalListBed
 
 
@@ -70,7 +70,7 @@ class UncompressEvaluationIntervalListBed(VclineTask):
         )
 
 
-@requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFasta,
+@requires(PrepareCramTumor, PrepareCramNormal, FetchReferenceFasta,
           ScanMicrosatellites, UncompressEvaluationIntervalListBed)
 class ScoreMsiWithMsisensorPro(VclineTask):
     cf = luigi.DictParameter()

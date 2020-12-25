@@ -10,7 +10,7 @@ from ftarc.task.resource import FetchReferenceFasta
 from luigi.util import requires
 
 from .core import VclineTask
-from .cram import PrepareCRAMNormal, PrepareCRAMTumor
+from .cram import PrepareCramNormal, PrepareCramTumor
 from .resource import CreateEvaluationIntervalListBed
 
 
@@ -74,7 +74,7 @@ class CreateExclusionIntervalListBed(VclineTask):
             self.tabix_tbi(tsv_path=p, tabix=tabix, preset='bed')
 
 
-@requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFasta,
+@requires(PrepareCramTumor, PrepareCramNormal, FetchReferenceFasta,
           CreateExclusionIntervalListBed)
 class CallStructualVariantsWithDelly(VclineTask):
     cf = luigi.DictParameter()

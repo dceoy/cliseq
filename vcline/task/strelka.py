@@ -9,12 +9,12 @@ from ftarc.task.resource import FetchReferenceFasta
 from luigi.util import requires
 
 from .core import VclineTask
-from .cram import PrepareCRAMNormal, PrepareCRAMTumor
+from .cram import PrepareCramNormal, PrepareCramTumor
 from .manta import CallStructualVariantsWithManta
 from .resource import CreateEvaluationIntervalListBed
 
 
-@requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFasta,
+@requires(PrepareCramTumor, PrepareCramNormal, FetchReferenceFasta,
           CreateEvaluationIntervalListBed, CallStructualVariantsWithManta)
 class CallSomaticVariantsWithStrelka(VclineTask):
     cf = luigi.DictParameter()
@@ -91,7 +91,7 @@ class CallSomaticVariantsWithStrelka(VclineTask):
         )
 
 
-@requires(PrepareCRAMNormal, FetchReferenceFasta,
+@requires(PrepareCramNormal, FetchReferenceFasta,
           CreateEvaluationIntervalListBed)
 class CallGermlineVariantsWithStrelka(VclineTask):
     cf = luigi.DictParameter()

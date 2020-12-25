@@ -30,10 +30,13 @@ RUN set -e \
       && apt-get -y update \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
-        apt-transport-https apt-utils ca-certificates curl file g++ gcc git \
-        gnupg libbz2-dev libc-dev libcurl4-gnutls-dev libfreetype6-dev \
-        libgsl-dev liblzma-dev libncurses5-dev libperl-dev libpng-dev \
-        libssl-dev libz-dev make pkg-config python r-base \
+        apt-transport-https apt-utils ca-certificates cpanminus curl file g++ \
+        gcc gfortran git gnupg libblas-dev libbz2-dev libc-dev \
+        libcurl4-gnutls-dev libfontconfig1-dev libfreetype6-dev libgsl-dev \
+        libjpeg-turbo8-dev liblapack-dev liblzma-dev libncurses5-dev \
+        libmysqlclient-dev libperl-dev libpng-dev libssl-dev libudunits2-dev \
+        libxml-dom-xpath-perl libxml-parser-perl libz-dev make pkg-config \
+        python r-base \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*

@@ -9,11 +9,11 @@ from ftarc.task.resource import FetchReferenceFasta
 from luigi.util import requires
 
 from .core import VclineTask
-from .cram import PrepareCRAMNormal, PrepareCRAMTumor
+from .cram import PrepareCramNormal, PrepareCramTumor
 from .resource import CreateEvaluationIntervalListBed
 
 
-@requires(PrepareCRAMTumor, PrepareCRAMNormal, FetchReferenceFasta,
+@requires(PrepareCramTumor, PrepareCramNormal, FetchReferenceFasta,
           CreateEvaluationIntervalListBed)
 class CallStructualVariantsWithManta(VclineTask):
     cf = luigi.DictParameter()

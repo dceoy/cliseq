@@ -9,7 +9,7 @@ from ftarc.task.resource import FetchReferenceFasta
 from luigi.util import requires
 
 from .core import VclineTask
-from .cram import PrepareCRAMNormal, PrepareCRAMTumor
+from .cram import PrepareCramNormal, PrepareCramTumor
 from .haplotypecaller import GenotypeHaplotypeCallerGvcf
 from .resource import FetchCnvBlackList, FetchEvaluationIntervalList
 
@@ -167,7 +167,7 @@ class CollectAllelicCounts(VclineTask):
         )
 
 
-@requires(PrepareCRAMTumor, CreateGermlineSnpIntervalList, FetchReferenceFasta,
+@requires(PrepareCramTumor, CreateGermlineSnpIntervalList, FetchReferenceFasta,
           CreateSequenceDictionary)
 class CollectAllelicCountsTumor(luigi.Task):
     cf = luigi.DictParameter()
@@ -193,7 +193,7 @@ class CollectAllelicCountsTumor(luigi.Task):
         )
 
 
-@requires(PrepareCRAMNormal, CreateGermlineSnpIntervalList,
+@requires(PrepareCramNormal, CreateGermlineSnpIntervalList,
           FetchReferenceFasta, CreateSequenceDictionary)
 class CollectAllelicCountsNormal(luigi.Task):
     cf = luigi.DictParameter()
@@ -485,7 +485,7 @@ class CallCopyRatioSegments(VclineTask):
         )
 
 
-@requires(PrepareCRAMTumor, PrepareCRAMNormal, PreprocessIntervals,
+@requires(PrepareCramTumor, PrepareCramNormal, PreprocessIntervals,
           FetchReferenceFasta, CreateSequenceDictionary,
           CollectAllelicCountsTumor, CollectAllelicCountsNormal)
 class CallCopyRatioSegmentsTumor(luigi.Task):
@@ -517,7 +517,7 @@ class CallCopyRatioSegmentsTumor(luigi.Task):
         )
 
 
-@requires(PrepareCRAMTumor, PrepareCRAMNormal, PreprocessIntervals,
+@requires(PrepareCramTumor, PrepareCramNormal, PreprocessIntervals,
           FetchReferenceFasta, CreateSequenceDictionary,
           CollectAllelicCountsNormal)
 class CallCopyRatioSegmentsNormal(luigi.Task):

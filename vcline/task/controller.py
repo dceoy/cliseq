@@ -10,7 +10,7 @@ from luigi.tools import deps_tree
 from vanqc.task.bcftools import NormalizeVcf
 from vanqc.task.gatk import (AnnotateSegWithFuncotateSegments,
                              AnnotateVariantsWithFuncotator)
-from vanqc.task.snpeff import AnnotateVariantsWithSnpEff
+from vanqc.task.snpeff import AnnotateVariantsWithSnpeff
 from vanqc.task.vep import AnnotateVariantsWithEnsemblVep
 
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
@@ -209,7 +209,7 @@ class RunVariantCaller(luigi.Task):
                         sh_config=self.sh_config
                     )
             elif a == 'snpeff':
-                yield AnnotateVariantsWithSnpEff(
+                yield AnnotateVariantsWithSnpeff(
                     input_vcf_path=p, fa_path=self.ref_fa_path,
                     snpeff_data_dir_path=self.snpeff_data_dir_path,
                     dest_dir_path=str(postproc_dir.joinpath(a)),
