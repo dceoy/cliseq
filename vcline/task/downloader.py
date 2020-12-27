@@ -15,6 +15,73 @@ from .msisensorpro import (ScanMicrosatellites,
 from .resource import CreateCnvBlackListBed, CreateGnomadBiallelicSnpVcf
 
 
+class DownloadGnomadVcfsAndExtractAf(VclineTask):
+    dest_dir_path = luigi.Parameter(default='.')
+    gnomad_version = luigi.Parameter(default='3.1')
+    cloud_storage = luigi.Parameter(default='amazon')
+    wget = luigi.Parameter(default='wget')
+    bgzip = luigi.Parameter(default='bgzip')
+    picard = luigi.Parameter(default='picard')
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
+    priority = 10
+
+    def output(self):
+        output_vcf = Path(self.dest_dir_path).resolve().joinpath(
+            f'gnomad.genomes.v{self.gnomad_version}.sites.af-only.vcf.gz'
+        )
+        return [luigi.LocalTarget(f'{output_vcf}{s}') for s in ['', '.tbi']]
+
+    def run(self):
+        output_vcf = Path(self.output()[0].path)
+        run_id = Path(Path(output_vcf.stem).stem).stem
+        self.print_log(f'Download and process a gnomAD VCF file:\t{run_id}')
+        dest_dir = output_vcf.parent
+        url_root = {
+            'google': 'storage.googleapis.com/gcp-public-data--gnomad',
+            'amazon': 'gnomad-public-us-east-1.s3.amazonaws.com',
+            'microsoft': 'azureopendatastorage.blob.core.windows.net/gnomad'
+        }[self.cloud_storage.lower()]
+        vcf_dict = {
+            (
+                f'https://{url_root}/release/'
+                + f'{self.gnomad_version}/vcf/genomes/'
+                + f'gnomad.genomes.v{self.gnomad_version}.sites.chr{i}.vcf.bgz'
+            ): dest_dir.joinpath(
+                'gnomad.genomes.'
+                + f'v{self.gnomad_version}.sites.chr{i}.af-only.vcf.gz'
+            ) for i in [*range(1, 23), 'X', 'Y', 'M']
+        }
+        pyscript = Path(__file__).resolve().parent.parent.joinpath(
+            'script/extract_af_only_vcf.py'
+        )
+        self.setup_shell(
+            run_id=run_id,
+            commands=[self.wget, self.bgzip, sys.executable, self.picard],
+            cwd=dest_dir, **self.sh_config,
+            env={
+                'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
+                    n_cpu=self.n_cpu, memory_mb=self.memory_mb
+                )
+            }
+        )
+        for u, v in vcf_dict.items():
+            self.run_shell(
+                args=(
+                    f'set -e && {self.wget} -qSL {u} -O -'
+                    + f' | {self.bgzip} -@ {self.n_cpu} -dc'
+                    + f' | {sys.executable} {pyscript} -'
+                    + f' | {self.bgzip} -@ {self.n_cpu} -c > {v}'
+                ),
+                output_files_or_dirs=v
+            )
+        self.picard_mergevcfs(
+            input_vcf_paths=vcf_dict.values(), output_vcf_path=output_vcf,
+            picard=self.picard, remove_input=True
+        )
+
+
 class WritePassingAfOnlyVcf(VclineTask):
     src_path = luigi.Parameter(default='')
     src_url = luigi.Parameter(default='')
@@ -93,20 +160,17 @@ class PreprocessResources(luigi.Task):
     def requires(self):
         return [
             DownloadAndProcessResourceFiles(
-                src_urls=[
-                    v for k, v in self.src_url_dict.items()
-                    if k != 'gnomad_vcf'
-                ],
+                src_urls=list(self.src_url_dict.values()),
                 dest_dir_path=self.dest_dir_path, wget=self.wget,
                 bgzip=self.bgzip, pbzip2=self.pbzip2, pigz=self.pigz,
                 bwa=self.bwa, samtools=self.samtools, tabix=self.tabix,
                 gatk=self.gatk, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
                 use_bwa_mem2=self.use_bwa_mem2, sh_config=self.sh_config
             ),
-            WritePassingAfOnlyVcf(
-                src_url=self.src_url_dict['gnomad_vcf'],
+            DownloadGnomadVcfsAndExtractAf(
                 dest_dir_path=self.dest_dir_path, wget=self.wget,
-                bgzip=self.bgzip, n_cpu=self.n_cpu, sh_config=self.sh_config
+                bgzip=self.bgzip, picard=self.gatk, n_cpu=self.n_cpu,
+                memory_mb=self.memory_mb, sh_config=self.sh_config
             )
         ]
 
@@ -195,7 +259,7 @@ class PreprocessResources(luigi.Task):
                     str(dest_dir.joinpath(Path(self.src_url_dict[k]).name))
                 ) for k in ['ref_fa', 'evaluation_interval', 'cnv_blacklist']
             },
-            'gnomad_vcf': self.input()[1].path
+            'gnomad_vcf': self.input()[1][0].path
         }
 
 

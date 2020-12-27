@@ -122,7 +122,7 @@ class CallStructualVariantsWithDelly(VclineTask):
         self.bcftools_sort(
             input_vcf_path=output_bcf, output_vcf_path=output_vcf,
             bcftools=bcftools, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
-            index_vcf=True
+            index_vcf=True, remove_input=False
         )
 
 

@@ -148,7 +148,7 @@ class VclineTask(ShellTask):
     @classmethod
     def bcftools_concat(cls, input_vcf_paths, output_vcf_path,
                         bcftools='bcftools', n_cpu=1, memory_mb=1024,
-                        index_vcf=True):
+                        index_vcf=True, remove_input=True):
         cls.run_shell(
             args=(
                 f'set -eo pipefail && {bcftools} concat --threads {n_cpu}'
@@ -165,11 +165,13 @@ class VclineTask(ShellTask):
                 vcf_path=output_vcf_path, bcftools=bcftools, n_cpu=n_cpu,
                 tbi=True
             )
+        if remove_input:
+            cls.remove_files_and_dirs(*input_vcf_paths)
 
     @classmethod
     def bcftools_sort(cls, input_vcf_path, output_vcf_path,
                       bcftools='bcftools', n_cpu=1, memory_mb=1024,
-                      index_vcf=True):
+                      index_vcf=True, remove_input=True):
         cls.run_shell(
             args=(
                 f'set -e && {bcftools} sort --max-mem {memory_mb}M'
@@ -185,3 +187,20 @@ class VclineTask(ShellTask):
                 vcf_path=output_vcf_path, bcftools=bcftools, n_cpu=n_cpu,
                 tbi=True
             )
+        if remove_input:
+            cls.remove_files_and_dirs(input_vcf_path)
+
+    @classmethod
+    def picard_mergevcfs(cls, input_vcf_paths, output_vcf_path,
+                         picard='picard', remove_input=True):
+        cls.run_shell(
+            args=(
+                f'set -e && {picard} MergeVcfs'
+                + ''.join([f' --INPUT {v}' for v in input_vcf_paths])
+                + f' --OUTPUT {output_vcf_path}'
+            ),
+            input_files_or_dirs=input_vcf_paths,
+            output_files_or_dirs=[output_vcf_path, f'{output_vcf_path}.tbi']
+        )
+        if remove_input:
+            cls.remove_files_and_dirs(*input_vcf_paths)

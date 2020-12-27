@@ -87,7 +87,7 @@ class CallSomaticVariantsWithStrelka(VclineTask):
                 o for o in result_files if o.name.endswith('.vcf.gz')
             ],
             output_vcf_path=output_vcf, bcftools=bcftools, n_cpu=self.n_cpu,
-            memory_mb=self.memory_mb, index_vcf=True
+            memory_mb=self.memory_mb, index_vcf=True, remove_input=False
         )
 
 

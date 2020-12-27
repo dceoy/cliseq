@@ -214,6 +214,10 @@ class CallVariantsWithMutect2(VclineTask):
             )
         else:
             tmp_vcfs = [Path(f'{s}.vcf.gz') for s in tmp_prefixes]
+            self.picard_mergevcfs(
+                input_vcf_paths=tmp_vcfs, output_vcf_path=output_vcf,
+                picard=gatk, remove_input=False
+            )
             self.run_shell(
                 args=(
                     f'set -e && {gatk} MergeVcfs'
