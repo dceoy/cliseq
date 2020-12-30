@@ -12,6 +12,50 @@ from luigi.util import requires
 from .core import VclineTask
 
 
+class FetchDbsnpVcf(luigi.WrapperTask):
+    dbsnp_vcf_path = luigi.Parameter()
+    sh_config = luigi.DictParameter(default=dict())
+    cf = luigi.DictParameter()
+    priority = 70
+
+    def requires(self):
+        return FetchResourceVcf(
+            src_path=self.dbsnp_vcf_path, cf=self.cf, sh_config=self.sh_config
+        )
+
+    def output(self):
+        return self.input()
+
+
+class FetchMillsIndelVcf(luigi.WrapperTask):
+    mills_indel_vcf_path = luigi.Parameter()
+    sh_config = luigi.DictParameter(default=dict())
+    cf = luigi.DictParameter()
+    priority = 70
+
+    def requires(self):
+        return FetchResourceVcf(
+            src_path=self.mills_indel_vcf_path, cf=self.cf,
+            sh_config=self.sh_config
+        )
+
+    def output(self):
+        return self.input()
+
+
+class FetchKnownIndelVcf(luigi.WrapperTask):
+    known_indel_vcf_path = luigi.Parameter()
+    sh_config = luigi.DictParameter(default=dict())
+    cf = luigi.DictParameter()
+    priority = 70
+
+    def requires(self):
+        return FetchResourceVcf(
+            src_path=self.known_indel_vcf_path, cf=self.cf,
+            sh_config=self.sh_config
+        )
+
+
 class FetchEvaluationIntervalList(luigi.WrapperTask):
     evaluation_interval_path = luigi.Parameter()
     cf = luigi.DictParameter()

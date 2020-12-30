@@ -6,13 +6,12 @@ from pathlib import Path
 
 import luigi
 from ftarc.task.picard import CreateSequenceDictionary
-from ftarc.task.resource import (FetchDbsnpVcf, FetchMillsIndelVcf,
-                                 FetchReferenceFasta)
 from luigi.util import requires
 
 from .core import VclineTask
 from .cram import PrepareCramNormal
-from .resource import FetchEvaluationIntervalList, FetchHapmapVcf
+from .resource import (FetchDbsnpVcf, FetchEvaluationIntervalList,
+                       FetchHapmapVcf, FetchMillsIndelVcf, FetchReferenceFasta)
 
 
 @requires(FetchEvaluationIntervalList, FetchReferenceFasta,

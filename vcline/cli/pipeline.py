@@ -10,14 +10,12 @@ from pathlib import Path
 from pprint import pformat
 
 import yaml
-from ftarc.cli.pipeline import (_has_unique_elements, _parse_fq_id,
-                                _resolve_input_file_paths)
-from ftarc.cli.util import (build_luigi_tasks, fetch_executable, print_log,
-                            read_yml)
+from ftarc.cli.util import (build_luigi_tasks, fetch_executable, parse_fq_id,
+                            print_log, read_yml)
 from ftarc.task.controller import PrintEnvVersions
 from psutil import cpu_count, virtual_memory
 
-from ..cli.util import load_default_dict, render_template
+from ..cli.util import load_default_dict, parse_cram_id, render_template
 from ..task.controller import RunVariantCaller
 from ..task.cram import PrepareCramsMatched
 
@@ -153,7 +151,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
         resource_keys = {
             'ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf'
         }
-    resource_path_dict = _resolve_input_file_paths(
+    resource_path_dict = _resolve_input_paths(
         path_dict={
             k: v for k, v in config['resources'].items() if k in resource_keys
         }
@@ -251,15 +249,11 @@ def _read_config_yml(path):
     assert isinstance(config['resources'], dict), config['resources']
     for k in ['ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
               'hapmap_vcf', 'gnomad_vcf', 'evaluation_interval',
-              'funcotator_germline_tar', 'funcotator_somatic_tar',
-              'snpeff_config']:
+              'cnv_blacklist', 'funcotator_germline_data_dir',
+              'funcotator_somatic_data_dir', 'snpeff_data_dir',
+              'vep_cache_dir']:
         v = config['resources'].get(k)
-        if k == 'ref_fa' and isinstance(v, list) and v:
-            assert _has_unique_elements(v), k
-            for s in v:
-                assert isinstance(s, str), k
-        elif v:
-            assert isinstance(v, str), k
+        assert isinstance(v, str), k
     assert config.get('runs'), config
     assert isinstance(config['runs'], list), config['runs']
     for r in config['runs']:
@@ -288,38 +282,52 @@ def _read_config_yml(path):
     return config
 
 
+def _has_unique_elements(elements):
+    return len(set(elements)) == len(tuple(elements))
+
+
+def _resolve_path(path, is_dir=False):
+    p = Path(path).resolve()
+    if is_dir:
+        assert p.is_dir(), f'directory not found: {p}'
+    else:
+        assert p.is_file(), f'file not found: {p}'
+    return str(p)
+
+
+def _resolve_input_paths(path_list=None, path_dict=None):
+    if path_list:
+        return [_resolve_path(s) for s in path_list]
+    elif path_dict:
+        return {
+            f'{k}_path': _resolve_path(v, is_dir=k.endswith('_dir'))
+            for k, v in path_dict.items()
+        }
+
+
 def _determine_input_samples(run_dict):
     tn = [run_dict[i] for i in ['tumor', 'normal']]
     cram_paths = [d.get('cram') for d in tn]
     if all(cram_paths):
-        cram_list = _resolve_input_file_paths(path_list=cram_paths)
+        cram_list = _resolve_input_paths(path_list=cram_paths)
         return {
             'fq_list': list(), 'read_groups': list(),
             'cram_list': cram_list,
             'sample_names': [
-                (d.get('sample_name') or _parse_cram_id(cram_path=d['cram']))
+                (d.get('sample_name') or parse_cram_id(cram_path=d['cram']))
                 for d in tn
             ]
         }
     else:
         return {
             'fq_list':
-            [list(_resolve_input_file_paths(path_list=d['fq'])) for d in tn],
+            [list(_resolve_input_paths(path_list=d['fq'])) for d in tn],
             'read_groups': [(d.get('read_group') or dict()) for d in tn],
             'cram_list': list(),
             'sample_names': [
                 (
                     (d.get('read_group') or dict()).get('SM')
-                    or _parse_fq_id(fq_path=d['fq'][0])
+                    or parse_fq_id(fq_path=d['fq'][0])
                 ) for d in tn
             ]
         }
-
-
-def _parse_cram_id(cram_path):
-    prefix = Path(cram_path).stem
-    if '.trim.' not in prefix:
-        return prefix
-    else:
-        t = Path(cram_path).stem.split('.')
-        return '.'.join(t[:-(t[::-1].index('trim') + 1)])

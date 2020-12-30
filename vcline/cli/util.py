@@ -37,3 +37,12 @@ def load_default_dict(stem):
     return read_yml(
         path=Path(__file__).parent.parent.joinpath(f'static/{stem}.yml')
     )
+
+
+def parse_cram_id(cram_path):
+    prefix = Path(cram_path).stem
+    if '.trim.' not in prefix:
+        return prefix
+    else:
+        t = Path(cram_path).stem.split('.')
+        return '.'.join(t[:-(t[::-1].index('trim') + 1)])

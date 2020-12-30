@@ -35,10 +35,11 @@ class PrepareCramTumor(luigi.WrapperTask):
             else PrepareAnalysisReadyCram(
                 fq_paths=self.fq_list[0], read_group=self.read_groups[0],
                 sample_name=self.sample_names[0], ref_fa_path=self.ref_fa_path,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf,
-                n_cpu=self.n_cpu, memory_mb=self.memory_mb
+                known_sites_vcf_paths=[
+                    self.dbsnp_vcf_path, self.mills_indel_vcf_path,
+                    self.known_indel_vcf_path,
+                ],
+                cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb
             )
         )
 
@@ -73,10 +74,11 @@ class PrepareCramNormal(luigi.WrapperTask):
             else PrepareAnalysisReadyCram(
                 fq_paths=self.fq_list[1], read_group=self.read_groups[1],
                 sample_name=self.sample_names[1], ref_fa_path=self.ref_fa_path,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path, cf=self.cf,
-                n_cpu=self.n_cpu, memory_mb=self.memory_mb
+                known_sites_vcf_paths=[
+                    self.dbsnp_vcf_path, self.mills_indel_vcf_path,
+                    self.known_indel_vcf_path,
+                ],
+                cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb
             )
         )
 
