@@ -31,12 +31,13 @@ RUN set -e \
       && apt-get -y dist-upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
         apt-transport-https apt-utils ca-certificates cpanminus curl file g++ \
-        gcc gfortran git gnupg libblas-dev libbz2-dev libc-dev \
-        libcurl4-gnutls-dev libfontconfig1-dev libfreetype6-dev libgsl-dev \
-        libjpeg-turbo8-dev liblapack-dev liblzma-dev libncurses5-dev \
-        libmysqlclient-dev libperl-dev libpng-dev libssl-dev libudunits2-dev \
-        libxml-dom-xpath-perl libxml-parser-perl libz-dev make pkg-config \
-        python r-base \
+        gcc gfortran git gnupg gtk-doc-tools libblas-dev libbz2-dev libc-dev \
+        libcairo2-dev libcurl4-gnutls-dev libfontconfig1-dev libfreetype6-dev \
+        libgdal-dev libgsl-dev libgeos-dev libgit2-dev libgsl-dev \
+        libjpeg-turbo8-dev liblapack-dev liblzma-dev libmysqlclient-dev \
+        libncurses5-dev libperl-dev libpng-dev libpq-dev libssl-dev \
+        libudunits2-dev libxml-dom-xpath-perl libxml-parser-perl libxml2-dev \
+        libz-dev make pkg-config python r-base \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
@@ -57,8 +58,8 @@ RUN set -eo pipefail \
         /opt/gatk/gatkcondaenv.yml > /tmp/gatkcondaenv.yml \
       && /opt/conda/bin/conda env create -n gatk -f /tmp/gatkcondaenv.yml \
       && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
-          cutadapt pip https://github.com/dceoy/ftarc/archive/main.tar.gz \
-          https://github.com/dceoy/vanqc/archive/main.tar.gz /tmp/vcline \
+          cutadapt pip https://github.com/dceoy/vanqc/archive/main.tar.gz \
+          /tmp/vcline \
       && /opt/conda/bin/conda clean -yaf \
       && find /opt/conda -follow -type f -name '*.a' -delete \
       && find /opt/conda -follow -type f -name '*.pyc' -delete \

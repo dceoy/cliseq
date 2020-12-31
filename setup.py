@@ -15,11 +15,12 @@ setup(
     description='Analytical pipeline for clinical DNA sequencing data',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='git@github.com:dceoy/vcline.git',
+    url='https://github.com/dceoy/vcline.git',
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        'docopt', 'jinja2', 'luigi', 'pip', 'psutil', 'pyyaml', 'shoper'
+        'docopt', 'ftarc', 'jinja2', 'luigi', 'pip', 'psutil', 'pyyaml',
+        'shoper'
     ],
     entry_points={
         'console_scripts': ['vcline=vcline.cli.main:main']
