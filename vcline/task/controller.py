@@ -2,8 +2,10 @@
 
 import logging
 import os
+import sys
 from itertools import chain
 from pathlib import Path
+from socket import gethostname
 
 import luigi
 from luigi.tools import deps_tree
@@ -14,6 +16,7 @@ from vanqc.task.snpeff import AnnotateVariantsWithSnpeff
 from vanqc.task.vep import AnnotateVariantsWithEnsemblVep
 
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
+from .core import VclineTask
 from .delly import CallStructualVariantsWithDelly
 from .haplotypecaller import FilterVariantTranches
 from .manta import CallStructualVariantsWithManta
@@ -21,6 +24,44 @@ from .msisensorpro import ScoreMsiWithMsisensorPro
 from .mutect2 import FilterMutectCalls
 from .strelka import (CallGermlineVariantsWithStrelka,
                       CallSomaticVariantsWithStrelka)
+
+
+class PrintEnvVersions(VclineTask):
+    command_paths = luigi.ListParameter(default=list())
+    run_id = luigi.Parameter(default=gethostname())
+    sh_config = luigi.DictParameter(default=dict())
+    __is_completed = False
+
+    def complete(self):
+        return self.__is_completed
+
+    def run(self):
+        python = sys.executable
+        self.print_log(f'Print environment versions: {python}')
+        version_files = [
+            Path('/proc/version'),
+            *[
+                o for o in Path('/etc').iterdir()
+                if o.name.endswith(('-release', '_version'))
+            ]
+        ]
+        self.setup_shell(
+            run_id=self.run_id, commands=[python, *self.command_paths],
+            **self.sh_config
+        )
+        self.run_shell(
+            args=[
+                f'{python} -m pip --version',
+                f'{python} -m pip freeze --no-cache-dir'
+            ]
+        )
+        self.run_shell(
+            args=[
+                'uname -a',
+                *[f'cat {o}' for o in version_files if o.is_file()]
+            ]
+        )
+        self.__is_completed = True
 
 
 class RunVariantCaller(luigi.Task):

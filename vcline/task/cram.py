@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sys
+from pathlib import Path
 
 import luigi
 from ftarc.task.controller import PrepareAnalysisReadyCram
@@ -24,15 +25,19 @@ class PrepareCramTumor(luigi.WrapperTask):
     priority = luigi.IntParameter(default=100)
 
     def requires(self):
-        return (
-            SamtoolsView(
-                input_sam_path=self.cram_list[0],
-                output_sam_path=self.output()[0].path,
+        if self.cram_list:
+            input_sam = Path(self.cram_list[0])
+            return SamtoolsView(
+                input_sam_path=str(input_sam),
+                output_sam_path=str(
+                    input_sam.parent.joinpath(f'{input_sam.stem}.cram')
+                ),
                 fa_path=self.ref_fa_path, samtools=self.cf['samtools'],
                 n_cpu=self.n_cpu, remove_input=False,
                 index_sam=True, sh_config=self.sh_config
-            ) if self.cram_list
-            else PrepareAnalysisReadyCram(
+            )
+        else:
+            return PrepareAnalysisReadyCram(
                 fq_paths=self.fq_list[0], read_group=self.read_groups[0],
                 sample_name=self.sample_names[0], ref_fa_path=self.ref_fa_path,
                 known_sites_vcf_paths=[
@@ -41,7 +46,6 @@ class PrepareCramTumor(luigi.WrapperTask):
                 ],
                 cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb
             )
-        )
 
     def output(self):
         return self.input()
@@ -63,15 +67,19 @@ class PrepareCramNormal(luigi.WrapperTask):
     priority = luigi.IntParameter(default=100)
 
     def requires(self):
-        return (
-            SamtoolsView(
-                input_sam_path=self.cram_list[1],
-                output_sam_path=self.output()[0].path,
+        if self.cram_list:
+            input_sam = Path(self.cram_list[1])
+            return SamtoolsView(
+                input_sam_path=str(input_sam),
+                output_sam_path=str(
+                    input_sam.parent.joinpath(f'{input_sam.stem}.cram')
+                ),
                 fa_path=self.ref_fa_path, samtools=self.cf['samtools'],
                 n_cpu=self.n_cpu, remove_input=False,
                 index_sam=True, sh_config=self.sh_config
-            ) if self.cram_list
-            else PrepareAnalysisReadyCram(
+            )
+        else:
+            return PrepareAnalysisReadyCram(
                 fq_paths=self.fq_list[1], read_group=self.read_groups[1],
                 sample_name=self.sample_names[1], ref_fa_path=self.ref_fa_path,
                 known_sites_vcf_paths=[
@@ -80,7 +88,6 @@ class PrepareCramNormal(luigi.WrapperTask):
                 ],
                 cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb
             )
-        )
 
     def output(self):
         return self.input()

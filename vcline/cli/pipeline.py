@@ -12,11 +12,10 @@ from pprint import pformat
 import yaml
 from ftarc.cli.util import (build_luigi_tasks, fetch_executable, parse_fq_id,
                             print_log, read_yml)
-from ftarc.task.controller import PrintEnvVersions
 from psutil import cpu_count, virtual_memory
 
 from ..cli.util import load_default_dict, parse_cram_id, render_template
-from ..task.controller import RunVariantCaller
+from ..task.controller import PrintEnvVersions, RunVariantCaller
 from ..task.cram import PrepareCramsMatched
 
 
@@ -46,6 +45,15 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     logger.debug(f'adapter_removal:\t{adapter_removal}')
 
     default_dict = load_default_dict(stem='example_vcline')
+    metrics_collectors = (
+        [
+            k for k in default_dict['metrics_collectors']
+            if config['metrics_collectors'].get(k)
+        ] if 'metrics_collectors' in config else list()
+    )
+    logger.debug(
+        'metrics_collectors:' + os.linesep + pformat(metrics_collectors)
+    )
     callers = (
         list(
             chain.from_iterable(
@@ -58,7 +66,6 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
         ) if 'callers' in config else list()
     )
     logger.debug('callers:' + os.linesep + pformat(callers))
-
     annotators = (
         [k for k in default_dict['annotators'] if config['annotators'].get(k)]
         if 'annotators' in config else list()
@@ -70,10 +77,10 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
             {'bwa': fetch_executable('bwa-mem2' if use_bwa_mem2 else 'bwa')}
             if read_alignment else dict()
         ),
-        **{
+        **(
             {'msisensor_pro': fetch_executable('msisensor-pro')}
             if 'somatic_msi.msisensor' in callers else dict()
-        },
+        ),
         **{
             c: fetch_executable(c) for c in {
                 'bgzip', 'gatk', 'java', 'pbzip2', 'pigz', 'samtools', 'tabix',
@@ -117,15 +124,13 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     memory_mb_per_worker = int(memory_mb / n_worker)
     ucsc_hg = (config.get('reference_version') or 'hg38')
     cf_dict = {
-        'log_dir_path': str(log_dir),
-        'n_worker': n_worker, 'memory_mb_per_worker': memory_mb_per_worker,
-        'n_cpu_per_worker': n_cpu_per_worker, 'ucsc_hg_version': ucsc_hg,
+        'reference_name': config.get('reference_name'),
+        'use_bwa_mem2': use_bwa_mem2, 'adapter_removal': adapter_removal,
+        'metrics_collectors': metrics_collectors,
+        'save_memory': (memory_mb_per_worker < 8192),
+        'n_worker': n_worker, 'ucsc_hg_version': ucsc_hg,
         'ncbi_hg_version': ('GRCh37' if ucsc_hg == 'hg19' else 'GRCh38'),
-        'exome': bool(config.get('exome')), 'use_bwa_mem2': use_bwa_mem2,
-        'adapter_removal': adapter_removal,
-        'save_memory': (memory_mb_per_worker < 8 * 1024),
-        'remove_if_failed': (not skip_cleaning),
-        'quiet': (not print_subprocesses),
+        'exome': bool(config.get('exome')),
         **{
             (k.replace('/', '_') + '_dir_path'): str(dest_dir.joinpath(k))
             for k in {
@@ -139,6 +144,13 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
         **command_dict
     }
     logger.debug('cf_dict:' + os.linesep + pformat(cf_dict))
+
+    sh_config = {
+        'log_dir_path': str(log_dir), 'remove_if_failed': (not skip_cleaning),
+        'quiet': (not print_subprocesses),
+        'executable': fetch_executable('bash')
+    }
+    logger.debug('sh_config:' + os.linesep + pformat(sh_config))
 
     if callers:
         resource_keys = {
@@ -214,8 +226,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     build_luigi_tasks(
         tasks=[
             PrintEnvVersions(
-                log_dir_path=str(log_dir),
-                command_paths=list(command_dict.values())
+                command_paths=list(command_dict.values()), sh_config=sh_config
             )
         ],
         workers=1, log_level=console_log_level, logging_conf_file=log_cfg_path,
@@ -226,7 +237,8 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
             tasks=[
                 RunVariantCaller(
                     **d, **resource_path_dict, cf=cf_dict, caller=c,
-                    annotators=annotators
+                    annotators=annotators, n_cpu=n_cpu_per_worker,
+                    memory_mb=memory_mb_per_worker, sh_config=sh_config
                 ) for d, c in product(sample_dict_list, callers)
             ],
             workers=n_worker, log_level=console_log_level,
@@ -235,8 +247,9 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     else:
         build_luigi_tasks(
             tasks=[
-                PrepareCramsMatched(**d, **resource_path_dict, cf=cf_dict)
-                for d in sample_dict_list
+                PrepareCramsMatched(
+                    **d, **resource_path_dict, cf=cf_dict, sh_config=sh_config
+                ) for d in sample_dict_list
             ],
             workers=n_worker, log_level=console_log_level,
             logging_conf_file=log_cfg_path

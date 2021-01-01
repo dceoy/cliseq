@@ -488,7 +488,7 @@ class CallCopyRatioSegments(VclineTask):
 @requires(PrepareCramTumor, PrepareCramNormal, PreprocessIntervals,
           FetchReferenceFasta, CreateSequenceDictionary,
           CollectAllelicCountsTumor, CollectAllelicCountsNormal)
-class CallCopyRatioSegmentsTumor(luigi.Task):
+class CallCopyRatioSegmentsTumor(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)
@@ -520,7 +520,7 @@ class CallCopyRatioSegmentsTumor(luigi.Task):
 @requires(PrepareCramTumor, PrepareCramNormal, PreprocessIntervals,
           FetchReferenceFasta, CreateSequenceDictionary,
           CollectAllelicCountsNormal)
-class CallCopyRatioSegmentsNormal(luigi.Task):
+class CallCopyRatioSegmentsNormal(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)

@@ -20,7 +20,7 @@ callers:
 annotators:
   funcotator: true
   snpeff: true
-  ensembl_vep: true
+  vep: true
 resources:  # These files can be downloaded with vcline download-resources.
   ref_fa: /path/to/hg38.fa
   dbsnp_vcf: /path/to/Homo_sapiens_assembly38.dbsnp138.vcf.gz
