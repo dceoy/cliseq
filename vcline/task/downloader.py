@@ -7,12 +7,13 @@ from pathlib import Path
 import luigi
 from ftarc.task.downloader import DownloadAndProcessResourceFiles
 
-from .callcopyratiosegments import PreprocessIntervals
+from .callcopyratiosegments import (CreateGnomadSnpIntervalList,
+                                    PreprocessIntervals)
 from .core import VclineTask
 from .delly import CreateExclusionIntervalListBed
 from .msisensorpro import (ScanMicrosatellites,
                            UncompressEvaluationIntervalListBed)
-from .resource import CreateCnvBlackListBed, CreateGnomadBiallelicSnpVcf
+from .resource import CreateCnvBlackListBed
 
 
 class DownloadGnomadVcfsAndExtractAf(VclineTask):
@@ -220,7 +221,7 @@ class PreprocessResources(luigi.Task):
                 evaluation_interval_path=path_dict['evaluation_interval'],
                 cf=cf, n_cpu=self.n_cpu, sh_config=self.sh_config
             ),
-            CreateGnomadBiallelicSnpVcf(
+            CreateGnomadSnpIntervalList(
                 gnomad_vcf_path=path_dict['gnomad_vcf'],
                 ref_fa_path=path_dict['ref_fa'],
                 evaluation_interval_path=path_dict['evaluation_interval'],

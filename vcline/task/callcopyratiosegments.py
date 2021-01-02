@@ -10,7 +10,7 @@ from luigi.util import requires
 
 from .core import VclineTask
 from .cram import PrepareCramNormal, PrepareCramTumor
-from .haplotypecaller import GenotypeHaplotypeCallerGvcf
+from .mutect2 import CreateGnomadBiallelicSnpVcf
 from .resource import FetchCnvBlackList, FetchEvaluationIntervalList
 
 
@@ -77,8 +77,8 @@ class PreprocessIntervals(VclineTask):
         )
 
 
-@requires(GenotypeHaplotypeCallerGvcf)
-class CreateGermlineSnpIntervalList(VclineTask):
+@requires(CreateGnomadBiallelicSnpVcf)
+class CreateGnomadSnpIntervalList(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)
@@ -86,16 +86,15 @@ class CreateGermlineSnpIntervalList(VclineTask):
     priority = 30
 
     def output(self):
+        input_vcf = Path(self.input()[0].path)
         return luigi.LocalTarget(
-            Path(self.cf['qc_dir_path']).joinpath('cnv').joinpath(
-                Path(self.input()[0].path).stem + '.interval_list'
-            )
+            input_vcf.parent.joinpath(f'{input_vcf.stem}.interval_list')
         )
 
     def run(self):
         input_vcf = Path(self.input()[0].path)
         run_id = input_vcf.stem
-        self.print_log(f'Create a germline SNP interval_list:\t{run_id}')
+        self.print_log(f'Create a gnomAD SNP interval_list:\t{run_id}')
         gatk = self.cf['gatk']
         output_interval = Path(self.output().path)
         self.setup_shell(
@@ -167,7 +166,7 @@ class CollectAllelicCounts(VclineTask):
         )
 
 
-@requires(PrepareCramTumor, CreateGermlineSnpIntervalList, FetchReferenceFasta,
+@requires(PrepareCramTumor, CreateGnomadSnpIntervalList, FetchReferenceFasta,
           CreateSequenceDictionary)
 class CollectAllelicCountsTumor(luigi.Task):
     cf = luigi.DictParameter()
@@ -193,8 +192,8 @@ class CollectAllelicCountsTumor(luigi.Task):
         )
 
 
-@requires(PrepareCramNormal, CreateGermlineSnpIntervalList,
-          FetchReferenceFasta, CreateSequenceDictionary)
+@requires(PrepareCramNormal, CreateGnomadSnpIntervalList, FetchReferenceFasta,
+          CreateSequenceDictionary)
 class CollectAllelicCountsNormal(luigi.Task):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
