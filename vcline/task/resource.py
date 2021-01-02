@@ -143,7 +143,7 @@ class CreateGnomadBiallelicSnpVcf(VclineTask):
         return [
             luigi.LocalTarget(
                 input_vcf.parent.joinpath(
-                    Path(input_vcf.stem).stem + '.biallelic_snp.vcf.gz' + s
+                    Path(input_vcf.stem).stem + f'.biallelic_snp.vcf.gz{s}'
                 )
             ) for s in ['', '.tbi']
         ]
@@ -153,12 +153,11 @@ class CreateGnomadBiallelicSnpVcf(VclineTask):
         run_id = input_vcf.stem
         self.print_log(f'Create a common biallelic SNP VCF:\t{run_id}')
         gatk = self.cf['gatk']
-        tabix = self.cf['tabix']
         fa = Path(self.input()[1][0].path)
         evaluation_interval = Path(self.input()[2].path)
         biallelic_snp_vcf = Path(self.output()[0].path)
         self.setup_shell(
-            run_id=run_id, commands=[gatk, tabix], cwd=input_vcf.parent,
+            run_id=run_id, commands=gatk, cwd=input_vcf.parent,
             **self.sh_config,
             env={
                 'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
@@ -178,9 +177,10 @@ class CreateGnomadBiallelicSnpVcf(VclineTask):
                 + ' --lenient'
             ),
             input_files_or_dirs=[input_vcf, fa, evaluation_interval],
-            output_files_or_dirs=biallelic_snp_vcf
+            output_files_or_dirs=[
+                biallelic_snp_vcf, f'{biallelic_snp_vcf}.tbi'
+            ]
         )
-        self.tabix_tbi(tsv_path=biallelic_snp_vcf, tabix=tabix, preset='vcf')
 
 
 class FetchCnvBlackList(luigi.WrapperTask):
@@ -211,7 +211,7 @@ class CreateCnvBlackListBed(VclineTask):
         blacklist = Path(self.input().path)
         return [
             luigi.LocalTarget(
-                blacklist.parent.joinpath(blacklist.stem + '.bed.gz' + s)
+                blacklist.parent.joinpath(blacklist.stem + f'.bed.gz{s}')
             ) for s in ['', '.tbi']
         ]
 

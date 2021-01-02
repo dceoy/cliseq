@@ -28,7 +28,7 @@ class ScanMicrosatellites(VclineTask):
         fa = Path(self.input()[0].path)
         run_id = fa.stem
         self.print_log(f'Scan microsatellites:\t{run_id}')
-        msisensor_pro = self.cf['msisensor_pro']
+        msisensor_pro = self.cf['msisensor-pro']
         output_tsv = Path(self.output().path)
         self.setup_shell(
             run_id=run_id, commands=msisensor_pro, cwd=fa.parent,
@@ -104,7 +104,7 @@ class ScoreMsiWithMsisensorPro(VclineTask):
         ]
         run_id = run_dir.name
         self.print_log(f'Score MSI with MSIsensor-pro:\t{run_id}')
-        msisensor_pro = self.cf['msisensor_pro']
+        msisensor_pro = self.cf['msisensor-pro']
         bams = [Path(i[0].path) for i in input_targets]
         microsatellites_list = Path(self.input()[3].path)
         bed = Path(self.input()[4].path)

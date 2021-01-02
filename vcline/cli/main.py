@@ -5,8 +5,8 @@ Variant Calling Pipeline for Clinical Sequencing
 Usage:
     vcline init [--debug|--info] [--yml=<path>]
     vcline download [--debug|--info] [--cpus=<int>] [--workers=<int>]
-        [--skip-cleaning] [--print-subprocesses] [--use-bwa-mem2]
-        [--snpeff|--funcotator|--vep] [--dest-dir=<path>]
+        [--workers=<int>] [--skip-cleaning] [--print-subprocesses]
+        [--use-bwa-mem2] [--snpeff|--funcotator|--vep] [--dest-dir=<path>]
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
         [--workers=<int>] [--skip-cleaning] [--print-subprocesses]
         [--use-bwa-mem2] [--snpeff|--funcotator|--vep] [--dest-dir=<path>]
@@ -40,6 +40,7 @@ Options:
 
 import logging
 import os
+from math import floor
 from pathlib import Path
 
 from docopt import docopt
@@ -81,11 +82,13 @@ def main():
             console_log_level=log_level, use_bwa_mem2=args['--use-bwa-mem2']
         )
     else:
-        n_cpu = int(args['--cpus'] or cpu_count())
-        memory_mb = virtual_memory().total / 1024 / 1024 / 2
+        n_worker = int(args['--workers'] or 2)
+        n_cpu = max(1, floor(int(args['--cpus'] or cpu_count()) / n_worker))
+        memory_mb = int(virtual_memory().total / 1024 / 1024 / 2 / n_worker)
         sh_config = {
-            'log_dir_path': None,
-            'remove_if_failed': (not args['--skip-cleaning']), 'quiet': False,
+            'log_dir_path': args['--dest-dir'],
+            'remove_if_failed': (not args['--skip-cleaning']),
+            'quiet': (not args['--print-subprocesses']),
             'executable': fetch_executable('bash')
         }
         if args['download']:
@@ -142,7 +145,7 @@ def main():
                         ] if 'vep' in anns else list()
                     )
                 ],
-                log_level=log_level
+                workers=n_worker, log_level=log_level
             )
         elif args['write-af-only-vcf']:
             dest_dir_path = str(Path(args['--dest-dir']).resolve())

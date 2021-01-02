@@ -78,7 +78,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
             if read_alignment else dict()
         ),
         **(
-            {'msisensor_pro': fetch_executable('msisensor-pro')}
+            {'msisensor-pro': fetch_executable('msisensor-pro')}
             if 'somatic_msi.msisensor' in callers else dict()
         ),
         **{

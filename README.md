@@ -16,28 +16,28 @@ $ pip install -U \
 
 Dependent commands:
 
-- pigz
-- pbzip2
-- bgzip
-- tabix
-- samtools
-- bcftools
-- java
-- gatk
-- cutadapt
-- fastqc
-- trim_galore
-- bwa
-- python3
-- python2
-- configManta.py
-- configureStrelkaSomaticWorkflow.py
-- configureStrelkaGermlineWorkflow.py
-- delly
-- R
-- msisensor-pro
-- snpEff (`java -jar /path/to/snpEff.jar`)
-- vep
+- `pigz`
+- `pbzip2`
+- `bgzip`
+- `tabix`
+- `samtools`
+- `bcftools`
+- `java`
+- `gatk`
+- `cutadapt`
+- `fastqc`
+- `trim_galore`
+- `bwa` or `bwa-mem2`
+- `python3`
+- `python2`
+- `configManta.py`
+- `configureStrelkaSomaticWorkflow.py`
+- `configureStrelkaGermlineWorkflow.py`
+- `delly`
+- `R`
+- `msisensor-pro`
+- `snpEff` (`java -jar /path/to/snpEff.jar`)
+- `vep`
 
 Docker image
 ------------
@@ -51,10 +51,10 @@ $ docker image pull dceoy/vcline
 Usage
 -----
 
-1.  Download resource data.
+1.  Download and process resource data.
 
     ```sh
-    $ vcline download-resources --dest-dir=/path/to/download/dir
+    $ vcline download --dest-dir=/path/to/download/dir
     ```
 
 2.  Create `vcline.yml`.

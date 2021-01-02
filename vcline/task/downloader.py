@@ -195,7 +195,7 @@ class PreprocessResources(luigi.Task):
             *[
                 luigi.LocalTarget(
                     gnomad_vcf.parent.joinpath(
-                        Path(gnomad_vcf.stem).stem + '.biallelic_snp' + s
+                        Path(gnomad_vcf.stem).stem + f'.biallelic_snp{s}'
                     )
                 ) for s in ['.vcf.gz', '.vcf.gz.tbi']
             ],

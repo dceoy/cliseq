@@ -88,7 +88,9 @@ class CreateGnomadSnpIntervalList(VclineTask):
     def output(self):
         input_vcf = Path(self.input()[0].path)
         return luigi.LocalTarget(
-            input_vcf.parent.joinpath(f'{input_vcf.stem}.interval_list')
+            input_vcf.parent.joinpath(
+                Path(input_vcf.stem).stem + '.interval_list'
+            )
         )
 
     def run(self):
