@@ -5,8 +5,8 @@ Variant Calling Pipeline for Clinical Sequencing
 Usage:
     vcline init [--debug|--info] [--yml=<path>]
     vcline download [--debug|--info] [--cpus=<int>] [--workers=<int>]
-        [--workers=<int>] [--skip-cleaning] [--print-subprocesses]
-        [--use-bwa-mem2] [--snpeff|--funcotator|--vep] [--dest-dir=<path>]
+        [--skip-cleaning] [--print-subprocesses] [--use-bwa-mem2]
+        [--snpeff|--funcotator|--vep] [--use-gnomad-exome] [--dest-dir=<path>]
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
         [--workers=<int>] [--skip-cleaning] [--print-subprocesses]
         [--use-bwa-mem2] [--snpeff|--funcotator|--vep] [--dest-dir=<path>]
@@ -33,6 +33,7 @@ Options:
     --use-bwa-mem2          Use BWA-MEM2 for read alignment
     --snpeff, --funotator, --vep
                             Select only one of SnpEff, Funcotator, and VEP
+    --use-gnomad-exome      Use exome data instead of genome data for gnomAD
     --dest-dir=<path>       Specify a destination directory path [default: .]
     --src-path=<path>       Specify a source path
     --src-url=<url>         Specify a source URL
@@ -86,7 +87,7 @@ def main():
         n_cpu = max(1, floor(int(args['--cpus'] or cpu_count()) / n_worker))
         memory_mb = int(virtual_memory().total / 1024 / 1024 / 2 / n_worker)
         sh_config = {
-            'log_dir_path': args['--dest-dir'],
+            'log_dir_path': str(Path(args['--dest-dir']).joinpath('log')),
             'remove_if_failed': (not args['--skip-cleaning']),
             'quiet': (not args['--print-subprocesses']),
             'executable': fetch_executable('bash')
@@ -114,9 +115,10 @@ def main():
             build_luigi_tasks(
                 tasks=[
                     PreprocessResources(
-                        src_url_dict=url_dict, **command_dict, n_cpu=n_cpu,
-                        memory_mb=memory_mb,
-                        use_bwa_mem2=args['--use-bwa-mem2'], **common_kwargs
+                        src_url_dict=url_dict,
+                        use_gnomad_exome=args['--use-gnomad-exome'],
+                        use_bwa_mem2=args['--use-bwa-mem2'], **command_dict,
+                        n_cpu=n_cpu, memory_mb=memory_mb, **common_kwargs
                     ),
                     *(
                         [

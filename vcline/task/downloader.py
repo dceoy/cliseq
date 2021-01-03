@@ -18,10 +18,11 @@ from .resource import CreateCnvBlackListBed
 
 class DownloadGnomadVcfsAndExtractAf(VclineTask):
     dest_dir_path = luigi.Parameter(default='.')
-    gnomad_version = luigi.Parameter(default='3.1')
+    use_gnomad_exome = luigi.BoolParameter(default=False)
     cloud_storage = luigi.Parameter(default='amazon')
     wget = luigi.Parameter(default='wget')
     bgzip = luigi.Parameter(default='bgzip')
+    tabix = luigi.Parameter(default='tabix')
     picard = luigi.Parameter(default='picard')
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)
@@ -30,7 +31,9 @@ class DownloadGnomadVcfsAndExtractAf(VclineTask):
 
     def output(self):
         output_vcf = Path(self.dest_dir_path).resolve().joinpath(
-            f'gnomad.genomes.v{self.gnomad_version}.sites.af-only.vcf.gz'
+            'gnomad.exomes.r2.1.1.sites.liftover_grch38.vcf.gz'
+            if self.use_gnomad_exome else
+            'gnomad.genomes.v3.1.sites.af-only.vcf.gz'
         )
         return [luigi.LocalTarget(f'{output_vcf}{s}') for s in ['', '.tbi']]
 
@@ -44,15 +47,21 @@ class DownloadGnomadVcfsAndExtractAf(VclineTask):
             'amazon': 'gnomad-public-us-east-1.s3.amazonaws.com',
             'microsoft': 'azureopendatastorage.blob.core.windows.net/gnomad'
         }[self.cloud_storage.lower()]
+        if self.use_gnomad_exome:
+            urls = [
+                f'https://{url_root}/release/2.1.1/liftover_grch38/vcf/exomes/'
+                + 'gnomad.exomes.r2.1.1.sites.liftover_grch38.vcf.bgz'
+            ]
+        else:
+            urls = [
+                (
+                    f'https://{url_root}/release/3.1/vcf/genomes/'
+                    + f'gnomad.genomes.v3.1.sites.chr{i}.vcf.bgz'
+                ) for i in [*range(1, 23), 'X', 'Y', 'M']
+            ]
         vcf_dict = {
-            (
-                f'https://{url_root}/release/'
-                + f'{self.gnomad_version}/vcf/genomes/'
-                + f'gnomad.genomes.v{self.gnomad_version}.sites.chr{i}.vcf.bgz'
-            ): dest_dir.joinpath(
-                'gnomad.genomes.'
-                + f'v{self.gnomad_version}.sites.chr{i}.af-only.vcf.gz'
-            ) for i in [*range(1, 23), 'X', 'Y', 'M']
+            u: dest_dir.joinpath(Path(Path(u).stem).stem + '.af-only.vcf.gz')
+            for u in urls
         }
         pyscript = Path(__file__).resolve().parent.parent.joinpath(
             'script/extract_af_only_vcf.py'
@@ -77,10 +86,16 @@ class DownloadGnomadVcfsAndExtractAf(VclineTask):
                 ),
                 output_files_or_dirs=v
             )
-        self.picard_mergevcfs(
-            input_vcf_paths=vcf_dict.values(), output_vcf_path=output_vcf,
-            picard=self.picard, remove_input=True
-        )
+        if len(urls) == 1:
+            self.tabix_tbi(
+                tsv_path=list(vcf_dict.values())[0], tabix=self.tabix,
+                preset='vcf'
+            )
+        else:
+            self.picard_mergevcfs(
+                input_vcf_paths=vcf_dict.values(), output_vcf_path=output_vcf,
+                picard=self.picard, remove_input=True
+            )
 
 
 class WritePassingAfOnlyVcf(VclineTask):
@@ -144,6 +159,8 @@ class WritePassingAfOnlyVcf(VclineTask):
 class PreprocessResources(luigi.Task):
     src_url_dict = luigi.DictParameter()
     dest_dir_path = luigi.Parameter(default='.')
+    use_gnomad_exome = luigi.BoolParameter(default=False)
+    use_bwa_mem2 = luigi.BoolParameter(default=False)
     wget = luigi.Parameter(default='wget')
     bgzip = luigi.Parameter(default='bgzip')
     pbzip2 = luigi.Parameter(default='pbzip2')
@@ -154,7 +171,6 @@ class PreprocessResources(luigi.Task):
     gatk = luigi.Parameter(default='gatk')
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)
-    use_bwa_mem2 = luigi.BoolParameter(default=False)
     sh_config = luigi.DictParameter(default=dict())
     priority = 10
 
@@ -169,9 +185,11 @@ class PreprocessResources(luigi.Task):
                 use_bwa_mem2=self.use_bwa_mem2, sh_config=self.sh_config
             ),
             DownloadGnomadVcfsAndExtractAf(
-                dest_dir_path=self.dest_dir_path, wget=self.wget,
-                bgzip=self.bgzip, picard=self.gatk, n_cpu=self.n_cpu,
-                memory_mb=self.memory_mb, sh_config=self.sh_config
+                dest_dir_path=self.dest_dir_path,
+                use_gnomad_exome=self.use_gnomad_exome, wget=self.wget,
+                bgzip=self.bgzip, picard=self.gatk, tabix=self.tabix,
+                n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                sh_config=self.sh_config
             )
         ]
 
