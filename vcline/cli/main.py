@@ -6,7 +6,8 @@ Usage:
     vcline init [--debug|--info] [--yml=<path>]
     vcline download [--debug|--info] [--cpus=<int>] [--workers=<int>]
         [--skip-cleaning] [--print-subprocesses] [--use-bwa-mem2]
-        [--snpeff|--funcotator|--vep] [--use-gnomad-exome] [--dest-dir=<path>]
+        [--snpeff|--funcotator|--vep] [--http] [--use-gnomad-exome]
+        [--dest-dir=<path>]
     vcline run [--debug|--info] [--yml=<path>] [--cpus=<int>]
         [--workers=<int>] [--skip-cleaning] [--print-subprocesses]
         [--use-bwa-mem2] [--snpeff|--funcotator|--vep] [--dest-dir=<path>]
@@ -33,6 +34,7 @@ Options:
     --use-bwa-mem2          Use BWA-MEM2 for read alignment
     --snpeff, --funotator, --vep
                             Select only one of SnpEff, Funcotator, and VEP
+    --http                  Use HTTP instead of FTP (for VEP)
     --use-gnomad-exome      Use exome data instead of genome data for gnomAD
     --dest-dir=<path>       Specify a destination directory path [default: .]
     --src-path=<path>       Specify a source path
@@ -98,10 +100,11 @@ def main():
                 'bwa': fetch_executable(
                     'bwa-mem2' if args['--use-bwa-mem2'] else 'bwa'
                 ),
+                'msisensor_pro': fetch_executable('msisensor-pro'),
                 **{
                     c: fetch_executable(c) for c in [
                         'wget', 'pbzip2', 'bgzip', 'pigz', 'samtools', 'tabix',
-                        'gatk'
+                        'gatk', 'bedtools'
                     ]
                 }
             }
@@ -142,7 +145,8 @@ def main():
                             DownloadEnsemblVepCache(
                                 genome_version='GRCh38',
                                 vep=fetch_executable('vep'),
-                                wget=command_dict['wget'], **common_kwargs
+                                wget=command_dict['wget'],
+                                avoid_ftp=args['--http'], **common_kwargs
                             )
                         ] if 'vep' in anns else list()
                     )

@@ -31,7 +31,7 @@ class DownloadGnomadVcfsAndExtractAf(VclineTask):
 
     def output(self):
         output_vcf = Path(self.dest_dir_path).resolve().joinpath(
-            'gnomad.exomes.r2.1.1.sites.liftover_grch38.vcf.gz'
+            'gnomad.exomes.r2.1.1.sites.liftover_grch38.af-only.vcf.gz'
             if self.use_gnomad_exome else
             'gnomad.genomes.v3.1.sites.af-only.vcf.gz'
         )
@@ -86,11 +86,8 @@ class DownloadGnomadVcfsAndExtractAf(VclineTask):
                 ),
                 output_files_or_dirs=v
             )
-        if len(urls) == 1:
-            self.tabix_tbi(
-                tsv_path=list(vcf_dict.values())[0], tabix=self.tabix,
-                preset='vcf'
-            )
+        if output_vcf.is_file():
+            self.tabix_tbi(tsv_path=output_vcf, tabix=self.tabix, preset='vcf')
         else:
             self.picard_mergevcfs(
                 input_vcf_paths=vcf_dict.values(), output_vcf_path=output_vcf,
@@ -169,6 +166,8 @@ class PreprocessResources(luigi.Task):
     samtools = luigi.Parameter(default='samtools')
     tabix = luigi.Parameter(default='tabix')
     gatk = luigi.Parameter(default='gatk')
+    bedtools = luigi.Parameter(default='bedtools')
+    msisensor_pro = luigi.Parameter(default='msisensor-pro')
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)
     sh_config = luigi.DictParameter(default=dict())
@@ -215,7 +214,7 @@ class PreprocessResources(luigi.Task):
                     gnomad_vcf.parent.joinpath(
                         Path(gnomad_vcf.stem).stem + f'.biallelic_snp{s}'
                     )
-                ) for s in ['.vcf.gz', '.vcf.gz.tbi']
+                ) for s in ['.vcf.gz', '.vcf.gz.tbi', '.interval_list']
             ],
             *[
                 luigi.LocalTarget(
@@ -232,12 +231,15 @@ class PreprocessResources(luigi.Task):
         cf = {
             'pigz': self.pigz, 'pbzip2': self.pbzip2, 'bgzip': self.bgzip,
             'bwa': self.bwa, 'samtools': self.samtools, 'tabix': self.tabix,
-            'gatk': self.gatk, 'use_bwa_mem2': self.use_bwa_mem2
+            'gatk': self.gatk, 'bedtools': self.bedtools,
+            'msisensor-pro': self.msisensor_pro,
+            'use_bwa_mem2': self.use_bwa_mem2
         }
         yield [
             CreateExclusionIntervalListBed(
                 evaluation_interval_path=path_dict['evaluation_interval'],
-                cf=cf, n_cpu=self.n_cpu, sh_config=self.sh_config
+                ref_fa_path=path_dict['ref_fa'], cf=cf, n_cpu=self.n_cpu,
+                sh_config=self.sh_config
             ),
             CreateGnomadSnpIntervalList(
                 gnomad_vcf_path=path_dict['gnomad_vcf'],
@@ -260,7 +262,7 @@ class PreprocessResources(luigi.Task):
                 ) for i in range(2)
             ],
             ScanMicrosatellites(
-                ref_fa_path=path_dict['ref_fa'], cf=cf, n_cpu=self.n_cpu,
+                ref_fa_path=path_dict['ref_fa'], cf=cf,
                 sh_config=self.sh_config
             ),
             UncompressEvaluationIntervalListBed(

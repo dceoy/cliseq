@@ -174,8 +174,9 @@ class CallVariantsWithMutect2(VclineTask):
             ]
         input_targets = yield [
             Mutect2(
-                input_cram_paths=input_crams, fa_path=fa,
-                gnomad_vcf_path=gnomad_vcf, evaluation_interval_path=str(o),
+                input_cram_paths=[str(c) for c in input_crams],
+                fa_path=str(fa), gnomad_vcf_path=str(gnomad_vcf),
+                evaluation_interval_path=str(o),
                 normal_name=self.sample_names[1], output_path_prefix=s,
                 cf=self.cf
             ) for o, s in zip(intervals, tmp_prefixes)

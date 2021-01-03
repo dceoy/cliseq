@@ -101,7 +101,8 @@ class RunVariantCaller(luigi.Task):
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 hapmap_vcf_path=self.hapmap_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
+                cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                sh_config=self.sh_config
             )
         elif 'somatic_snv_indel.gatk' == self.caller:
             return FilterMutectCalls(
@@ -113,7 +114,8 @@ class RunVariantCaller(luigi.Task):
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 gnomad_vcf_path=self.gnomad_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
+                cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                sh_config=self.sh_config
             )
         elif 'somatic_sv.manta' == self.caller:
             return CallStructualVariantsWithManta(
@@ -124,7 +126,8 @@ class RunVariantCaller(luigi.Task):
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
+                cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                sh_config=self.sh_config
             )
         elif 'somatic_snv_indel.strelka' == self.caller:
             return CallSomaticVariantsWithStrelka(
@@ -135,7 +138,8 @@ class RunVariantCaller(luigi.Task):
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
+                cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                sh_config=self.sh_config
             )
         elif 'germline_snv_indel.strelka' == self.caller:
             return CallGermlineVariantsWithStrelka(
@@ -146,7 +150,8 @@ class RunVariantCaller(luigi.Task):
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
+                cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                sh_config=self.sh_config
             )
         elif 'somatic_sv.delly' == self.caller:
             return CallStructualVariantsWithDelly(
@@ -157,7 +162,8 @@ class RunVariantCaller(luigi.Task):
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
+                cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                sh_config=self.sh_config
             )
         elif 'somatic_cnv.gatk' == self.caller:
             return CallCopyRatioSegmentsMatched(
@@ -167,8 +173,11 @@ class RunVariantCaller(luigi.Task):
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
+                gnomad_vcf_path=self.gnomad_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
-                cnv_blacklist_path=self.cnv_blacklist_path, cf=self.cf
+                cnv_blacklist_path=self.cnv_blacklist_path, cf=self.cf,
+                n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                sh_config=self.sh_config
             )
         elif 'somatic_msi.msisensor' == self.caller:
             return ScoreMsiWithMsisensorPro(
@@ -179,7 +188,8 @@ class RunVariantCaller(luigi.Task):
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf
+                cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                sh_config=self.sh_config
             )
         else:
             raise ValueError(f'invalid caller: {self.caller}')
