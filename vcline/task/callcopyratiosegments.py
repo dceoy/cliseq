@@ -10,7 +10,8 @@ from luigi.util import requires
 
 from .core import VclineTask
 from .cram import PrepareCramNormal, PrepareCramTumor
-from .mutect2 import CreateGnomadBiallelicSnpVcf
+from .haplotypecaller import GenotypeHaplotypeCallerGvcf
+from .mutect2 import CallVariantsWithMutect2
 from .resource import FetchCnvBlackList, FetchEvaluationIntervalList
 
 
@@ -77,8 +78,8 @@ class PreprocessIntervals(VclineTask):
         )
 
 
-@requires(CreateGnomadBiallelicSnpVcf)
-class CreateGnomadSnpIntervalList(VclineTask):
+@requires(CallVariantsWithMutect2, GenotypeHaplotypeCallerGvcf)
+class CreateCommonSnpIntervalList(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)
@@ -86,19 +87,19 @@ class CreateGnomadSnpIntervalList(VclineTask):
     priority = 30
 
     def output(self):
-        input_vcf = Path(self.input()[0].path)
         return luigi.LocalTarget(
-            input_vcf.parent.joinpath(
-                Path(input_vcf.stem).stem + '.interval_list'
+            Path(self.cf['qc_dir_path']).joinpath('cnv').joinpath(
+                Path(Path(Path(self.input()[0][0].path).stem).stem).stem
+                + '.interval_list'
             )
         )
 
     def run(self):
-        input_vcf = Path(self.input()[0].path)
-        run_id = input_vcf.stem
-        self.print_log(f'Create a gnomAD SNP interval_list:\t{run_id}')
-        gatk = self.cf['gatk']
         output_interval = Path(self.output().path)
+        run_id = output_interval.stem
+        self.print_log(f'Create a common SNP interval_list:\t{run_id}')
+        input_vcfs = [Path(i[0].path) for i in self.input()]
+        gatk = self.cf['gatk']
         self.setup_shell(
             run_id=run_id, commands=gatk, cwd=output_interval.parent,
             **self.sh_config,
@@ -110,12 +111,15 @@ class CreateGnomadSnpIntervalList(VclineTask):
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk} VcfToIntervalList'
-                + f' --INPUT {input_vcf}'
-                + ' --INCLUDE_FILTERED true'
+                f'set -e && {gatk} IntervalListTools'
+                + ' --ACTION=INTERSECT'
+                + f' --INPUT {input_vcfs[0]}'
+                + f' --SECOND_INPUT {input_vcfs[1]}'
                 + f' --OUTPUT {output_interval}'
+                + ' --INCLUDE_FILTERED true'
             ),
-            input_files_or_dirs=input_vcf, output_files_or_dirs=output_interval
+            input_files_or_dirs=input_vcfs,
+            output_files_or_dirs=output_interval
         )
 
 
@@ -168,7 +172,7 @@ class CollectAllelicCounts(VclineTask):
         )
 
 
-@requires(PrepareCramTumor, CreateGnomadSnpIntervalList, FetchReferenceFasta,
+@requires(PrepareCramTumor, CreateCommonSnpIntervalList, FetchReferenceFasta,
           CreateSequenceDictionary)
 class CollectAllelicCountsTumor(luigi.Task):
     cf = luigi.DictParameter()
@@ -194,7 +198,7 @@ class CollectAllelicCountsTumor(luigi.Task):
         )
 
 
-@requires(PrepareCramNormal, CreateGnomadSnpIntervalList, FetchReferenceFasta,
+@requires(PrepareCramNormal, CreateCommonSnpIntervalList, FetchReferenceFasta,
           CreateSequenceDictionary)
 class CollectAllelicCountsNormal(luigi.Task):
     cf = luigi.DictParameter()
