@@ -114,7 +114,7 @@ class CallStructualVariantsWithDelly(VclineTask):
                 + f' --outfile {output_bcf}'
                 + f' --genome {fa}'
                 + f' --exclude {exclusion_bed}'
-                + ''.join([f' {p}' for p in input_cram_paths])
+                + ''.join(f' {p}' for p in input_cram_paths)
             ),
             input_files_or_dirs=[*input_cram_paths, fa, exclusion_bed],
             output_files_or_dirs=[output_bcf, f'{output_bcf}.csi', run_dir]

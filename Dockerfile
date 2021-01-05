@@ -151,8 +151,11 @@ RUN set -eo pipefail \
       && echo -e 'MinProtocol = TLSv1.2' >> /usr/lib/ssl/openssl.cnf \
       && echo -e 'CipherString = DEFAULT:@SECLEVEL=1' >> /usr/lib/ssl/openssl.cnf
 
+ENV JAVA_LIBRARY_PATH /usr/lib/jni
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
+ENV CLASSPATH /opt/gatk/gatk.jar:${CLASSPATH}
 ENV PYTHONPATH /opt/manta/lib/python:/opt/strelka/lib/python:${PYTHONPATH}
-ENV PATH /opt/gatk/bin:/opt/manta/bin:/opt/strelka/bin:/opt/snpEff/bin:/opt/conda/envs/gatk/bin:/opt/conda/bin:${PATH}
 ENV BCFTOOLS_PLUGINS /usr/local/src/bcftools/plugins
+ENV PATH /opt/gatk/bin:/opt/conda/envs/gatk/bin:/opt/conda/bin:/opt/manta/bin:/opt/strelka/bin:/opt/snpEff/bin:${PATH}
 
 ENTRYPOINT ["/opt/conda/bin/vcline"]

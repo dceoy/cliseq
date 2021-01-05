@@ -67,7 +67,7 @@ class PreprocessIntervals(VclineTask):
                 + f' --exclude-intervals {cnv_blacklist}'
                 + f' --sequence-dictionary {seq_dict}'
                 + f' --reference {fa}'
-                + ''.join([f' --{k} {v}' for k, v in param_dict.items()])
+                + ''.join(f' --{k} {v}' for k, v in param_dict.items())
                 + ' --interval-merging-rule OVERLAPPING_ONLY'
                 + f' --output {preprocessed_interval}'
             ),
@@ -391,10 +391,10 @@ class ModelSegments(VclineTask):
             allelic_count_args = (
                 f' --allelic-counts {case_allelic_counts_tsv}'
                 + f' --normal-allelic-counts {normal_allelic_counts_tsv}'
-                + ''.join([
+                + ''.join(
                     f' --minimum-total-allele-count-{k} {v}'
                     for k, v in self.min_total_allele_counts.items()
-                ])
+                )
             )
             input_files = [
                 denoised_cr_tsv, case_allelic_counts_tsv,

@@ -137,7 +137,7 @@ class CallVariantsWithHaplotypeCaller(VclineTask):
                 args=(
                     f'set -e && {gatk} CombineGvcfs'
                     + f' --reference {fa}'
-                    + ''.join([f' --variant {p}' for p in tmp_gvcfs])
+                    + ''.join(f' --variant {p}' for p in tmp_gvcfs)
                     + f' --output {output_gvcf}'
                 ),
                 input_files_or_dirs=[*tmp_gvcfs, fa],
@@ -364,7 +364,7 @@ class FilterVariantTranches(VclineTask):
             args=(
                 f'set -e && {gatk} FilterVariantTranches'
                 + f' --variant {cnn_vcf}'
-                + ''.join([f' --resource {p}' for p in resource_vcfs])
+                + ''.join(f' --resource {p}' for p in resource_vcfs)
                 + f' --intervals {evaluation_interval}'
                 + f' --output {output_filtered_vcf}'
                 + ' --info-key CNN_2D'

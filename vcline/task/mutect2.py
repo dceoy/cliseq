@@ -201,7 +201,7 @@ class CallVariantsWithMutect2(VclineTask):
         self.run_shell(
             args=(
                 f'set -e && {gatk} LearnReadOrientationModel'
-                + ''.join([f' --input {f}' for f in f1r2s])
+                + ''.join(f' --input {f}' for f in f1r2s)
                 + f' --output {ob_priors}'
             ),
             input_files_or_dirs=f1r2s, output_files_or_dirs=ob_priors
@@ -222,7 +222,7 @@ class CallVariantsWithMutect2(VclineTask):
             self.run_shell(
                 args=(
                     f'set -e && {gatk} MergeVcfs'
-                    + ''.join([f' --INPUT {v}' for v in tmp_vcfs])
+                    + ''.join(f' --INPUT {v}' for v in tmp_vcfs)
                     + f' --OUTPUT {output_vcf}'
                 ),
                 input_files_or_dirs=tmp_vcfs,
@@ -232,7 +232,7 @@ class CallVariantsWithMutect2(VclineTask):
             self.run_shell(
                 args=(
                     f'set -e && {gatk} MergeMutectStats'
-                    + ''.join([f' --stats {s}' for s in tmp_statses])
+                    + ''.join(f' --stats {s}' for s in tmp_statses)
                     + f' --output {output_stats}'
                 ),
                 input_files_or_dirs=tmp_statses,
@@ -295,7 +295,7 @@ class Mutect2(VclineTask):
         self.run_shell(
             args=(
                 f'set -e && {gatk} Mutect2'
-                + ''.join([f' --input {c}' for c in input_crams])
+                + ''.join(f' --input {c}' for c in input_crams)
                 + f' --reference {fa}'
                 + f' --intervals {evaluation_interval}'
                 + f' --germline-resource {gnomad_vcf}'

@@ -31,7 +31,7 @@ class VclineTask(ShellTask):
     def create_matched_id(tumor_name, normal_name):
         frags = [Path(n).stem.split('.') for n in [tumor_name, normal_name]]
         if frags[0][-1] != frags[1][-1]:
-            somatic_id = '.'.join(['.'.join(f) for f in frags])
+            somatic_id = '.'.join('.'.join(f) for f in frags)
         else:
             n_common = 0
             for i in range(1, min([len(f) for f in frags])):
@@ -100,7 +100,7 @@ class VclineTask(ShellTask):
         cls.run_shell(
             args=(
                 f'set -eo pipefail && {samtools} merge -@ {n_cpu} -r -'
-                + ''.join([f' {p}' for p in input_sam_paths])
+                + ''.join(f' {p}' for p in input_sam_paths)
                 + f' | {samtools} sort -@ {n_cpu} -m {memory_mb_per_thread}M'
                 + f' -O bam -l 0 -T {output_sam_path}.sort -'
                 + f' | {samtools} view -@ {n_cpu}'
@@ -152,7 +152,7 @@ class VclineTask(ShellTask):
         cls.run_shell(
             args=(
                 f'set -eo pipefail && {bcftools} concat --threads {n_cpu}'
-                + ''.join([f' {p}' for p in input_vcf_paths])
+                + ''.join(f' {p}' for p in input_vcf_paths)
                 + f' | {bcftools} sort --max-mem {memory_mb}M'
                 + f' --temp-dir {output_vcf_path}.sort --output-type z'
                 + f' --output-file {output_vcf_path} -'
@@ -196,7 +196,7 @@ class VclineTask(ShellTask):
         cls.run_shell(
             args=(
                 f'set -e && {picard} MergeVcfs'
-                + ''.join([f' --INPUT {v}' for v in input_vcf_paths])
+                + ''.join(f' --INPUT {v}' for v in input_vcf_paths)
                 + f' --OUTPUT {output_vcf_path}'
             ),
             input_files_or_dirs=input_vcf_paths,
