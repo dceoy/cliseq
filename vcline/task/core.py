@@ -24,6 +24,8 @@ class VclineTask(ShellTask):
                 yield f'{c} version'
             elif n == 'picard':
                 yield f'{c} CreateSequenceDictionary --version'
+            elif n == 'vep':
+                yield f'{c} | grep -6 -e "Versions:"'
             else:
                 yield f'{c} --version'
 

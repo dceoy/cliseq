@@ -227,6 +227,8 @@ class RunVariantCaller(luigi.Task):
                     yield p, 'funcotator'
                 if 'snpeff' in self.annotators:
                     yield p, 'snpeff'
+                if 'vep' in self.annotators:
+                    yield p, 'vep'
 
     def run(self):
         postproc_dir = Path(self.cf['postproc_dir_path'])
@@ -262,12 +264,12 @@ class RunVariantCaller(luigi.Task):
             elif a == 'snpeff':
                 yield AnnotateVariantsWithSnpeff(
                     input_vcf_path=p, fa_path=self.ref_fa_path,
-                    snpeff_data_dir_path=self.snpeff_data_dir_path,
+                    data_dir_path=self.snpeff_data_dir_path,
                     dest_dir_path=str(postproc_dir.joinpath(a)),
                     genome_version=self.cf['ncbi_hg_version'],
                     normalize_vcf=self.normalize_vcf,
                     norm_dir_path=str(norm_dir), bcftools=self.cf['bcftools'],
-                    snpeff=self.cf['snpeff'], bgzip=self.cf['bgzip'],
+                    snpeff=self.cf['snpEff'], bgzip=self.cf['bgzip'],
                     tabix=self.cf['tabix'], n_cpu=self.n_cpu,
                     memory_mb=self.memory_mb, sh_config=self.sh_config
                 )

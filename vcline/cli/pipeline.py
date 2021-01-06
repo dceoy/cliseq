@@ -77,10 +77,6 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
             {'bwa': fetch_executable('bwa-mem2' if use_bwa_mem2 else 'bwa')}
             if read_alignment else dict()
         ),
-        **(
-            {'msisensor-pro': fetch_executable('msisensor-pro')}
-            if 'somatic_msi.msisensor' in callers else dict()
-        ),
         **{
             c: fetch_executable(c) for c in {
                 'bgzip', 'gatk', 'java', 'pbzip2', 'pigz', 'samtools', 'tabix',
@@ -108,7 +104,12 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
                 *({'bedtools'} if 'somatic_sv.delly' in callers else set()),
                 *({'delly'} if 'somatic_sv.delly' in callers else set()),
                 *({'R'} if 'somatic_cnv.gatk' in callers else set()),
-                *({'snpEff'} if 'snpeff' in annotators else set())
+                *(
+                    {'msisensor-pro'} if 'somatic_msi.msisensor' in callers
+                    else set()
+                ),
+                *({'snpEff'} if 'snpeff' in annotators else set()),
+                *({'vep'} if 'vep' in annotators else set())
             }
         }
     }
