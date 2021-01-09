@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import re
 from itertools import chain
 from pathlib import Path
@@ -261,7 +262,7 @@ class GenotypeHaplotypeCallerGvcf(VclineTask):
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk} GenotypeGvcfs'
+                f'set -e && {gatk} GenotypeGVCFs'
                 + f' --reference {fa}'
                 + f' --variant {gvcf}'
                 + f' --dbsnp {dbsnp_vcf}'
@@ -296,18 +297,20 @@ class CNNScoreVariants(VclineTask):
         run_id = '.'.join(output_cnn_vcf.name.split('.')[:-4])
         self.print_log(f'Score variants with CNN:\t{run_id}')
         gatk = self.cf['gatk']
-        python3 = self.cf['python3']
+        python = self.cf['python']
         raw_vcf = Path(self.input()[0][0].path)
         cram = Path(self.input()[1][2].path)
         fa = Path(self.input()[2][0].path)
         evaluation_interval = Path(self.input()[3].path)
         self.setup_shell(
-            run_id=run_id, commands=[gatk, python3], cwd=output_cnn_vcf.parent,
+            run_id=run_id, commands=[gatk, python], cwd=output_cnn_vcf.parent,
             **self.sh_config,
             env={
                 'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
                     n_cpu=self.n_cpu, memory_mb=self.memory_mb
-                )
+                ),
+                'PATH': (str(Path(python).parent) + ':' + os.environ['PATH']),
+                'HOME': os.environ['HOME']
             }
         )
         self.run_shell(

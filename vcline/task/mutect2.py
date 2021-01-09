@@ -367,7 +367,7 @@ class FilterMutectCalls(VclineTask):
                 + f' --stats {mutect_stats}'
                 + f' --contamination-table {contamination_table}'
                 + f' --tumor-segmentation {segment_table}'
-                + f' --orientation-bias-artifact-prior {ob_priors}'
+                + f' --orientation-bias-artifact-priors {ob_priors}'
                 + f' --output {output_filtered_vcf}'
                 + f' --filtering-stats {output_filtering_stats}'
             ),

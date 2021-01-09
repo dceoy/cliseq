@@ -112,9 +112,8 @@ class CreateCommonSnpIntervalList(VclineTask):
         self.run_shell(
             args=(
                 f'set -e && {gatk} IntervalListTools'
-                + ' --ACTION=INTERSECT'
-                + f' --INPUT {input_vcfs[0]}'
-                + f' --SECOND_INPUT {input_vcfs[1]}'
+                + ' --ACTION INTERSECT'
+                + ''.join(f' --INPUT {v}' for v in input_vcfs)
                 + f' --OUTPUT {output_interval}'
                 + ' --INCLUDE_FILTERED true'
             ),

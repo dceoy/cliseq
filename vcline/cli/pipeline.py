@@ -90,7 +90,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
                     if 'somatic_snv_indel.strelka' in callers else set()
                 ),
                 *(
-                    {'python3'}
+                    {'python'}
                     if 'germline_snv_indel.gatk' in callers else set()
                 ),
                 *(
@@ -123,14 +123,12 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     n_cpu_per_worker = max(1, floor((max_n_cpu or n_cpu) / n_worker))
     memory_mb = virtual_memory().total / 1024 / 1024 / 2
     memory_mb_per_worker = int(memory_mb / n_worker)
-    ucsc_hg = (config.get('reference_version') or 'hg38')
     cf_dict = {
         'reference_name': config.get('reference_name'),
         'use_bwa_mem2': use_bwa_mem2, 'adapter_removal': adapter_removal,
         'metrics_collectors': metrics_collectors,
-        'save_memory': (memory_mb_per_worker < 8192),
-        'n_worker': n_worker, 'ucsc_hg_version': ucsc_hg,
-        'ncbi_hg_version': ('GRCh37' if ucsc_hg == 'hg19' else 'GRCh38'),
+        'save_memory': (memory_mb_per_worker < 8192), 'n_worker': n_worker,
+        'ucsc_hg_version': (config.get('reference_version') or 'hg38'),
         'exome': bool(config.get('exome')),
         **{
             (k.replace('/', '_') + '_dir_path'): str(dest_dir.joinpath(k))
@@ -157,8 +155,8 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
         resource_keys = {
             'ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
             'evaluation_interval', 'hapmap_vcf', 'gnomad_vcf', 'cnv_blacklist',
-            'funcotator_somatic_tar', 'funcotator_germline_tar',
-            'snpeff_config'
+            'funcotator_somatic_data_dir', 'funcotator_data_germline_dir',
+            'snpeff_db_data_dir', 'vep_cache_data_dir'
         }
     else:
         resource_keys = {

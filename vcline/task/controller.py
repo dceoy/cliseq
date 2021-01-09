@@ -2,7 +2,6 @@
 
 import logging
 import os
-import sys
 from itertools import chain
 from pathlib import Path
 from socket import gethostname
@@ -36,31 +35,11 @@ class PrintEnvVersions(VclineTask):
         return self.__is_completed
 
     def run(self):
-        python = sys.executable
-        self.print_log(f'Print environment versions: {python}')
-        version_files = [
-            Path('/proc/version'),
-            *[
-                o for o in Path('/etc').iterdir()
-                if o.name.endswith(('-release', '_version'))
-            ]
-        ]
+        self.print_log(f'Print environment versions:\t{self.run_id}')
         self.setup_shell(
-            run_id=self.run_id, commands=[python, *self.command_paths],
-            **self.sh_config
+            run_id=self.run_id, commands=self.command_paths, **self.sh_config
         )
-        self.run_shell(
-            args=[
-                f'{python} -m pip --version',
-                f'{python} -m pip freeze --no-cache-dir'
-            ]
-        )
-        self.run_shell(
-            args=[
-                'uname -a',
-                *[f'cat {o}' for o in version_files if o.is_file()]
-            ]
-        )
+        self.print_env_versions()
         self.__is_completed = True
 
 
@@ -266,7 +245,6 @@ class RunVariantCaller(luigi.Task):
                     input_vcf_path=p, fa_path=self.ref_fa_path,
                     db_data_dir_path=self.snpeff_db_data_dir_path,
                     dest_dir_path=str(postproc_dir.joinpath(a)),
-                    genome_version=self.cf['ncbi_hg_version'],
                     normalize_vcf=self.normalize_vcf,
                     norm_dir_path=str(norm_dir), bcftools=self.cf['bcftools'],
                     snpeff=self.cf['snpEff'], bgzip=self.cf['bgzip'],
