@@ -264,8 +264,8 @@ def _read_config_yml(path):
     for k in ['ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
               'hapmap_vcf', 'gnomad_vcf', 'evaluation_interval',
               'cnv_blacklist', 'funcotator_germline_data_dir',
-              'funcotator_somatic_data_dir', 'snpeff_data_dir',
-              'vep_cache_dir']:
+              'funcotator_somatic_data_dir', 'snpeff_db_data_dir',
+              'vep_cache_data_dir']:
         v = config['resources'].get(k)
         assert isinstance(v, str), k
     assert config.get('runs'), config

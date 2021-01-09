@@ -32,8 +32,8 @@ resources:  # These files can be downloaded with vcline download-resources.
   cnv_blacklist: /path/to/CNV_and_centromere_blacklist.hg38liftover.list
   funcotator_germline_data_dir: /path/to/funcotator_dataSources.v1.7.20200521g
   funcotator_somatic_data_dir: /path/to/funcotator_dataSources.v1.7.20200521s
-  snpeff_data_dir: /path/to/snpeff_data
-  vep_cache_dir: /path/to/vep_cache
+  snpeff_db_data_dir: /path/to/snpeff_data/GRCh38.86
+  vep_cache_data_dir: /path/to/vep_cache/homo_sapiens
 runs:
   - tumor:
       fq:

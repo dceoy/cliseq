@@ -80,8 +80,8 @@ class RunVariantCaller(luigi.Task):
     cnv_blacklist_path = luigi.Parameter(default='')
     funcotator_somatic_data_dir_path = luigi.Parameter(default='')
     funcotator_germline_data_dir_path = luigi.Parameter(default='')
-    snpeff_data_dir_path = luigi.Parameter(default='')
-    vep_cache_dir_path = luigi.Parameter(default='')
+    snpeff_db_data_dir_path = luigi.Parameter(default='')
+    vep_cache_data_dir_path = luigi.Parameter(default='')
     caller = luigi.Parameter(default='')
     annotators = luigi.ListParameter(default=list())
     normalize_vcf = luigi.BoolParameter(default=True)
@@ -264,7 +264,7 @@ class RunVariantCaller(luigi.Task):
             elif a == 'snpeff':
                 yield AnnotateVariantsWithSnpeff(
                     input_vcf_path=p, fa_path=self.ref_fa_path,
-                    data_dir_path=self.snpeff_data_dir_path,
+                    db_data_dir_path=self.snpeff_db_data_dir_path,
                     dest_dir_path=str(postproc_dir.joinpath(a)),
                     genome_version=self.cf['ncbi_hg_version'],
                     normalize_vcf=self.normalize_vcf,
@@ -276,7 +276,7 @@ class RunVariantCaller(luigi.Task):
             elif a == 'vep':
                 yield AnnotateVariantsWithEnsemblVep(
                     input_vcf_path=p, fa_path=self.ref_fa_path,
-                    cache_dir_path=self.vep_cache_dir_path,
+                    cache_data_dir_path=self.vep_cache_data_dir_path,
                     dest_dir_path=str(postproc_dir.joinpath(a)),
                     normalize_vcf=self.normalize_vcf,
                     norm_dir_path=str(norm_dir), bcftools=self.cf['bcftools'],
