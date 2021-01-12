@@ -24,7 +24,8 @@ ADD https://raw.githubusercontent.com/dceoy/print-github-tags/master/print-githu
 ADD . /tmp/vcline
 
 RUN set -e \
-      && ln -sf bash /bin/sh
+      && ln -sf bash /bin/sh \
+      && chown -R root:root /usr/local /opt
 
 RUN set -e \
       && apt-get -y update \
@@ -121,7 +122,11 @@ COPY --from=builder /usr/local /usr/local
 COPY --from=builder /opt /opt
 
 RUN set -e \
-      && ln -sf bash /bin/sh
+      && ln -sf bash /bin/sh \
+      && chown -R root:root /usr/local /opt \
+      && echo '. /opt/conda/etc/profile.d/conda.sh' >> /etc/profile \
+      && echo 'conda activate base' >> /etc/profile \
+      && echo 'source /opt/gatk/gatkenv.rc' >> /etc/profile
 
 RUN set -e \
       && apt-get -y update \

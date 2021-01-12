@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import os
 import re
 from itertools import chain
 from pathlib import Path
@@ -308,9 +307,7 @@ class CNNScoreVariants(VclineTask):
             env={
                 'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
                     n_cpu=self.n_cpu, memory_mb=self.memory_mb
-                ),
-                'PATH': (str(Path(python).parent) + ':' + os.environ['PATH']),
-                'HOME': os.environ['HOME']
+                )
             }
         )
         self.run_shell(
