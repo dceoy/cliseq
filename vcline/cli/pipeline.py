@@ -155,7 +155,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
         resource_keys = {
             'ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
             'evaluation_interval', 'hapmap_vcf', 'gnomad_vcf', 'cnv_blacklist',
-            'funcotator_somatic_data_dir', 'funcotator_data_germline_dir',
+            'funcotator_somatic_data_dir', 'funcotator_germline_data_dir',
             'snpeff_db_data_dir', 'vep_cache_data_dir'
         }
     else:

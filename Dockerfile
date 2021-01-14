@@ -21,6 +21,7 @@ COPY --from=dceoy/vep:latest /usr/local/src/bioperl-ext /usr/local/src/bioperl-e
 COPY --from=dceoy/vep:latest /usr/local/src/ensembl-xs /usr/local/src/ensembl-xs
 COPY --from=dceoy/vep:latest /usr/local/src/ensembl-vep /usr/local/src/ensembl-vep
 ADD https://raw.githubusercontent.com/dceoy/print-github-tags/master/print-github-tags /usr/local/bin/print-github-tags
+ADD https://bootstrap.pypa.io/get-pip.py /tmp/get-pip.py
 ADD . /tmp/vcline
 
 RUN set -e \
@@ -33,19 +34,23 @@ RUN set -e \
         cpanminus g++ gcc git libbz2-dev libcurl4-gnutls-dev libgsl-dev \
         libperl-dev liblzma-dev libmysqlclient-dev libncurses5-dev libpng-dev \
         libssl-dev libxml-dom-xpath-perl libxml-parser-perl libxml2 libz-dev \
-        make perl pkg-config unzip \
+        make perl python3-dev python3-distutils pkg-config unzip \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
+
+RUN set -e \
+      && /usr/bin/python3 /tmp/get-pip.py \
+      && pip install -U --no-cache-dir \
+        cutadapt https://github.com/dceoy/ftarc/archive/main.tar.gz \
+        https://github.com/dceoy/vanqc/archive/main.tar.gz /tmp/vcline \
+      && rm -f /tmp/get-pip.py
 
 ENV PATH /opt/gatk/bin:/opt/conda/envs/gatk/bin:/opt/conda/bin:${PATH}
 
 RUN set -e \
       && source /opt/gatk/gatkenv.rc \
       && /opt/conda/bin/conda update -n base -c defaults conda \
-      && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
-        cutadapt pip https://github.com/dceoy/ftarc/archive/main.tar.gz \
-        https://github.com/dceoy/vanqc/archive/main.tar.gz /tmp/vcline \
       && /opt/conda/bin/conda clean -yaf \
       && find /opt/conda -follow -type f -name '*.a' -delete \
       && find /opt/conda -follow -type f -name '*.pyc' -delete \
@@ -133,7 +138,7 @@ RUN set -e \
         apt-transport-https apt-utils ca-certificates curl gnupg \
         libcurl3-gnutls libgsl23 libgkl-jni libncurses5 libmysqlclient21 \
         libxml-dom-xpath-perl libxml-parser-perl openjdk-8-jre pbzip2 perl \
-        pigz python r-base wget \
+        pigz python python3 wget \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*

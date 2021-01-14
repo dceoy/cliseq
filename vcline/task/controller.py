@@ -50,18 +50,18 @@ class RunVariantCaller(luigi.Task):
     read_groups = luigi.ListParameter()
     sample_names = luigi.ListParameter()
     cf = luigi.DictParameter()
-    dbsnp_vcf_path = luigi.Parameter(default='')
-    mills_indel_vcf_path = luigi.Parameter(default='')
-    known_indel_vcf_path = luigi.Parameter(default='')
+    dbsnp_vcf_path = luigi.Parameter()
+    mills_indel_vcf_path = luigi.Parameter()
+    known_indel_vcf_path = luigi.Parameter()
+    evaluation_interval_path = luigi.Parameter()
     hapmap_vcf_path = luigi.Parameter(default='')
     gnomad_vcf_path = luigi.Parameter(default='')
-    evaluation_interval_path = luigi.Parameter(default='')
     cnv_blacklist_path = luigi.Parameter(default='')
     funcotator_somatic_data_dir_path = luigi.Parameter(default='')
     funcotator_germline_data_dir_path = luigi.Parameter(default='')
     snpeff_db_data_dir_path = luigi.Parameter(default='')
     vep_cache_data_dir_path = luigi.Parameter(default='')
-    caller = luigi.Parameter(default='')
+    caller = luigi.Parameter(default='somatic_snv_indel.gatk')
     annotators = luigi.ListParameter(default=list())
     normalize_vcf = luigi.BoolParameter(default=True)
     n_cpu = luigi.IntParameter(default=1)
@@ -71,6 +71,7 @@ class RunVariantCaller(luigi.Task):
 
     def requires(self):
         if 'germline_snv_indel.gatk' == self.caller:
+            assert bool(self.hapmap_vcf_path)
             return FilterVariantTranches(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -84,6 +85,7 @@ class RunVariantCaller(luigi.Task):
                 sh_config=self.sh_config
             )
         elif 'somatic_snv_indel.gatk' == self.caller:
+            assert bool(self.gnomad_vcf_path)
             return FilterMutectCalls(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -145,6 +147,7 @@ class RunVariantCaller(luigi.Task):
                 sh_config=self.sh_config
             )
         elif 'somatic_cnv.gatk' == self.caller:
+            assert bool(self.cnv_blacklist_path and self.gnomad_vcf_path)
             return CallCopyRatioSegmentsMatched(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
@@ -219,6 +222,7 @@ class RunVariantCaller(luigi.Task):
                     if self.caller.startswith('germline_')
                     else self.funcotator_somatic_data_dir_path
                 )
+                assert bool(data_src_dir_path)
                 if p.endswith('.seg'):
                     yield AnnotateSegWithFuncotateSegments(
                         input_seg_path=p, fa_path=self.ref_fa_path,
@@ -241,6 +245,7 @@ class RunVariantCaller(luigi.Task):
                         sh_config=self.sh_config
                     )
             elif a == 'snpeff':
+                assert bool(self.snpeff_db_data_dir_path)
                 yield AnnotateVariantsWithSnpeff(
                     input_vcf_path=p, fa_path=self.ref_fa_path,
                     db_data_dir_path=self.snpeff_db_data_dir_path,
@@ -252,6 +257,7 @@ class RunVariantCaller(luigi.Task):
                     memory_mb=self.memory_mb, sh_config=self.sh_config
                 )
             elif a == 'vep':
+                assert bool(self.vep_cache_data_dir_path)
                 yield AnnotateVariantsWithEnsemblVep(
                     input_vcf_path=p, fa_path=self.ref_fa_path,
                     cache_data_dir_path=self.vep_cache_data_dir_path,
