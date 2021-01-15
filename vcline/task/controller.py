@@ -2,15 +2,15 @@
 
 import logging
 import os
-from itertools import chain
 from pathlib import Path
 from socket import gethostname
 
 import luigi
 from luigi.tools import deps_tree
-from vanqc.task.bcftools import NormalizeVcf
+from vanqc.task.bcftools import CollectVcfStats, NormalizeVcf
 from vanqc.task.gatk import (AnnotateSegWithFuncotateSegments,
                              AnnotateVariantsWithFuncotator)
+from vanqc.task.picard import CollectVariantCallingMetrics
 from vanqc.task.snpeff import AnnotateVariantsWithSnpeff
 from vanqc.task.vep import AnnotateVariantsWithEnsemblVep
 
@@ -62,6 +62,7 @@ class RunVariantCaller(luigi.Task):
     snpeff_db_data_dir_path = luigi.Parameter(default='')
     vep_cache_data_dir_path = luigi.Parameter(default='')
     caller = luigi.Parameter(default='somatic_snv_indel.gatk')
+    metrics_collectors = luigi.ListParameter(default=list())
     annotators = luigi.ListParameter(default=list())
     normalize_vcf = luigi.BoolParameter(default=True)
     n_cpu = luigi.IntParameter(default=1)
@@ -177,46 +178,69 @@ class RunVariantCaller(luigi.Task):
             raise ValueError(f'invalid caller: {self.caller}')
 
     def output(self):
-        output_files = list(
-            chain.from_iterable(
-                [
-                    Path(self.cf['postproc_dir_path']).joinpath(a).joinpath(
-                        (Path(p).stem + f'.{a}.seg.tsv') if p.endswith('.seg')
-                        else (
-                            Path(Path(p).stem).stem
-                            + ('.norm' if self.normalize_vcf else '')
-                            + ('.vcf.gz' if a == 'norm' else f'.{a}.vcf.gz')
-                        )
-                    )
-                ] for p, a in self._generate_annotation_targets()
-            )
-        )
+        postproc_dir = Path(self.cf['postproc_dir_path'])
+        norm_tag = ('.norm' if self.normalize_vcf else '')
         return (
-            [luigi.LocalTarget(o) for o in output_files]
-            if output_files else self.input()
+            [
+                luigi.LocalTarget(
+                    postproc_dir.joinpath(a).joinpath(
+                        (
+                            Path(Path(p).stem).stem + {
+                                'norm': f'{norm_tag}.vcf.gz',
+                                'funcotator': f'{norm_tag}.funcotator.vcf.gz',
+                                'snpeff': f'{norm_tag}.snpeff.vcf.gz',
+                                'vep': f'{norm_tag}.vep.txt.gz',
+                                'bcftools': '.vcf.stats.txt',
+                                'picard': '.CollectVariantCallingMetrics.txt'
+                            }[a]
+                        ) if p.endswith('.vcf.gz')
+                        else (Path(p).stem + f'.{a}.seg.tsv')
+                    )
+                ) for p, a in self._generate_postproc_targets()
+            ] or self.input()
         )
 
-    def _generate_annotation_targets(self):
+    def _generate_postproc_targets(self):
         for i in self.input():
             p = i.path
-            if p.endswith('.called.seg') and 'funcotator' in self.annotators:
-                yield p, 'funcotator'
-            elif p.endswith('.vcf.gz'):
-                if self.normalize_vcf:
+            if p.endswith('.vcf.gz'):
+                for c in self.metrics_collectors:
+                    yield p, c
+                if self.normalize_vcf and not self.annotators:
                     yield p, 'norm'
-                if ('funcotator' in self.annotators
-                        and not self.caller.startswith('somatic_sv.')):
-                    yield p, 'funcotator'
-                if 'snpeff' in self.annotators:
-                    yield p, 'snpeff'
-                if 'vep' in self.annotators:
-                    yield p, 'vep'
+                else:
+                    for a in self.annotators:
+                        if (a == 'funcotator'
+                                and self.caller.startswith('somatic_sv.')):
+                            pass
+                        else:
+                            yield p, a
+            elif p.endswith('.called.seg') and 'funcotator' in self.annotators:
+                yield p, 'funcotator'
 
     def run(self):
         postproc_dir = Path(self.cf['postproc_dir_path'])
         norm_dir = postproc_dir.joinpath('norm')
-        for p, a in self._generate_annotation_targets():
-            if a == 'funcotator':
+        for p, a in self._generate_postproc_targets():
+            if a == 'bcftools':
+                bcftools = Path(self.cf['bcftools'])
+                plot_vcfstats = bcftools.parent.joinpath('plot-vcfstats')
+                assert plot_vcfstats.is_file(), 'plot-vcfstats not found'
+                yield CollectVcfStats(
+                    input_vcf_path=p, fa_path=self.ref_fa_path,
+                    dest_dir_path=str(postproc_dir.joinpath(a)),
+                    bcftools=str(bcftools), plot_vcfstats=str(plot_vcfstats),
+                    n_cpu=self.n_cpu, sh_config=self.sh_config
+                )
+            elif a == 'picard':
+                yield CollectVariantCallingMetrics(
+                    input_vcf_path=p, fa_path=self.ref_fa_path,
+                    dbsnp_vcf_path=self.dbsnp_vcf_path,
+                    dest_dir_path=str(postproc_dir.joinpath(a)),
+                    picard=self.cf['gatk'], n_cpu=self.n_cpu,
+                    memory_mb=self.memory_mb, sh_config=self.sh_config
+                )
+            elif a == 'funcotator':
                 data_src_dir_path = (
                     self.funcotator_germline_data_dir_path
                     if self.caller.startswith('germline_')

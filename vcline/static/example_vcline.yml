@@ -17,6 +17,9 @@ callers:
   germline_snv_indel:
     gatk: true
     strelka: false
+metrics_collectors:
+  bcftools: true
+  picard: true
 annotators:
   funcotator: true
   snpeff: true

@@ -66,6 +66,15 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
         ) if 'callers' in config else list()
     )
     logger.debug('callers:' + os.linesep + pformat(callers))
+    metrics_collectors = (
+        [
+            k for k in default_dict['metrics_collectors']
+            if config['metrics_collectors'].get(k)
+        ] if 'metrics_collectors' in config else list()
+    )
+    logger.debug(
+        'metrics_collectors:' + os.linesep + pformat(metrics_collectors)
+    )
     annotators = (
         [k for k in default_dict['annotators'] if config['annotators'].get(k)]
         if 'annotators' in config else list()
@@ -189,8 +198,9 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
         yaml.dump([
             {'workers': n_worker}, {'runs': len(runs)},
             {'adapter_removal': adapter_removal},
-            {'read_alignment': read_alignment},
-            {'callers': callers}, {'annotators': annotators},
+            {'read_alignment': read_alignment}, {'callers': callers},
+            {'metrics_collectors': metrics_collectors},
+            {'annotators': annotators},
             {
                 'samples': [
                     dict(zip(['tumor', 'normal'], d['sample_names']))
@@ -236,6 +246,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
             tasks=[
                 RunVariantCaller(
                     **d, **resource_path_dict, cf=cf_dict, caller=c,
+                    metrics_collectors=metrics_collectors,
                     annotators=annotators, n_cpu=n_cpu_per_worker,
                     memory_mb=memory_mb_per_worker, sh_config=sh_config
                 ) for d, c in product(sample_dict_list, callers)

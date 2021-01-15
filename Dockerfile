@@ -135,7 +135,16 @@ RUN set -e \
         apt-transport-https apt-utils ca-certificates curl gnupg \
         libcurl3-gnutls libgsl23 libgkl-jni libncurses5 libmysqlclient21 \
         libxml-dom-xpath-perl libxml-parser-perl openjdk-8-jre pbzip2 perl \
-        pigz python wget \
+        pigz python texlive-fonts-recommended texlive-latex-extra wget
+
+RUN set -eo pipefail \
+      && echo "deb http://packages.cloud.google.com/apt cloud-sdk-bionic main" \
+        | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
+      && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg \
+        | apt-key add - \
+      && apt-get -y update \
+      && apt-get -y install --no-install-recommends --no-install-suggests \
+        google-cloud-sdk \
       && apt-get -y autoremove \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
