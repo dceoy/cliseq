@@ -355,10 +355,13 @@ class FilterVariantTranches(VclineTask):
         evaluation_interval = Path(self.input()[3].path)
         gatk = self.cf['gatk']
         self.setup_shell(
-            run_id=run_id, log_dir_path=self.cf['log_dir_path'], commands=gatk,
-            cwd=output_filtered_vcf.parent,
-            remove_if_failed=self.cf['remove_if_failed'],
-            quiet=self.cf['quiet']
+            run_id=run_id, commands=gatk, cwd=output_filtered_vcf.parent,
+            **self.sh_config,
+            env={
+                'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
+                    n_cpu=self.n_cpu, memory_mb=self.memory_mb
+                )
+            }
         )
         self.run_shell(
             args=(
