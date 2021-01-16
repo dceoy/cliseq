@@ -10,9 +10,9 @@ from luigi.util import requires
 
 from .core import VclineTask
 from .cram import PrepareCramNormal, PrepareCramTumor
-from .haplotypecaller import GenotypeHaplotypeCallerGvcf
-from .mutect2 import CallVariantsWithMutect2
-from .resource import FetchCnvBlackList, FetchEvaluationIntervalList
+from .haplotypecaller import FilterVariantTranches
+from .resource import (CreateGnomadBiallelicSnpVcf, FetchCnvBlackList,
+                       FetchDbsnpVcf, FetchEvaluationIntervalList)
 
 
 @requires(FetchEvaluationIntervalList, FetchCnvBlackList,
@@ -78,9 +78,11 @@ class PreprocessIntervals(VclineTask):
         )
 
 
-@requires(CallVariantsWithMutect2, GenotypeHaplotypeCallerGvcf)
+@requires(FilterVariantTranches, FetchDbsnpVcf, CreateGnomadBiallelicSnpVcf,
+          CreateSequenceDictionary)
 class CreateCommonSnpIntervalList(VclineTask):
     cf = luigi.DictParameter()
+    min_ab = luigi.FloatParameter(default=0.5)
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)
     sh_config = luigi.DictParameter(default=dict())
@@ -89,8 +91,8 @@ class CreateCommonSnpIntervalList(VclineTask):
     def output(self):
         return luigi.LocalTarget(
             Path(self.cf['qc_dir_path']).joinpath('cnv').joinpath(
-                Path(Path(Path(self.input()[0][0].path).stem).stem).stem
-                + '.interval_list'
+                Path(Path(self.input()[0][0].path).stem).stem
+                + '.snp.interval_list'
             )
         )
 
@@ -98,11 +100,16 @@ class CreateCommonSnpIntervalList(VclineTask):
         output_interval = Path(self.output().path)
         run_id = output_interval.stem
         self.print_log(f'Create a common SNP interval_list:\t{run_id}')
-        input_vcfs = [Path(i[0].path) for i in self.input()]
+        hc_vcf = Path(self.input()[0][0].path)
+        snp_vcfs = [Path(i[0].path) for i in self.input()[1:3]]
+        seq_dict = Path(self.input()[3].path)
+        dest_dir = output_interval.parent
+        output_bed = dest_dir.joinpath(f'{output_interval.stem}.bed.gz')
+        bedtools = self.cf['bedtools']
+        bgzip = self.cf['bgzip']
         gatk = self.cf['gatk']
         self.setup_shell(
-            run_id=run_id, commands=gatk, cwd=output_interval.parent,
-            **self.sh_config,
+            run_id=run_id, commands=gatk, cwd=dest_dir, **self.sh_config,
             env={
                 'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
                     n_cpu=self.n_cpu, memory_mb=self.memory_mb
@@ -111,13 +118,25 @@ class CreateCommonSnpIntervalList(VclineTask):
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk} IntervalListTools'
-                + ' --ACTION INTERSECT'
-                + ''.join(f' --INPUT {v}' for v in input_vcfs)
-                + f' --OUTPUT {output_interval}'
-                + ' --INCLUDE_FILTERED true'
+                'set -eo pipefail && cat'
+                + ''.join(
+                    f' <({bedtools} intersect -a {hc_vcf} -b {v})'
+                    for v in snp_vcfs
+                )
+                + f' | {bedtools} sort -i -'
+                + f' | {bgzip} -@ {self.n_cpu} -c > {output_bed}'
             ),
-            input_files_or_dirs=input_vcfs,
+            input_files_or_dirs=[hc_vcf, *snp_vcfs],
+            output_files_or_dirs=output_bed
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {gatk} BedToIntervalList'
+                + f' --INPUT {output_bed}'
+                + f' --SEQUENCE_DICTIONARY {seq_dict}'
+                + f' --OUTPUT {output_interval}'
+            ),
+            input_files_or_dirs=[output_bed, seq_dict],
             output_files_or_dirs=output_interval
         )
 

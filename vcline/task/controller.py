@@ -71,21 +71,7 @@ class RunVariantCaller(luigi.Task):
     priority = luigi.IntParameter(default=1000)
 
     def requires(self):
-        if 'germline_snv_indel.gatk' == self.caller:
-            assert bool(self.hapmap_vcf_path)
-            return FilterVariantTranches(
-                fq_list=self.fq_list, cram_list=self.cram_list,
-                read_groups=self.read_groups, sample_names=self.sample_names,
-                ref_fa_path=self.ref_fa_path,
-                dbsnp_vcf_path=self.dbsnp_vcf_path,
-                mills_indel_vcf_path=self.mills_indel_vcf_path,
-                known_indel_vcf_path=self.known_indel_vcf_path,
-                hapmap_vcf_path=self.hapmap_vcf_path,
-                evaluation_interval_path=self.evaluation_interval_path,
-                cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
-                sh_config=self.sh_config
-            )
-        elif 'somatic_snv_indel.gatk' == self.caller:
+        if 'somatic_snv_indel.gatk' == self.caller:
             assert bool(self.gnomad_vcf_path)
             return FilterMutectCalls(
                 fq_list=self.fq_list, cram_list=self.cram_list,
@@ -95,6 +81,20 @@ class RunVariantCaller(luigi.Task):
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 gnomad_vcf_path=self.gnomad_vcf_path,
+                evaluation_interval_path=self.evaluation_interval_path,
+                cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                sh_config=self.sh_config
+            )
+        elif 'germline_snv_indel.gatk' == self.caller:
+            assert bool(self.hapmap_vcf_path)
+            return FilterVariantTranches(
+                fq_list=self.fq_list, cram_list=self.cram_list,
+                read_groups=self.read_groups, sample_names=self.sample_names,
+                ref_fa_path=self.ref_fa_path,
+                dbsnp_vcf_path=self.dbsnp_vcf_path,
+                mills_indel_vcf_path=self.mills_indel_vcf_path,
+                known_indel_vcf_path=self.known_indel_vcf_path,
+                hapmap_vcf_path=self.hapmap_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
                 cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
                 sh_config=self.sh_config
@@ -156,6 +156,7 @@ class RunVariantCaller(luigi.Task):
                 dbsnp_vcf_path=self.dbsnp_vcf_path,
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
+                hapmap_vcf_path=self.hapmap_vcf_path,
                 gnomad_vcf_path=self.gnomad_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
                 cnv_blacklist_path=self.cnv_blacklist_path, cf=self.cf,
