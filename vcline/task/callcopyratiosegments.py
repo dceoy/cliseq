@@ -11,8 +11,7 @@ from luigi.util import requires
 from .core import VclineTask
 from .cram import PrepareCramNormal, PrepareCramTumor
 from .haplotypecaller import FilterVariantTranches
-from .resource import (CreateGnomadBiallelicSnpVcf, FetchCnvBlackList,
-                       FetchDbsnpVcf, FetchEvaluationIntervalList)
+from .resource import FetchCnvBlackList, FetchEvaluationIntervalList
 
 
 @requires(FetchEvaluationIntervalList, FetchCnvBlackList,
@@ -78,8 +77,7 @@ class PreprocessIntervals(VclineTask):
         )
 
 
-@requires(FilterVariantTranches, FetchDbsnpVcf, CreateGnomadBiallelicSnpVcf,
-          CreateSequenceDictionary)
+@requires(FilterVariantTranches, FetchReferenceFasta, CreateSequenceDictionary)
 class CreateCommonSnpIntervalList(VclineTask):
     cf = luigi.DictParameter()
     min_ab = luigi.FloatParameter(default=0.5)
@@ -92,7 +90,7 @@ class CreateCommonSnpIntervalList(VclineTask):
         return luigi.LocalTarget(
             Path(self.cf['qc_dir_path']).joinpath('cnv').joinpath(
                 Path(Path(self.input()[0][0].path).stem).stem
-                + '.snp.interval_list'
+                + '.biallelic_snp.interval_list'
             )
         )
 
@@ -100,13 +98,10 @@ class CreateCommonSnpIntervalList(VclineTask):
         output_interval = Path(self.output().path)
         run_id = output_interval.stem
         self.print_log(f'Create a common SNP interval_list:\t{run_id}')
-        hc_vcf = Path(self.input()[0][0].path)
-        snp_vcfs = [Path(i[0].path) for i in self.input()[1:3]]
-        seq_dict = Path(self.input()[3].path)
+        input_vcf = Path(self.input()[0][0].path)
+        fa = Path(self.input()[1][0].path)
         dest_dir = output_interval.parent
-        output_bed = dest_dir.joinpath(f'{output_interval.stem}.bed.gz')
-        bedtools = self.cf['bedtools']
-        bgzip = self.cf['bgzip']
+        biallelic_snp_vcf = dest_dir.joinpath(f'{output_interval.stem}.vcf.gz')
         gatk = self.cf['gatk']
         self.setup_shell(
             run_id=run_id, commands=gatk, cwd=dest_dir, **self.sh_config,
@@ -118,25 +113,26 @@ class CreateCommonSnpIntervalList(VclineTask):
         )
         self.run_shell(
             args=(
-                'set -eo pipefail && cat'
-                + ''.join(
-                    f' <({bedtools} intersect -a {hc_vcf} -b {v})'
-                    for v in snp_vcfs
-                )
-                + f' | {bedtools} sort -i -'
-                + f' | {bgzip} -@ {self.n_cpu} -c > {output_bed}'
+                f'set -e && {gatk} SelectVariants'
+                + f' --variant {input_vcf}'
+                + f' --reference {fa}'
+                + f' --output {biallelic_snp_vcf}'
+                + ' --select-type-to-include SNP'
+                + ' --restrict-alleles-to BIALLELIC'
+                + ' --lenient'
             ),
-            input_files_or_dirs=[hc_vcf, *snp_vcfs],
-            output_files_or_dirs=output_bed
+            input_files_or_dirs=[input_vcf, fa],
+            output_files_or_dirs=[
+                biallelic_snp_vcf, f'{biallelic_snp_vcf}.tbi'
+            ]
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk} BedToIntervalList'
-                + f' --INPUT {output_bed}'
-                + f' --SEQUENCE_DICTIONARY {seq_dict}'
+                f'set -e && {gatk} VcfToIntervalList'
+                + f' --INPUT {biallelic_snp_vcf}'
                 + f' --OUTPUT {output_interval}'
             ),
-            input_files_or_dirs=[output_bed, seq_dict],
+            input_files_or_dirs=biallelic_snp_vcf,
             output_files_or_dirs=output_interval
         )
 
@@ -318,6 +314,7 @@ class DenoiseReadCounts(VclineTask):
         r = self.cf['R']
         denoised_cr_tsv = Path(self.output()[0].path)
         standardized_cr_tsv = Path(self.output()[1].path)
+        seq_dict = Path(self.seq_dict_path)
         run_dir = denoised_cr_tsv.parent
         self.setup_shell(
             run_id=run_id, commands=[gatk, r], cwd=run_dir, **self.sh_config,
@@ -344,13 +341,13 @@ class DenoiseReadCounts(VclineTask):
                     f'set -e && {gatk} PlotDenoisedCopyRatios'
                     + f' --standardized-copy-ratios {standardized_cr_tsv}'
                     + f' --denoised-copy-ratios {denoised_cr_tsv}'
-                    + f' --sequence-dictionary {self.seq_dict}'
+                    + f' --sequence-dictionary {seq_dict}'
                     + f' --output {plots_dir}'
                     + f' --output-prefix {run_id}'
 
                 ),
                 input_files_or_dirs=[
-                    standardized_cr_tsv, denoised_cr_tsv, self.seq_dict
+                    standardized_cr_tsv, denoised_cr_tsv, seq_dict
                 ],
                 output_files_or_dirs=[
                     plots_dir.joinpath(f'{run_id}.denoised.png'), plots_dir

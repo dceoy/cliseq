@@ -157,7 +157,6 @@ class RunVariantCaller(luigi.Task):
                 mills_indel_vcf_path=self.mills_indel_vcf_path,
                 known_indel_vcf_path=self.known_indel_vcf_path,
                 hapmap_vcf_path=self.hapmap_vcf_path,
-                gnomad_vcf_path=self.gnomad_vcf_path,
                 evaluation_interval_path=self.evaluation_interval_path,
                 cnv_blacklist_path=self.cnv_blacklist_path, cf=self.cf,
                 n_cpu=self.n_cpu, memory_mb=self.memory_mb,

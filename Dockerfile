@@ -84,7 +84,7 @@ RUN set -e \
       && make clean \
       && export KENT_SRC=/usr/local/src/kent/src \
       && export MACHTYPE=$(uname -m) \
-      && export CFLAGS="-fPIC" \
+      && export CFLAGS='-fPIC' \
       && export MYSQLINC=`mysql_config --include | sed -e 's/^-I//g'` \
       && export MYSQLLIBS=`mysql_config --libs` \
       && echo 'CFLAGS="-fPIC"' > ../inc/localEnvironment.mk \
@@ -125,8 +125,8 @@ COPY --from=builder /opt /opt
 RUN set -e \
       && ln -sf bash /bin/sh \
       && echo '. /opt/conda/etc/profile.d/conda.sh' >> /etc/profile \
-      && echo 'conda activate base' >> /etc/profile \
-      && echo 'source /opt/gatk/gatkenv.rc' >> /etc/profile
+      && echo 'source activate gatk' >> /etc/profile \
+      && echo 'source /opt/gatk/gatk-completion.sh' >> /etc/profile
 
 RUN set -e \
       && apt-get -y update \
@@ -138,7 +138,7 @@ RUN set -e \
         pigz python texlive-fonts-recommended texlive-latex-extra wget
 
 RUN set -eo pipefail \
-      && echo "deb http://packages.cloud.google.com/apt cloud-sdk-bionic main" \
+      && echo 'deb http://packages.cloud.google.com/apt cloud-sdk-bionic main' \
         | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
       && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg \
         | apt-key add - \
