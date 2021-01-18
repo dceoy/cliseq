@@ -163,9 +163,25 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     if callers:
         resource_keys = {
             'ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
-            'evaluation_interval', 'hapmap_vcf', 'gnomad_vcf', 'cnv_blacklist',
-            'funcotator_somatic_data_dir', 'funcotator_germline_data_dir',
-            'snpeff_db_data_dir', 'vep_cache_data_dir'
+            'evaluation_interval',
+            *(
+                {'gnomad_vcf'}
+                if 'somatic_snv_indel.gatk' in callers else set()
+            ),
+            *(
+                {'hapmap_vcf'}
+                if 'germline_snv_indel.gatk' in callers else set()
+            ),
+            *(
+                {'hapmap_vcf', 'cnv_blacklist'}
+                if 'somatic_cnv.gatk' in callers else set()
+            ),
+            *(
+                {'funcotator_somatic_data_dir', 'funcotator_germline_data_dir'}
+                if 'funcotator' in annotators else set()
+            ),
+            *({'snpeff_db_data_dir'} if 'snpeff' in annotators else set()),
+            *({'vep_cache_data_dir'} if 'vep' in annotators else set())
         }
     else:
         resource_keys = {
@@ -270,12 +286,7 @@ def _read_config_yml(path):
     config = read_yml(path=Path(path).resolve())
     assert (isinstance(config, dict) and config.get('resources')), config
     assert isinstance(config['resources'], dict), config['resources']
-    for k in ['ref_fa', 'dbsnp_vcf', 'mills_indel_vcf', 'known_indel_vcf',
-              'hapmap_vcf', 'gnomad_vcf', 'evaluation_interval',
-              'cnv_blacklist', 'funcotator_germline_data_dir',
-              'funcotator_somatic_data_dir', 'snpeff_db_data_dir',
-              'vep_cache_data_dir']:
-        v = config['resources'].get(k)
+    for k, v in config['resources'].items():
         assert isinstance(v, str), k
     assert config.get('runs'), config
     assert isinstance(config['runs'], list), config['runs']
