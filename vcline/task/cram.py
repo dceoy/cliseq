@@ -44,7 +44,11 @@ class PrepareCramTumor(luigi.WrapperTask):
                     self.dbsnp_vcf_path, self.mills_indel_vcf_path,
                     self.known_indel_vcf_path,
                 ],
-                cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb
+                cf={
+                    'metrics_collectors': list(),
+                    **{k: v for k, v in self.cf if k != 'metrics_collectors'}
+                },
+                n_cpu=self.n_cpu, memory_mb=self.memory_mb
             )
 
     def output(self):
@@ -86,7 +90,11 @@ class PrepareCramNormal(luigi.WrapperTask):
                     self.dbsnp_vcf_path, self.mills_indel_vcf_path,
                     self.known_indel_vcf_path,
                 ],
-                cf=self.cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb
+                cf={
+                    'metrics_collectors': list(),
+                    **{k: v for k, v in self.cf if k != 'metrics_collectors'}
+                },
+                n_cpu=self.n_cpu, memory_mb=self.memory_mb
             )
 
     def output(self):
