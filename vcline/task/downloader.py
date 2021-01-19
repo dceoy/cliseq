@@ -56,7 +56,7 @@ class DownloadGnomadVcfsAndExtractAf(VclineTask):
                 (
                     f'https://{url_root}/release/3.1/vcf/genomes/'
                     + f'gnomad.genomes.v3.1.sites.chr{i}.vcf.bgz'
-                ) for i in [*range(1, 23), 'X', 'Y', 'M']
+                ) for i in [*range(1, 23), 'X', 'Y']
             ]
         vcf_dict = {
             u: dest_dir.joinpath(Path(Path(u).stem).stem + '.af-only.vcf.gz')
