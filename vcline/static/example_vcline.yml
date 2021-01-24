@@ -30,7 +30,7 @@ resources:
   mills_indel_vcf: /path/to/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
   known_indel_vcf: /path/to/Homo_sapiens_assembly38.known_indels.vcf.gz
   hapmap_vcf: /path/to/hapmap_3.3.hg38.vcf.gz
-  gnomad_vcf: /path/to/gnomad.genomes.r3.1.sites.af-only.vcf.gz
+  gnomad_vcf: /path/to/gnomad.genomes.v3.1.sites.af-only.vcf.gz
   evaluation_interval: /path/to/wgs_calling_regions.hg38.interval_list
   cnv_blacklist: /path/to/CNV_and_centromere_blacklist.hg38liftover.list
   funcotator_germline_data_dir: /path/to/funcotator_dataSources.v1.7.20200521g
