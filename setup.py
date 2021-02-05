@@ -18,10 +18,7 @@ setup(
     url='https://github.com/dceoy/vcline.git',
     packages=find_packages(),
     include_package_data=True,
-    install_requires=[
-        'docopt', 'ftarc', 'jinja2', 'luigi', 'pip', 'psutil', 'pyyaml',
-        'shoper'
-    ],
+    install_requires=['docopt', 'ftarc', 'luigi', 'psutil'],
     entry_points={
         'console_scripts': ['vcline=vcline.cli.main:main']
     },

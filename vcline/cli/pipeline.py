@@ -3,18 +3,17 @@
 import logging
 import os
 import re
-from datetime import datetime
 from itertools import chain, product
 from math import floor
 from pathlib import Path
 from pprint import pformat
 
-import yaml
 from ftarc.cli.util import (build_luigi_tasks, fetch_executable, parse_fq_id,
-                            print_log, read_yml)
+                            print_log, print_yml, read_yml,
+                            render_luigi_log_cfg)
 from psutil import cpu_count, virtual_memory
 
-from ..cli.util import load_default_dict, parse_cram_id, render_template
+from ..cli.util import load_default_dict, parse_cram_id
 from ..task.controller import PrintEnvVersions, RunVariantCaller
 from ..task.cram import PrepareCramsMatched
 
@@ -210,42 +209,22 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
             else 'Prepare CRAM files'
         ) + f'\t{dest_dir}'
     )
-    print(
-        yaml.dump([
-            {'workers': n_worker}, {'runs': len(runs)},
-            {'adapter_removal': adapter_removal},
-            {'read_alignment': read_alignment}, {'callers': callers},
-            {'metrics_collectors': metrics_collectors},
-            {'annotators': annotators},
-            {
-                'samples': [
-                    dict(zip(['tumor', 'normal'], d['sample_names']))
-                    for d in sample_dict_list
-                ]
-            }
-        ])
-    )
-
-    for d in [dest_dir, log_dir]:
-        if not d.is_dir():
-            print_log(f'Make a directory:\t{d}')
-            d.mkdir()
+    print_yml([
+        {'workers': n_worker}, {'runs': len(runs)},
+        {'adapter_removal': adapter_removal},
+        {'read_alignment': read_alignment}, {'callers': callers},
+        {'metrics_collectors': metrics_collectors}, {'annotators': annotators},
+        {
+            'samples': [
+                dict(zip(['tumor', 'normal'], d['sample_names']))
+                for d in sample_dict_list
+            ]
+        }
+    ])
     log_cfg_path = str(log_dir.joinpath('luigi.log.cfg'))
-    render_template(
-        template=(Path(log_cfg_path).name + '.j2'),
-        data={
-            'console_log_level': console_log_level,
-            'file_log_level': file_log_level,
-            'log_txt_path': str(
-                log_dir.joinpath(
-                    'luigi.{0}.{1}.log.txt'.format(
-                        file_log_level,
-                        datetime.now().strftime('%Y%m%d_%H%M%S')
-                    )
-                )
-            )
-        },
-        output_path=log_cfg_path
+    render_luigi_log_cfg(
+        log_cfg_path=log_cfg_path, console_log_level=console_log_level,
+        file_log_level=file_log_level
     )
 
     build_luigi_tasks(
@@ -257,29 +236,24 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
         workers=1, log_level=console_log_level, logging_conf_file=log_cfg_path,
         hide_summary=True
     )
-    if callers:
-        build_luigi_tasks(
-            tasks=[
+    build_luigi_tasks(
+        tasks=(
+            [
                 RunVariantCaller(
                     **d, **resource_path_dict, cf=cf_dict, caller=c,
                     metrics_collectors=metrics_collectors,
                     annotators=annotators, n_cpu=n_cpu_per_worker,
                     memory_mb=memory_mb_per_worker, sh_config=sh_config
                 ) for d, c in product(sample_dict_list, callers)
-            ],
-            workers=n_worker, log_level=console_log_level,
-            logging_conf_file=log_cfg_path
-        )
-    else:
-        build_luigi_tasks(
-            tasks=[
+            ] if callers else [
                 PrepareCramsMatched(
                     **d, **resource_path_dict, cf=cf_dict, sh_config=sh_config
                 ) for d in sample_dict_list
-            ],
-            workers=n_worker, log_level=console_log_level,
-            logging_conf_file=log_cfg_path
-        )
+            ]
+        ),
+        workers=n_worker, log_level=console_log_level,
+        logging_conf_file=log_cfg_path
+    )
 
 
 def _read_config_yml(path):
