@@ -135,7 +135,8 @@ RUN set -e \
         apt-transport-https apt-utils ca-certificates curl gnupg gnuplot \
         libcurl3-gnutls libgsl23 libgkl-jni libncurses5 libmysqlclient21 \
         libxml-dom-xpath-perl libxml-parser-perl openjdk-8-jre pbzip2 perl \
-        pigz python texlive-fonts-recommended texlive-latex-extra wget
+        pigz python texlive-fonts-extra texlive-fonts-recommended \
+        texlive-latex-base texlive-latex-extra wget
 
 RUN set -eo pipefail \
       && echo 'deb http://packages.cloud.google.com/apt cloud-sdk-bionic main' \
