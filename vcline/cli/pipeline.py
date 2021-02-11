@@ -134,6 +134,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     cf_dict = {
         'reference_name': config.get('reference_name'),
         'use_bwa_mem2': use_bwa_mem2, 'adapter_removal': adapter_removal,
+        'plot_vcfstats': fetch_executable('plot-vcfstats'),
         'metrics_collectors': metrics_collectors,
         'save_memory': (memory_mb_per_worker < 8192), 'n_worker': n_worker,
         'ucsc_hg_version': (config.get('reference_version') or 'hg38'),
@@ -210,14 +211,24 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
         ) + f'\t{dest_dir}'
     )
     print_yml([
-        {'workers': n_worker}, {'runs': len(runs)},
-        {'adapter_removal': adapter_removal},
-        {'read_alignment': read_alignment}, {'callers': callers},
-        {'metrics_collectors': metrics_collectors}, {'annotators': annotators},
         {
-            'samples': [
-                dict(zip(['tumor', 'normal'], d['sample_names']))
-                for d in sample_dict_list
+            'config': [
+                {'adapter_removal': adapter_removal},
+                {'read_alignment': read_alignment}, {'callers': callers},
+                {'metrics_collectors': metrics_collectors},
+                {'annotators': annotators}, {'n_worker': n_worker},
+                {'n_cpu': n_cpu}, {'memory_mb': memory_mb}
+            ]
+        },
+        {
+            'input': [
+                {'n_sample': len(runs)},
+                {
+                    'samples': [
+                        dict(zip(['tumor', 'normal'], d['sample_names']))
+                        for d in sample_dict_list
+                    ]
+                }
             ]
         }
     ])

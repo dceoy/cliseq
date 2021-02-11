@@ -85,9 +85,7 @@ def main():
             console_log_level=log_level, use_bwa_mem2=args['--use-bwa-mem2']
         )
     else:
-        n_worker = int(args['--workers'] or 2)
-        n_cpu = max(1, floor(int(args['--cpus'] or cpu_count()) / n_worker))
-        memory_mb = int(virtual_memory().total / 1024 / 1024 / 2 / n_worker)
+        n_cpu = int(args['--cpus'] or cpu_count())
         sh_config = {
             'log_dir_path': str(Path(args['--dest-dir']).joinpath('log')),
             'remove_if_failed': (not args['--skip-cleaning']),
@@ -112,6 +110,11 @@ def main():
                 {k for k in ['snpeff', 'funcotator', 'vep'] if args[f'--{k}']}
                 or {'snpeff', 'funcotator', 'vep'}
             )
+            n_worker = min(int(args['--workers']), len(anns), n_cpu)
+            n_cpu_per_worker = max(1, floor(n_cpu / n_worker))
+            memory_mb = int(
+                virtual_memory().total / 1024 / 1024 / 2 / n_worker
+            )
             common_kwargs = {
                 'dest_dir_path': args['--dest-dir'], 'sh_config': sh_config
             }
@@ -121,7 +124,8 @@ def main():
                         src_url_dict=url_dict,
                         use_gnomad_exome=args['--use-gnomad-exome'],
                         use_bwa_mem2=args['--use-bwa-mem2'], **command_dict,
-                        n_cpu=n_cpu, memory_mb=memory_mb, **common_kwargs
+                        n_cpu=n_cpu_per_worker, memory_mb=memory_mb,
+                        **common_kwargs
                     ),
                     *(
                         [
@@ -135,8 +139,9 @@ def main():
                     *(
                         [
                             DownloadFuncotatorDataSources(
-                                gatk=command_dict['gatk'], n_cpu=n_cpu,
-                                memory_mb=memory_mb, **common_kwargs
+                                gatk=command_dict['gatk'],
+                                n_cpu=n_cpu_per_worker, memory_mb=memory_mb,
+                                **common_kwargs
                             )
                         ] if 'funcotator' in anns else list()
                     ),

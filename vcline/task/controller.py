@@ -223,14 +223,12 @@ class RunVariantCaller(luigi.Task):
         norm_dir = postproc_dir.joinpath('norm')
         for p, a in self._generate_postproc_targets():
             if a == 'bcftools':
-                bcftools = Path(self.cf['bcftools'])
-                plot_vcfstats = bcftools.parent.joinpath('plot-vcfstats')
-                assert plot_vcfstats.is_file(), 'plot-vcfstats not found'
                 yield CollectVcfStats(
                     input_vcf_path=p, fa_path=self.ref_fa_path,
                     dest_dir_path=str(postproc_dir.joinpath(a)),
-                    bcftools=str(bcftools), plot_vcfstats=str(plot_vcfstats),
-                    n_cpu=self.n_cpu, sh_config=self.sh_config
+                    bcftools=self.cf['bcftools'],
+                    plot_vcfstats=self.cf['plot_vcfstats'], n_cpu=self.n_cpu,
+                    sh_config=self.sh_config
                 )
             elif a == 'picard':
                 yield CollectVariantCallingMetrics(
