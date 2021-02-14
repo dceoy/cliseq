@@ -9,9 +9,7 @@ Installation
 ------------
 
 ```sh
-$ pip install -U \
-    https://github.com/dceoy/vanqc/archive/main.tar.gz \
-    https://github.com/dceoy/vcline/archive/master.tar.gz
+$ pip install -U https://github.com/dceoy/vcline/archive/master.tar.gz
 ```
 
 Dependent commands:

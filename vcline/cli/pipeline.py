@@ -134,7 +134,10 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
     cf_dict = {
         'reference_name': config.get('reference_name'),
         'use_bwa_mem2': use_bwa_mem2, 'adapter_removal': adapter_removal,
-        'plot_vcfstats': fetch_executable('plot-vcfstats'),
+        'plot_vcfstats': (
+            fetch_executable('plot-vcfstats')
+            if 'samtools' in metrics_collectors else ''
+        ),
         'metrics_collectors': metrics_collectors,
         'save_memory': (memory_mb_per_worker < 8192), 'n_worker': n_worker,
         'ucsc_hg_version': (config.get('reference_version') or 'hg38'),
