@@ -136,15 +136,15 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
         'use_bwa_mem2': use_bwa_mem2, 'adapter_removal': adapter_removal,
         'plot_vcfstats': (
             fetch_executable('plot-vcfstats')
-            if 'samtools' in metrics_collectors else ''
+            if 'bcftools' in metrics_collectors else ''
         ),
         'metrics_collectors': metrics_collectors,
         'save_memory': (memory_mb_per_worker < 8192), 'n_worker': n_worker,
         'ucsc_hg_version': (config.get('reference_version') or 'hg38'),
         'exome': bool(config.get('exome')),
         **{
-            (k.replace('/', '_') + '_dir_path'): str(dest_dir.joinpath(k))
-            for k in {
+            (n.replace('/', '_') + '_dir_path'): str(dest_dir.joinpath(n))
+            for n in {
                 'trim', 'align', 'qc', 'postproc',
                 *chain.from_iterable(
                     [f'{k}/{c}' for c in v.keys()]

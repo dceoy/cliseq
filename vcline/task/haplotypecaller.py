@@ -135,7 +135,7 @@ class CallVariantsWithHaplotypeCaller(VclineTask):
             tmp_gvcfs = [Path(f'{s}.g.vcf.gz') for s in tmp_prefixes]
             self.run_shell(
                 args=(
-                    f'set -e && {gatk} CombineGvcfs'
+                    f'set -e && {gatk} CombineGVCFs'
                     + f' --reference {fa}'
                     + ''.join(f' --variant {p}' for p in tmp_gvcfs)
                     + f' --output {output_gvcf}'

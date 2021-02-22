@@ -43,10 +43,10 @@ class CallSomaticVariantsWithStrelka(VclineTask):
         run_script = run_dir.joinpath('runWorkflow.py')
         python2 = self.cf['python2']
         bcftools = self.cf['bcftools']
-        pythonpath = '{0}:{1}'.join([
+        pythonpath = '{0}:{1}'.format(
             Path(config_script).parent.parent.joinpath('lib/python'),
             (os.getenv('PYTHONPATH') or '')
-        ])
+        )
         memory_gb = max(floor(self.memory_mb / 1024), 4)
         input_crams = [Path(i[0].path) for i in self.input()[0:2]]
         fa = Path(self.input()[2][0].path)
@@ -124,10 +124,10 @@ class CallGermlineVariantsWithStrelka(VclineTask):
         config_script = Path(self.cf['configureStrelkaGermlineWorkflow.py'])
         run_script = run_dir.joinpath('runWorkflow.py')
         python2 = self.cf['python2']
-        pythonpath = '{0}:{1}'.join([
+        pythonpath = '{0}:{1}'.format(
             Path(config_script).parent.parent.joinpath('lib/python'),
             (os.getenv('PYTHONPATH') or '')
-        ])
+        )
         memory_gb = max(floor(self.memory_mb / 1024), 4)
         input_cram = Path(self.input()[0][0].path)
         fa = Path(self.input()[1][0].path)
