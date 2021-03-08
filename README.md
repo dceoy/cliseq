@@ -3,7 +3,7 @@ vcline
 
 Variant Calling Pipeline for Cancer Genome Sequencing
 
-[![wercker status](https://app.wercker.com/status/7e550a64d29cd12d0c2eef936867f9be/s/master "wercker status")](https://app.wercker.com/project/byKey/7e550a64d29cd12d0c2eef936867f9be)
+[![Test](https://github.com/dceoy/vcline/actions/workflows/test.yml/badge.svg)](https://github.com/dceoy/vcline/actions/workflows/test.yml)
 
 Installation
 ------------
