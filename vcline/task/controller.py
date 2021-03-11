@@ -16,9 +16,9 @@ from vanqc.task.vep import AnnotateVariantsWithEnsemblVep
 
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
 from .core import VclineTask
-from .delly import CallStructualVariantsWithDelly
+from .delly import CallSomaticStructualVariantsWithDelly
 from .haplotypecaller import FilterVariantTranches
-from .manta import CallStructualVariantsWithManta
+from .manta import CallSomaticStructualVariantsWithManta
 from .msisensorpro import ScoreMsiWithMsisensorPro
 from .mutect2 import FilterMutectCalls
 from .strelka import (CallGermlineVariantsWithStrelka,
@@ -100,7 +100,7 @@ class RunVariantCaller(luigi.Task):
                 sh_config=self.sh_config
             )
         elif 'somatic_sv.manta' == self.caller:
-            return CallStructualVariantsWithManta(
+            return CallSomaticStructualVariantsWithManta(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
                 ref_fa_path=self.ref_fa_path,
@@ -136,7 +136,7 @@ class RunVariantCaller(luigi.Task):
                 sh_config=self.sh_config
             )
         elif 'somatic_sv.delly' == self.caller:
-            return CallStructualVariantsWithDelly(
+            return CallSomaticStructualVariantsWithDelly(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
                 ref_fa_path=self.ref_fa_path,

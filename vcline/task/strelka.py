@@ -11,12 +11,13 @@ from luigi.util import requires
 
 from .core import VclineTask
 from .cram import PrepareCramNormal, PrepareCramTumor
-from .manta import CallStructualVariantsWithManta
+from .manta import CallSomaticStructualVariantsWithManta
 from .resource import CreateEvaluationIntervalListBed
 
 
 @requires(PrepareCramTumor, PrepareCramNormal, FetchReferenceFasta,
-          CreateEvaluationIntervalListBed, CallStructualVariantsWithManta)
+          CreateEvaluationIntervalListBed,
+          CallSomaticStructualVariantsWithManta)
 class CallSomaticVariantsWithStrelka(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)

@@ -76,7 +76,7 @@ class CreateExclusionIntervalListBed(VclineTask):
 
 @requires(PrepareCramTumor, PrepareCramNormal, FetchReferenceFasta,
           CreateExclusionIntervalListBed)
-class CallStructualVariantsWithDelly(VclineTask):
+class CallSomaticStructualVariantsWithDelly(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)
@@ -100,7 +100,7 @@ class CallStructualVariantsWithDelly(VclineTask):
         self.print_log(f'Call somatic SVs with Delly:\t{run_id}')
         delly = self.cf['delly']
         bcftools = self.cf['bcftools']
-        input_cram_paths = [i[0].path for i in self.input()[0:2]]
+        input_crams = [Path(i[0].path) for i in self.input()[0:2]]
         fa = Path(self.input()[2][0].path)
         exclusion_bed = Path(self.input()[3][0].path)
         output_vcf = Path(self.output()[2].path)
@@ -111,12 +111,64 @@ class CallStructualVariantsWithDelly(VclineTask):
         self.run_shell(
             args=(
                 f'set -e && {delly} call'
-                + f' --outfile {output_bcf}'
                 + f' --genome {fa}'
                 + f' --exclude {exclusion_bed}'
-                + ''.join(f' {p}' for p in input_cram_paths)
+                + f' --outfile {output_bcf}'
+                + ''.join(f' {p}' for p in input_crams)
             ),
-            input_files_or_dirs=[*input_cram_paths, fa, exclusion_bed],
+            input_files_or_dirs=[*input_crams, fa, exclusion_bed],
+            output_files_or_dirs=[output_bcf, f'{output_bcf}.csi', run_dir]
+        )
+        self.bcftools_sort(
+            input_vcf_path=output_bcf, output_vcf_path=output_vcf,
+            bcftools=bcftools, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+            index_vcf=True, remove_input=False
+        )
+
+
+@requires(PrepareCramNormal, FetchReferenceFasta,
+          CreateExclusionIntervalListBed)
+class CallGermlineStructualVariantsWithDelly(VclineTask):
+    cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
+    priority = 30
+
+    def output(self):
+        run_dir = Path(self.cf['germline_sv_delly_dir_path']).joinpath(
+            Path(self.input()[0][0].path).stem
+        )
+        return [
+            luigi.LocalTarget(
+                run_dir.joinpath(run_dir.name + f'.delly.{s}')
+            ) for s in ['bcf', 'bcf.csi', 'vcf.gz', 'vcf.gz.tbi']
+        ]
+
+    def run(self):
+        output_bcf = Path(self.output()[0].path)
+        run_dir = output_bcf.parent
+        run_id = run_dir.name
+        self.print_log(f'Call germline SVs with Delly:\t{run_id}')
+        delly = self.cf['delly']
+        bcftools = self.cf['bcftools']
+        input_cram = Path(self.input()[0][0].path)
+        fa = Path(self.input()[2][0].path)
+        exclusion_bed = Path(self.input()[3][0].path)
+        output_vcf = Path(self.output()[2].path)
+        self.setup_shell(
+            run_id=run_id, commands=[delly, bcftools], cwd=run_dir,
+            **self.sh_config, env={'OMP_NUM_THREADS': str(self.n_cpu)}
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {delly} call'
+                + f' --genome {fa}'
+                + f' --exclude {exclusion_bed}'
+                + f' --outfile {output_bcf}'
+                + f' {input_cram}'
+            ),
+            input_files_or_dirs=[input_cram, fa, exclusion_bed],
             output_files_or_dirs=[output_bcf, f'{output_bcf}.csi', run_dir]
         )
         self.bcftools_sort(
