@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import re
-from itertools import chain
+from itertools import chain, product
 from pathlib import Path
 
 import luigi
@@ -277,82 +277,51 @@ class GenotypeHaplotypeCallerGvcf(VclineTask):
 
 @requires(GenotypeHaplotypeCallerGvcf, CallVariantsWithHaplotypeCaller,
           FetchReferenceFasta, FetchEvaluationIntervalList,
+          SplitEvaluationIntervals, FetchHapmapVcf, FetchMillsIndelVcf,
           CreateSequenceDictionary)
-class CNNScoreVariants(VclineTask):
-    cf = luigi.DictParameter()
-    n_cpu = luigi.IntParameter(default=1)
-    memory_mb = luigi.FloatParameter(default=4096)
-    sh_config = luigi.DictParameter(default=dict())
-    priority = 50
-
-    def output(self):
-        output_vcf_path = re.sub(
-            r'\.vcf\.gz$', '.cnn.vcf.gz', self.input()[0][0].path
-        )
-        return [luigi.LocalTarget(output_vcf_path + s) for s in ['', '.tbi']]
-
-    def run(self):
-        output_cnn_vcf = Path(self.output()[0].path)
-        run_id = '.'.join(output_cnn_vcf.name.split('.')[:-4])
-        self.print_log(f'Score variants with CNN:\t{run_id}')
-        gatk = self.cf['gatk']
-        python = self.cf['python']
-        raw_vcf = Path(self.input()[0][0].path)
-        cram = Path(self.input()[1][2].path)
-        fa = Path(self.input()[2][0].path)
-        evaluation_interval = Path(self.input()[3].path)
-        self.setup_shell(
-            run_id=run_id, commands=[gatk, python], cwd=output_cnn_vcf.parent,
-            **self.sh_config,
-            env={
-                'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
-                    n_cpu=self.n_cpu, memory_mb=self.memory_mb
-                )
-            }
-        )
-        self.run_shell(
-            args=(
-                f'set -e && {gatk} CNNScoreVariants'
-                + f' --reference {fa}'
-                + f' --input {cram}'
-                + f' --variant {raw_vcf}'
-                + f' --intervals {evaluation_interval}'
-                + f' --output {output_cnn_vcf}'
-                + ' --tensor-type read_tensor'
-                + ' --disable-bam-index-caching '
-                + str(self.cf['save_memory']).lower()
-            ),
-            input_files_or_dirs=[raw_vcf, fa, cram, evaluation_interval],
-            output_files_or_dirs=[output_cnn_vcf, f'{output_cnn_vcf}.tbi']
-        )
-
-
-@requires(CNNScoreVariants, FetchHapmapVcf, FetchMillsIndelVcf,
-          FetchEvaluationIntervalList)
 class FilterVariantTranches(VclineTask):
     cf = luigi.DictParameter()
-    snp_tranche = luigi.ListParameter(default=[99.9, 99.95])
-    indel_tranche = luigi.ListParameter(default=[99.0, 99.4])
+    snp_tranches = luigi.ListParameter(default=[99.9, 99.95])
+    indel_tranches = luigi.ListParameter(default=[99.0, 99.4])
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)
     sh_config = luigi.DictParameter(default=dict())
     priority = 50
 
     def output(self):
-        output_vcf_path = re.sub(
-            r'\.vcf\.gz$', '.filtered.vcf.gz', self.input()[0][0].path
-        )
-        return [luigi.LocalTarget(output_vcf_path + s) for s in ['', '.tbi']]
+        output_path_prefix = re.sub(r'\.vcf\.gz$', '', self.input()[0][0].path)
+        return [
+            luigi.LocalTarget(f'{output_path_prefix}.{v}.vcf.gz{s}')
+            for v, s in product(['cnn', 'cnn.filtered'], ['', '.tbi'])
+        ]
 
     def run(self):
-        output_filtered_vcf = Path(self.output()[0].path)
-        run_id = '.'.join(output_filtered_vcf.name.split('.')[:-5])
-        self.print_log(f'Apply tranche filtering:\t{run_id}')
-        cnn_vcf = Path(self.input()[0][0].path)
-        resource_vcfs = [
-            Path(o.path) for o in [self.input()[1][0], self.input()[2][0]]
-        ]
+        input_vcf = Path(self.input()[0][0].path)
+        input_cram = Path(self.input()[1][2].path)
+        fa = Path(self.input()[2][0].path)
         evaluation_interval = Path(self.input()[3].path)
+        intervals = [Path(i.path) for i in self.input()[4]]
+        skip_interval_split = (len(intervals) == 1)
+        resource_vcfs = [Path(i[0].path) for i in self.input()[5:7]]
+        output_cnn_vcf = Path(self.output()[0].path)
+        output_filtered_vcf = Path(self.output()[2].path)
+        output_path_prefix = '.'.join(str(output_cnn_vcf).split('.')[:-2])
+        if skip_interval_split:
+            tmp_prefixes = [output_path_prefix]
+        else:
+            tmp_prefixes = [
+                '{0}.{1}'.format(output_path_prefix, o.stem) for o in intervals
+            ]
+        input_targets = yield [
+            CNNScoreVariants(
+                input_vcf_path=str(input_vcf),
+                input_cram_path=str(input_cram), fa_path=str(fa),
+                evaluation_interval_path=str(o),
+                output_path_prefix=s, cf=self.cf
+            ) for o, s in zip(intervals, tmp_prefixes)
+        ]
+        run_id = '.'.join(output_filtered_vcf.name.split('.')[:-4])
+        self.print_log(f'Score and filter variants with CNN:\t{run_id}')
         gatk = self.cf['gatk']
         self.setup_shell(
             run_id=run_id, commands=gatk, cwd=output_filtered_vcf.parent,
@@ -363,26 +332,102 @@ class FilterVariantTranches(VclineTask):
                 )
             }
         )
+        if not skip_interval_split:
+            tmp_cnn_vcfs = [Path(f'{s}.vcf.gz') for s in tmp_prefixes]
+            self.run_shell(
+                args=(
+                    f'set -e && {gatk} MergeVcfs'
+                    + ''.join(f' --INPUT {v}' for v in tmp_cnn_vcfs)
+                    + f' --OUTPUT {output_cnn_vcf}'
+                ),
+                input_files_or_dirs=tmp_cnn_vcfs,
+                output_files_or_dirs=[output_cnn_vcf, f'{output_cnn_vcf}.tbi']
+            )
+            self.remove_files_and_dirs(
+                *chain.from_iterable(
+                    [o.path for o in t] for t in input_targets
+                )
+            )
         self.run_shell(
             args=(
                 f'set -e && {gatk} FilterVariantTranches'
-                + f' --variant {cnn_vcf}'
+                + f' --variant {output_cnn_vcf}'
                 + ''.join(f' --resource {p}' for p in resource_vcfs)
                 + f' --intervals {evaluation_interval}'
                 + f' --output {output_filtered_vcf}'
                 + ' --info-key CNN_2D'
                 + ''.join(
-                    [f' --snp-tranche {v}' for v in self.snp_tranche]
-                    + [f' --indel-tranche {v}' for v in self.indel_tranche]
+                    [f' --snp-tranche {v}' for v in self.snp_tranches]
+                    + [f' --indel-tranche {v}' for v in self.indel_tranches]
                 )
                 + ' --invalidate-previous-filters'
                 + ' --disable-bam-index-caching '
                 + str(self.cf['save_memory']).lower()
             ),
-            input_files_or_dirs=[cnn_vcf, *resource_vcfs, evaluation_interval],
+            input_files_or_dirs=[
+                output_cnn_vcf, *resource_vcfs, evaluation_interval
+            ],
             output_files_or_dirs=[
                 output_filtered_vcf, f'{output_filtered_vcf}.tbi'
             ]
+        )
+
+
+class CNNScoreVariants(VclineTask):
+    input_vcf_path = luigi.Parameter()
+    input_cram_path = luigi.Parameter()
+    fa_path = luigi.Parameter()
+    evaluation_interval_path = luigi.Parameter()
+    output_path_prefix = luigi.Parameter()
+    cf = luigi.DictParameter()
+    message = luigi.Parameter(default='')
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
+    priority = 50
+
+    def output(self):
+        return [
+            luigi.LocalTarget(f'{self.output_path_prefix}.cnn.vcf.gz' + s)
+            for s in ['', '.tbi']
+        ]
+
+    def run(self):
+        if self.message:
+            self.print_log(self.message)
+        input_vcf = Path(self.input_vcf_path).resolve()
+        input_cram = Path(self.input_cram_path).resolve()
+        fa = Path(self.fa_path).resolve()
+        evaluation_interval = Path(self.evaluation_interval_path).resolve()
+        output_files = [Path(o.path) for o in self.output()]
+        output_vcf = output_files[0]
+        gatk = self.cf['gatk']
+        python = self.cf['python']
+        self.setup_shell(
+            run_id='.'.join(output_vcf.name.split('.')[:-3]),
+            commands=[gatk, python], cwd=output_vcf.parent, **self.sh_config,
+            env={
+                'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
+                    n_cpu=self.n_cpu, memory_mb=self.memory_mb
+                )
+            }
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {gatk} CNNScoreVariants'
+                + f' --input {input_cram}'
+                + f' --variant {input_vcf}'
+                + f' --reference {fa}'
+                + f' --intervals {evaluation_interval}'
+                + f' --output {output_vcf}'
+                + ' --tensor-type read_tensor'
+                + ' --disable-bam-index-caching '
+                + str(self.cf['save_memory']).lower()
+            ),
+            input_files_or_dirs=[
+                input_vcf, fa, input_cram, evaluation_interval
+            ],
+            output_files_or_dirs=output_files
         )
 
 
