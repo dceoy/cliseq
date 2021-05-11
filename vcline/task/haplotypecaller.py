@@ -276,9 +276,8 @@ class GenotypeHaplotypeCallerGvcf(VclineTask):
 
 
 @requires(GenotypeHaplotypeCallerGvcf, CallVariantsWithHaplotypeCaller,
-          FetchReferenceFasta, FetchEvaluationIntervalList,
-          SplitEvaluationIntervals, FetchHapmapVcf, FetchMillsIndelVcf,
-          CreateSequenceDictionary)
+          FetchReferenceFasta, SplitEvaluationIntervals, FetchHapmapVcf,
+          FetchMillsIndelVcf, CreateSequenceDictionary)
 class FilterVariantTranches(VclineTask):
     cf = luigi.DictParameter()
     snp_tranches = luigi.ListParameter(default=[99.9, 99.95])
@@ -292,19 +291,18 @@ class FilterVariantTranches(VclineTask):
         output_path_prefix = re.sub(r'\.vcf\.gz$', '', self.input()[0][0].path)
         return [
             luigi.LocalTarget(f'{output_path_prefix}.{v}.vcf.gz{s}')
-            for v, s in product(['cnn', 'cnn.filtered'], ['', '.tbi'])
+            for v, s in product(['cnn.filtered', 'cnn'], ['', '.tbi'])
         ]
 
     def run(self):
         input_vcf = Path(self.input()[0][0].path)
         input_cram = Path(self.input()[1][2].path)
         fa = Path(self.input()[2][0].path)
-        evaluation_interval = Path(self.input()[3].path)
-        intervals = [Path(i.path) for i in self.input()[4]]
+        intervals = [Path(i.path) for i in self.input()[3]]
         skip_interval_split = (len(intervals) == 1)
-        resource_vcfs = [Path(i[0].path) for i in self.input()[5:7]]
-        output_cnn_vcf = Path(self.output()[0].path)
-        output_filtered_vcf = Path(self.output()[2].path)
+        resource_vcfs = [Path(i[0].path) for i in self.input()[4:6]]
+        output_filtered_vcf = Path(self.output()[0].path)
+        output_cnn_vcf = Path(self.output()[2].path)
         output_path_prefix = '.'.join(str(output_cnn_vcf).split('.')[:-2])
         if skip_interval_split:
             tmp_prefixes = [output_path_prefix]
@@ -353,7 +351,6 @@ class FilterVariantTranches(VclineTask):
                 f'set -e && {gatk} FilterVariantTranches'
                 + f' --variant {output_cnn_vcf}'
                 + ''.join(f' --resource {p}' for p in resource_vcfs)
-                + f' --intervals {evaluation_interval}'
                 + f' --output {output_filtered_vcf}'
                 + ' --info-key CNN_2D'
                 + ''.join(
@@ -364,9 +361,7 @@ class FilterVariantTranches(VclineTask):
                 + ' --disable-bam-index-caching '
                 + str(self.cf['save_memory']).lower()
             ),
-            input_files_or_dirs=[
-                output_cnn_vcf, *resource_vcfs, evaluation_interval
-            ],
+            input_files_or_dirs=[output_cnn_vcf, *resource_vcfs],
             output_files_or_dirs=[
                 output_filtered_vcf, f'{output_filtered_vcf}.tbi'
             ]
