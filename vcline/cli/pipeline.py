@@ -172,11 +172,11 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
                 if 'somatic_snv_indel.gatk' in callers else set()
             ),
             *(
-                {'hapmap_vcf'}
+                {'hapmap_vcf', 'kg_snps_vcf'}
                 if 'germline_snv_indel.gatk' in callers else set()
             ),
             *(
-                {'hapmap_vcf', 'cnv_blacklist'}
+                {'hapmap_vcf', 'kg_snps_vcf', 'cnv_blacklist'}
                 if 'somatic_cnv.gatk' in callers else set()
             ),
             *(

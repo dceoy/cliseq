@@ -10,8 +10,9 @@ from luigi.util import requires
 
 from .core import VclineTask
 from .cram import PrepareCramNormal
-from .resource import (FetchDbsnpVcf, FetchEvaluationIntervalList,
-                       FetchHapmapVcf, FetchMillsIndelVcf, FetchReferenceFasta)
+from .resource import (Fetch1000gSnpsVcf, FetchDbsnpVcf,
+                       FetchEvaluationIntervalList, FetchHapmapVcf,
+                       FetchMillsIndelVcf, FetchReferenceFasta)
 
 
 @requires(FetchEvaluationIntervalList, FetchReferenceFasta,
@@ -277,7 +278,7 @@ class GenotypeHaplotypeCallerGvcf(VclineTask):
 
 @requires(GenotypeHaplotypeCallerGvcf, CallVariantsWithHaplotypeCaller,
           FetchReferenceFasta, SplitEvaluationIntervals, FetchHapmapVcf,
-          FetchMillsIndelVcf, CreateSequenceDictionary)
+          FetchMillsIndelVcf, Fetch1000gSnpsVcf, CreateSequenceDictionary)
 class FilterVariantTranches(VclineTask):
     cf = luigi.DictParameter()
     snp_tranches = luigi.ListParameter(default=[99.9, 99.95])
@@ -300,7 +301,7 @@ class FilterVariantTranches(VclineTask):
         fa = Path(self.input()[2][0].path)
         intervals = [Path(i.path) for i in self.input()[3]]
         skip_interval_split = (len(intervals) == 1)
-        resource_vcfs = [Path(i[0].path) for i in self.input()[4:6]]
+        resource_vcfs = [Path(i[0].path) for i in self.input()[4:7]]
         output_filtered_vcf = Path(self.output()[0].path)
         output_cnn_vcf = Path(self.output()[2].path)
         output_path_prefix = '.'.join(str(output_cnn_vcf).split('.')[:-2])

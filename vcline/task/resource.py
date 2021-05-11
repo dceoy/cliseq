@@ -259,6 +259,23 @@ class FetchHapmapVcf(luigi.WrapperTask):
         return self.input()
 
 
+class Fetch1000gSnpsVcf(luigi.WrapperTask):
+    kg_snps_vcf_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
+    sh_config = luigi.DictParameter(default=dict())
+    priority = 70
+
+    def requires(self):
+        return FetchResourceVcf(
+            src_path=self.kg_snps_vcf_path, cf=self.cf,
+            n_cpu=self.n_cpu, sh_config=self.sh_config
+        )
+
+    def output(self):
+        return self.input()
+
+
 class CreateIntervalListWithBed(VclineTask):
     bed_path = luigi.Parameter()
     seq_dict_path = luigi.Parameter()
