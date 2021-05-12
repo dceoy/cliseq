@@ -16,10 +16,10 @@ COPY --from=dceoy/strelka:latest /opt/strelka /opt/strelka
 COPY --from=dceoy/delly:latest /usr/local/bin/delly /usr/local/bin/delly
 COPY --from=dceoy/msisensor-pro:latest /usr/local/bin/msisensor-pro /usr/local/bin/msisensor-pro
 COPY --from=dceoy/snpeff:latest /opt/snpEff /opt/snpEff
-# COPY --from=dceoy/vep:latest /usr/local/src/kent /usr/local/src/kent
-# COPY --from=dceoy/vep:latest /usr/local/src/bioperl-ext /usr/local/src/bioperl-ext
-# COPY --from=dceoy/vep:latest /usr/local/src/ensembl-xs /usr/local/src/ensembl-xs
-# COPY --from=dceoy/vep:latest /usr/local/src/ensembl-vep /usr/local/src/ensembl-vep
+COPY --from=dceoy/vep:latest /usr/local/src/kent /usr/local/src/kent
+COPY --from=dceoy/vep:latest /usr/local/src/bioperl-ext /usr/local/src/bioperl-ext
+COPY --from=dceoy/vep:latest /usr/local/src/ensembl-xs /usr/local/src/ensembl-xs
+COPY --from=dceoy/vep:latest /usr/local/src/ensembl-vep /usr/local/src/ensembl-vep
 ADD https://raw.githubusercontent.com/dceoy/print-github-tags/master/print-github-tags /usr/local/bin/print-github-tags
 ADD . /tmp/vcline
 
@@ -85,40 +85,40 @@ RUN set -e \
         /usr/local/src/TrimGalore -maxdepth 1 -type f -executable \
         -exec ln -s {} /usr/local/bin \;
 
-# RUN set -e \
-#       && cd /usr/local/src/kent/src/lib \
-#       && make clean \
-#       && export KENT_SRC=/usr/local/src/kent/src \
-#       && export MACHTYPE=$(uname -m) \
-#       && export CFLAGS='-fPIC' \
-#       && export MYSQLINC=`mysql_config --include | sed -e 's/^-I//g'` \
-#       && export MYSQLLIBS=`mysql_config --libs` \
-#       && echo 'CFLAGS="-fPIC"' > ../inc/localEnvironment.mk \
-#       && make \
-#       && cd ../jkOwnLib \
-#       && make clean \
-#       && make \
-#       && cpanm Bio::DB::BigFile Test::Warnings \
-#       && cd /usr/local/src/bioperl-ext/Bio/Ext/Align \
-#       && make clean \
-#       && perl -pi -e "s|(cd libs.+)CFLAGS=\\\'|\$1CFLAGS=\\\'-fPIC |" \
-#         Makefile.PL \
-#       && perl Makefile.PL \
-#       && make \
-#       && make install \
-#       && cd /usr/local/src/ensembl-xs \
-#       && make clean \
-#       && cpanm --installdeps --with-recommends . \
-#       && perl Makefile.PL \
-#       && make \
-#       && make install \
-#       && cd /usr/local/src/ensembl-vep \
-#       && cpanm --installdeps --with-recommends . \
-#       && cpanm Bio::DB::HTS::Tabix \
-#       && yes | perl INSTALL.pl --AUTO a \
-#       && find \
-#         /usr/local/src/ensembl-vep -maxdepth 1 -type f -executable \
-#         -exec ln -s {} /usr/local/bin \;
+RUN set -e \
+      && cd /usr/local/src/kent/src/lib \
+      && make clean \
+      && export KENT_SRC=/usr/local/src/kent/src \
+      && export MACHTYPE=$(uname -m) \
+      && export CFLAGS='-fPIC' \
+      && export MYSQLINC=`mysql_config --include | sed -e 's/^-I//g'` \
+      && export MYSQLLIBS=`mysql_config --libs` \
+      && echo 'CFLAGS="-fPIC"' > ../inc/localEnvironment.mk \
+      && make \
+      && cd ../jkOwnLib \
+      && make clean \
+      && make \
+      && cpanm Bio::DB::BigFile Test::Warnings \
+      && cd /usr/local/src/bioperl-ext/Bio/Ext/Align \
+      && make clean \
+      && perl -pi -e "s|(cd libs.+)CFLAGS=\\\'|\$1CFLAGS=\\\'-fPIC |" \
+        Makefile.PL \
+      && perl Makefile.PL \
+      && make \
+      && make install \
+      && cd /usr/local/src/ensembl-xs \
+      && make clean \
+      && cpanm --installdeps --with-recommends . \
+      && perl Makefile.PL \
+      && make \
+      && make install \
+      && cd /usr/local/src/ensembl-vep \
+      && cpanm --installdeps --with-recommends . \
+      && cpanm Bio::DB::HTS::Tabix \
+      && yes | perl INSTALL.pl --AUTO a \
+      && find \
+        /usr/local/src/ensembl-vep -maxdepth 1 -type f -executable \
+        -exec ln -s {} /usr/local/bin \;
 
 FROM ubuntu:20.04
 
