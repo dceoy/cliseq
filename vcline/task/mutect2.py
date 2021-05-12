@@ -318,8 +318,7 @@ class Mutect2(VclineTask):
 
 
 @requires(CallVariantsWithMutect2, FetchReferenceFasta,
-          FetchEvaluationIntervalList, CalculateContamination,
-          CreateSequenceDictionary)
+          CalculateContamination, CreateSequenceDictionary)
 class FilterMutectCalls(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
@@ -337,20 +336,20 @@ class FilterMutectCalls(VclineTask):
         ]
 
     def run(self):
-        output_filtered_vcf = Path(self.output()[0].path)
-        run_id = '.'.join(output_filtered_vcf.name.split('.')[:-4])
+        input_vcf = Path(self.input()[0][0].path)
+        run_id = '.'.join(input_vcf.name.split('.')[:-3])
         self.print_log(f'Filter somatic variants called by Mutect2:\t{run_id}')
-        mutect_vcf = Path(self.input()[0][0].path)
-        mutect_stats = Path(self.input()[0][2].path)
+        input_stats = Path(self.input()[0][2].path)
         ob_priors = Path(self.input()[0][5].path)
         fa = Path(self.input()[1][0].path)
-        evaluation_interval = Path(self.input()[2].path)
-        contamination_table = Path(self.input()[3][0].path)
-        segment_table = Path(self.input()[3][1].path)
-        output_filtering_stats = Path(self.output()[2].path)
+        contamination_table = Path(self.input()[2][0].path)
+        segment_table = Path(self.input()[2][1].path)
+        output_files = [Path(o.path) for o in self.output()]
+        output_vcf = output_files[0]
+        output_stats = output_files[2]
         gatk = self.cf['gatk']
         self.setup_shell(
-            run_id=run_id, commands=gatk, cwd=output_filtered_vcf.parent,
+            run_id=run_id, commands=gatk, cwd=output_vcf.parent,
             **self.sh_config,
             env={
                 'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
@@ -362,20 +361,19 @@ class FilterMutectCalls(VclineTask):
             args=(
                 f'set -e && {gatk} FilterMutectCalls'
                 + f' --reference {fa}'
-                + f' --intervals {evaluation_interval}'
-                + f' --variant {mutect_vcf}'
-                + f' --stats {mutect_stats}'
+                + f' --variant {input_vcf}'
+                + f' --stats {input_stats}'
                 + f' --contamination-table {contamination_table}'
                 + f' --tumor-segmentation {segment_table}'
                 + f' --orientation-bias-artifact-priors {ob_priors}'
-                + f' --output {output_filtered_vcf}'
-                + f' --filtering-stats {output_filtering_stats}'
+                + f' --output {output_vcf}'
+                + f' --filtering-stats {output_stats}'
             ),
             input_files_or_dirs=[
-                mutect_vcf, fa, evaluation_interval, mutect_stats, ob_priors,
-                contamination_table, segment_table,
+                input_vcf, fa, input_stats, ob_priors, contamination_table,
+                segment_table,
             ],
-            output_files_or_dirs=[output_filtered_vcf, output_filtering_stats]
+            output_files_or_dirs=output_files
         )
 
 
