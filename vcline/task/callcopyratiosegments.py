@@ -119,6 +119,7 @@ class CreateCommonSnpIntervalList(VclineTask):
                 + f' --output {biallelic_snp_vcf}'
                 + ' --select-type-to-include SNP'
                 + ' --restrict-alleles-to BIALLELIC'
+                + ' --exclude-filtered'
                 + ' --lenient'
             ),
             input_files_or_dirs=[input_vcf, fa],
