@@ -105,7 +105,8 @@ class CalculateContamination(VclineTask):
                 evaluation_interval_path=self.input()[3].path,
                 gnomad_common_biallelic_vcf_path=self.input()[4][0].path,
                 dest_dir_path=str(run_dir), gatk=gatk,
-                save_memory=self.cf['save_memory']
+                save_memory=self.cf['save_memory'], n_cpu=self.n_cpu,
+                memory_mb=self.memory_mb, sh_config=self.sh_config
             ) for i in range(2)
         ]
         run_id = '.'.join(output_contamination_table.name.split('.')[:-2])
@@ -178,7 +179,9 @@ class CallVariantsWithMutect2(VclineTask):
                 fa_path=str(fa), gnomad_vcf_path=str(gnomad_vcf),
                 evaluation_interval_path=str(o),
                 normal_name=self.sample_names[1], output_path_prefix=s,
-                cf=self.cf
+                gatk=self.cf['gatk'], save_memory=self.cf['save_memory'],
+                n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                sh_config=self.sh_config
             ) for o, s in zip(intervals, tmp_prefixes)
         ]
         run_id = '.'.join(output_vcf.name.split('.')[:-3])
@@ -258,7 +261,8 @@ class Mutect2(VclineTask):
     evaluation_interval_path = luigi.Parameter()
     normal_name = luigi.Parameter()
     output_path_prefix = luigi.Parameter()
-    cf = luigi.DictParameter()
+    gatk = luigi.Parameter(default='gatk')
+    save_memory = luigi.BoolParameter(default=False)
     message = luigi.Parameter(default='')
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)
@@ -282,10 +286,9 @@ class Mutect2(VclineTask):
         output_files = [Path(o.path) for o in self.output()]
         output_vcf = output_files[0]
         run_dir = output_vcf.parent
-        gatk = self.cf['gatk']
         self.setup_shell(
-            run_id='.'.join(output_vcf.name.split('.')[:-2]), commands=gatk,
-            cwd=run_dir, **self.sh_config,
+            run_id='.'.join(output_vcf.name.split('.')[:-2]),
+            commands=self.gatk, cwd=run_dir, **self.sh_config,
             env={
                 'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
                     n_cpu=self.n_cpu, memory_mb=self.memory_mb
@@ -294,7 +297,7 @@ class Mutect2(VclineTask):
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk} Mutect2'
+                f'set -e && {self.gatk} Mutect2'
                 + ''.join(f' --input {c}' for c in input_crams)
                 + f' --reference {fa}'
                 + f' --intervals {evaluation_interval}'
@@ -308,7 +311,7 @@ class Mutect2(VclineTask):
                 + ' --max-mnp-distance 0'
                 + ' --create-output-bam-index false'
                 + ' --disable-bam-index-caching '
-                + str(self.cf['save_memory']).lower()
+                + str(self.save_memory).lower()
             ),
             input_files_or_dirs=[
                 *input_crams, fa, evaluation_interval, gnomad_vcf

@@ -106,7 +106,9 @@ class CallVariantsWithHaplotypeCaller(VclineTask):
             HaplotypeCaller(
                 input_cram_path=str(input_cram), fa_path=str(fa),
                 dbsnp_vcf_path=str(dbsnp_vcf), evaluation_interval_path=str(o),
-                output_path_prefix=s, cf=self.cf
+                output_path_prefix=s, gatk=self.cf['gatk'],
+                save_memory=self.cf['save_memory'], n_cpu=self.n_cpu,
+                memory_mb=self.memory_mb, sh_config=self.sh_config
             ) for o, s in zip(intervals, tmp_prefixes)
         ]
         run_id = '.'.join(output_gvcf.name.split('.')[:-4])
@@ -163,7 +165,8 @@ class HaplotypeCaller(VclineTask):
     dbsnp_vcf_path = luigi.Parameter()
     evaluation_interval_path = luigi.Parameter()
     output_path_prefix = luigi.Parameter()
-    cf = luigi.DictParameter()
+    gatk = luigi.Parameter(default='gatk')
+    save_memory = luigi.BoolParameter(default=False)
     message = luigi.Parameter(default='')
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)
@@ -186,10 +189,9 @@ class HaplotypeCaller(VclineTask):
         output_files = [Path(o.path) for o in self.output()]
         output_gvcf = output_files[0]
         run_dir = output_gvcf.parent
-        gatk = self.cf['gatk']
         self.setup_shell(
-            run_id='.'.join(output_gvcf.name.split('.')[:-3]), commands=gatk,
-            cwd=run_dir, **self.sh_config,
+            run_id='.'.join(output_gvcf.name.split('.')[:-3]),
+            commands=self.gatk, cwd=run_dir, **self.sh_config,
             env={
                 'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
                     n_cpu=self.n_cpu, memory_mb=self.memory_mb
@@ -198,7 +200,7 @@ class HaplotypeCaller(VclineTask):
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk} HaplotypeCaller'
+                f'set -e && {self.gatk} HaplotypeCaller'
                 + f' --input {input_cram}'
                 + f' --reference {fa}'
                 + f' --dbsnp {dbsnp_vcf}'
@@ -218,7 +220,7 @@ class HaplotypeCaller(VclineTask):
                 )
                 + ' --create-output-bam-index false'
                 + ' --disable-bam-index-caching '
-                + str(self.cf['save_memory']).lower()
+                + str(self.save_memory).lower()
             ),
             input_files_or_dirs=[
                 input_cram, fa, dbsnp_vcf, evaluation_interval
@@ -312,7 +314,10 @@ class ScoreVariantsWithCnn(VclineTask):
                 input_vcf_path=str(input_vcf),
                 input_cram_path=str(input_cram), fa_path=str(fa),
                 evaluation_interval_path=str(o),
-                output_path_prefix=s, cf=self.cf
+                output_path_prefix=s, gatk=self.cf['gatk'],
+                python=self.cf['python'], save_memory=self.cf['save_memory'],
+                n_cpu=self.n_cpu, memory_mb=self.memory_mb,
+                sh_config=self.sh_config
             ) for o, s in zip(intervals, tmp_prefixes)
         ]
         run_id = '.'.join(output_vcf.name.split('.')[:-3])
@@ -328,14 +333,14 @@ class ScoreVariantsWithCnn(VclineTask):
             }
         )
         if not skip_interval_split:
-            tmp_cnn_vcfs = [Path(f'{s}.vcf.gz') for s in tmp_prefixes]
+            tmp_vcfs = [Path(f'{s}.vcf.gz') for s in tmp_prefixes]
             self.run_shell(
                 args=(
                     f'set -e && {gatk} MergeVcfs'
-                    + ''.join(f' --INPUT {v}' for v in tmp_cnn_vcfs)
+                    + ''.join(f' --INPUT {v}' for v in tmp_vcfs)
                     + f' --OUTPUT {output_vcf}'
                 ),
-                input_files_or_dirs=tmp_cnn_vcfs,
+                input_files_or_dirs=tmp_vcfs,
                 output_files_or_dirs=[output_vcf, f'{output_vcf}.tbi']
             )
             self.remove_files_and_dirs(
@@ -351,7 +356,9 @@ class CNNScoreVariants(VclineTask):
     fa_path = luigi.Parameter()
     evaluation_interval_path = luigi.Parameter()
     output_path_prefix = luigi.Parameter()
-    cf = luigi.DictParameter()
+    gatk = luigi.Parameter(default='gatk')
+    python = luigi.Parameter(default='python')
+    save_memory = luigi.BoolParameter(default=False)
     message = luigi.Parameter(default='')
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)
@@ -360,7 +367,7 @@ class CNNScoreVariants(VclineTask):
 
     def output(self):
         return [
-            luigi.LocalTarget(f'{self.output_path_prefix}.cnn.vcf.gz' + s)
+            luigi.LocalTarget(f'{self.output_path_prefix}.vcf.gz' + s)
             for s in ['', '.tbi']
         ]
 
@@ -373,11 +380,10 @@ class CNNScoreVariants(VclineTask):
         evaluation_interval = Path(self.evaluation_interval_path).resolve()
         output_files = [Path(o.path) for o in self.output()]
         output_vcf = output_files[0]
-        gatk = self.cf['gatk']
-        python = self.cf['python']
         self.setup_shell(
             run_id='.'.join(output_vcf.name.split('.')[:-3]),
-            commands=[gatk, python], cwd=output_vcf.parent, **self.sh_config,
+            commands=[self.gatk, self.python], cwd=output_vcf.parent,
+            **self.sh_config,
             env={
                 'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
                     n_cpu=self.n_cpu, memory_mb=self.memory_mb
@@ -386,7 +392,7 @@ class CNNScoreVariants(VclineTask):
         )
         self.run_shell(
             args=(
-                f'set -e && {gatk} CNNScoreVariants'
+                f'set -e && {self.gatk} CNNScoreVariants'
                 + f' --input {input_cram}'
                 + f' --variant {input_vcf}'
                 + f' --reference {fa}'
@@ -394,7 +400,7 @@ class CNNScoreVariants(VclineTask):
                 + f' --output {output_vcf}'
                 + ' --tensor-type read_tensor'
                 + ' --disable-bam-index-caching '
-                + str(self.cf['save_memory']).lower()
+                + str(self.save_memory).lower()
             ),
             input_files_or_dirs=[
                 input_vcf, fa, input_cram, evaluation_interval
