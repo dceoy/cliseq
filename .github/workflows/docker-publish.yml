@@ -3,9 +3,9 @@ name: Docker
 
 on:
   push:
-    # Publish `$default-branch` as Docker `latest` image.
+    # Publish the default branch as Docker `latest` image.
     branches:
-      - $default-branch
+      - master
 
     # Publish `v1.2.3` tags as releases.
     tags:
@@ -15,7 +15,7 @@ on:
   pull_request:
 
 env:
-  IMAGE_NAME: dceoy/vcline
+  IMAGE_NAME: vcline
 
 jobs:
   # Run tests.
@@ -28,8 +28,8 @@ jobs:
 
       - name: Run tests
         run: |
-          docker-compose --file docker-compose.yml build --pull
-          docker-compose --file docker-compose.yml run --rm vcline --version
+          docker-compose --file docker-compose.yml build --pull $IMAGE_NAME
+          docker-compose --file docker-compose.yml run --rm $IMAGE_NAME --version
 
   # Push image to GitHub Packages.
   # See also https://docs.docker.com/docker-hub/builds/
@@ -48,22 +48,21 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Build image
-        run: docker build . --file Dockerfile --tag $IMAGE_NAME
+        run: docker build . --file Dockerfile --tag $IMAGE_NAME:latest
 
       - name: Log into registry
         run: echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u ${{ github.actor }} --password-stdin
 
       - name: Push image
         run: |
-          # Change all uppercase to lowercase
-          IMAGE_ID=$(echo $IMAGE_NAME | tr '[A-Z]' '[a-z]')
+          IMAGE_ID=${{ github.actor }}/$IMAGE_NAME
           # Strip git ref prefix from version
           VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
           # Strip "v" prefix from tag name
           [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
           # Use Docker `latest` tag convention
-          [ "$VERSION" == "$default-branch" ] && VERSION=latest
+          [[ "$VERSION" == 'master' ]] && VERSION=latest
           echo IMAGE_ID=$IMAGE_ID
           echo VERSION=$VERSION
-          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
+          docker tag $IMAGE_NAME:latest $IMAGE_ID:$VERSION
           docker push $IMAGE_ID:$VERSION
