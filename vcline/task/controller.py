@@ -150,7 +150,7 @@ class RunVariantCaller(luigi.Task):
                 sh_config=self.sh_config
             )
         elif 'somatic_cnv.gatk' == self.caller:
-            assert bool(self.cnv_blacklist_path and self.gnomad_vcf_path)
+            assert bool(self.cnv_blacklist_path)
             return CallCopyRatioSegmentsMatched(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
