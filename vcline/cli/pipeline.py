@@ -111,7 +111,7 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
                 ),
                 *({'bedtools'} if 'somatic_sv.delly' in callers else set()),
                 *({'delly'} if 'somatic_sv.delly' in callers else set()),
-                *({'R'} if 'somatic_cnv.gatk' in callers else set()),
+                *({'python', 'R'} if 'somatic_cnv.gatk' in callers else set()),
                 *(
                     {'msisensor-pro'} if 'somatic_msi.msisensor' in callers
                     else set()
