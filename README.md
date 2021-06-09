@@ -4,7 +4,6 @@ vcline
 Variant Calling Pipeline for Cancer Genome Sequencing
 
 [![Test](https://github.com/dceoy/vcline/actions/workflows/test.yml/badge.svg)](https://github.com/dceoy/vcline/actions/workflows/test.yml)
-[![Docker](https://github.com/dceoy/vcline/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/dceoy/vcline/actions/workflows/docker-publish.yml)
 
 Installation
 ------------
