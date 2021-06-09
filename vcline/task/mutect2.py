@@ -178,6 +178,7 @@ class CallVariantsWithMutect2(VclineTask):
                 input_cram_paths=[str(c) for c in input_crams],
                 fa_path=str(fa), gnomad_vcf_path=str(gnomad_vcf),
                 evaluation_interval_path=str(o),
+                tumor_name=self.sample_names[0],
                 normal_name=self.sample_names[1], output_path_prefix=s,
                 gatk=self.cf['gatk'], save_memory=self.cf['save_memory'],
                 n_cpu=self.n_cpu, memory_mb=self.memory_mb,
@@ -226,6 +227,7 @@ class CallVariantsWithMutect2(VclineTask):
                 args=(
                     f'set -e && {gatk} MergeVcfs'
                     + ''.join(f' --INPUT {v}' for v in tmp_vcfs)
+                    + f' --REFERENCE_SEQUENCE {fa}'
                     + f' --OUTPUT {output_vcf}'
                 ),
                 input_files_or_dirs=tmp_vcfs,
@@ -259,6 +261,7 @@ class Mutect2(VclineTask):
     fa_path = luigi.Parameter()
     gnomad_vcf_path = luigi.Parameter()
     evaluation_interval_path = luigi.Parameter()
+    tumor_name = luigi.Parameter()
     normal_name = luigi.Parameter()
     output_path_prefix = luigi.Parameter()
     gatk = luigi.Parameter(default='gatk')
@@ -305,8 +308,8 @@ class Mutect2(VclineTask):
                 + f' --output {output_vcf}'
                 + f' --bam-output {output_files[3]}'
                 + f' --f1r2-tar-gz {output_files[4]}'
+                + f' --tumor-sample {self.tumor_name}'
                 + f' --normal-sample {self.normal_name}'
-                + ' --pair-hmm-implementation AVX_LOGLESS_CACHING_OMP'
                 + f' --native-pair-hmm-threads {self.n_cpu}'
                 + ' --max-mnp-distance 0'
                 + ' --create-output-bam-index false'

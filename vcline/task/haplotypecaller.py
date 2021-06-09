@@ -85,17 +85,17 @@ class CallVariantsWithHaplotypeCaller(VclineTask):
         return [
             luigi.LocalTarget(
                 run_dir.joinpath(f'{run_dir.name}.haplotypecaller.{s}')
-            ) for s in ['g.vcf.gz', 'g.vcf.gz.tbi', 'cram', 'cram.crai']
+            ) for s in ['vcf.gz', 'vcf.gz.tbi', 'cram', 'cram.crai']
         ]
 
     def run(self):
-        output_gvcf = Path(self.output()[0].path)
+        output_vcf = Path(self.output()[0].path)
         intervals = [Path(i.path) for i in self.input()[3]]
         skip_interval_split = (len(intervals) == 1)
         fa = Path(self.input()[1][0].path)
         input_cram = Path(self.input()[0][0].path)
         dbsnp_vcf = Path(self.input()[2][0].path)
-        output_path_prefix = '.'.join(str(output_gvcf).split('.')[:-3])
+        output_path_prefix = '.'.join(str(output_vcf).split('.')[:-2])
         if skip_interval_split:
             tmp_prefixes = [output_path_prefix]
         else:
@@ -111,7 +111,7 @@ class CallVariantsWithHaplotypeCaller(VclineTask):
                 memory_mb=self.memory_mb, sh_config=self.sh_config
             ) for o, s in zip(intervals, tmp_prefixes)
         ]
-        run_id = '.'.join(output_gvcf.name.split('.')[:-4])
+        run_id = '.'.join(output_vcf.name.split('.')[:-3])
         self.print_log(
             f'Call germline variants with HaplotypeCaller:\t{run_id}'
         )
@@ -119,7 +119,7 @@ class CallVariantsWithHaplotypeCaller(VclineTask):
         gatk = self.cf['gatk']
         samtools = self.cf['samtools']
         self.setup_shell(
-            run_id=run_id, commands=gatk, cwd=output_gvcf.parent,
+            run_id=run_id, commands=gatk, cwd=output_vcf.parent,
             **self.sh_config,
             env={
                 'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
@@ -135,16 +135,16 @@ class CallVariantsWithHaplotypeCaller(VclineTask):
                 n_cpu=self.n_cpu, index_sam=True, remove_input=True
             )
         else:
-            tmp_gvcfs = [Path(f'{s}.g.vcf.gz') for s in tmp_prefixes]
+            tmp_vcfs = [Path(f'{s}.vcf.gz') for s in tmp_prefixes]
             self.run_shell(
                 args=(
-                    f'set -e && {gatk} CombineGVCFs'
-                    + f' --reference {fa}'
-                    + ''.join(f' --variant {p}' for p in tmp_gvcfs)
-                    + f' --output {output_gvcf}'
+                    f'set -e && {gatk} MergeVcfs'
+                    + ''.join(f' --INPUT {v}' for v in tmp_vcfs)
+                    + f' --REFERENCE_SEQUENCE {fa}'
+                    + f' --OUTPUT {output_vcf}'
                 ),
-                input_files_or_dirs=[*tmp_gvcfs, fa],
-                output_files_or_dirs=[output_gvcf, f'{output_gvcf}.tbi']
+                input_files_or_dirs=[*tmp_vcfs, fa],
+                output_files_or_dirs=[output_vcf, f'{output_vcf}.tbi']
             )
             self.samtools_merge(
                 input_sam_paths=[f'{s}.bam' for s in tmp_prefixes],
@@ -176,7 +176,7 @@ class HaplotypeCaller(VclineTask):
     def output(self):
         return [
             luigi.LocalTarget(f'{self.output_path_prefix}.{s}')
-            for s in ['g.vcf.gz', 'g.vcf.gz.tbi', 'bam']
+            for s in ['vcf.gz', 'vcf.gz.tbi', 'bam']
         ]
 
     def run(self):
@@ -187,10 +187,10 @@ class HaplotypeCaller(VclineTask):
         dbsnp_vcf = Path(self.dbsnp_vcf_path).resolve()
         evaluation_interval = Path(self.evaluation_interval_path).resolve()
         output_files = [Path(o.path) for o in self.output()]
-        output_gvcf = output_files[0]
-        run_dir = output_gvcf.parent
+        output_vcf = output_files[0]
+        run_dir = output_vcf.parent
         self.setup_shell(
-            run_id='.'.join(output_gvcf.name.split('.')[:-3]),
+            run_id='.'.join(output_vcf.name.split('.')[:-2]),
             commands=self.gatk, cwd=run_dir, **self.sh_config,
             env={
                 'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
@@ -202,85 +202,34 @@ class HaplotypeCaller(VclineTask):
             args=(
                 f'set -e && {self.gatk} HaplotypeCaller'
                 + f' --input {input_cram}'
+                + f' --read-index {input_cram}.crai'
                 + f' --reference {fa}'
                 + f' --dbsnp {dbsnp_vcf}'
                 + f' --intervals {evaluation_interval}'
-                + f' --output {output_gvcf}'
+                + f' --output {output_vcf}'
                 + f' --bam-output {output_files[2]}'
-                + ' --pair-hmm-implementation AVX_LOGLESS_CACHING_OMP'
+                + ' --standard-min-confidence-threshold-for-calling 0'
+                + ''.join([
+                    f' --annotation {g}' for g in [
+                        'Coverage', 'ChromosomeCounts', 'BaseQuality',
+                        'FragmentLength', 'MappingQuality', 'ReadPosition'
+                    ]
+                ])
                 + f' --native-pair-hmm-threads {self.n_cpu}'
-                + ' --emit-ref-confidence GVCF'
-                + ''.join(
-                    [
-                        f' --annotation-group {g}' for g in [
-                            'StandardAnnotation', 'AS_StandardAnnotation',
-                            'StandardHCAnnotation'
-                        ]
-                    ] + [f' --gvcf-gq-bands {i}' for i in range(10, 100, 10)]
-                )
                 + ' --create-output-bam-index false'
                 + ' --disable-bam-index-caching '
                 + str(self.save_memory).lower()
             ),
             input_files_or_dirs=[
-                input_cram, fa, dbsnp_vcf, evaluation_interval
+                input_cram, f'{input_cram}.crai', fa, dbsnp_vcf,
+                evaluation_interval
             ],
             output_files_or_dirs=[*output_files, run_dir]
         )
 
 
 @requires(CallVariantsWithHaplotypeCaller, FetchReferenceFasta,
-          FetchDbsnpVcf, FetchEvaluationIntervalList, CreateSequenceDictionary)
-class GenotypeHaplotypeCallerGvcf(VclineTask):
-    cf = luigi.DictParameter()
-    n_cpu = luigi.IntParameter(default=1)
-    memory_mb = luigi.FloatParameter(default=4096)
-    sh_config = luigi.DictParameter(default=dict())
-    priority = 50
-
-    def output(self):
-        output_vcf_path = re.sub(
-            r'\.g\.vcf\.gz$', '.vcf.gz', self.input()[0][0].path
-        )
-        return [luigi.LocalTarget(output_vcf_path + s) for s in ['', '.tbi']]
-
-    def run(self):
-        output_vcf = Path(self.output()[0].path)
-        run_id = '.'.join(output_vcf.name.split('.')[:-3])
-        self.print_log(f'Genotype a HaplotypeCaller GVCF:\t{run_id}')
-        gvcf = Path(self.input()[0][0].path)
-        fa = Path(self.input()[1][0].path)
-        dbsnp_vcf = Path(self.input()[2][0].path)
-        evaluation_interval = Path(self.input()[3].path)
-        gatk = self.cf['gatk']
-        self.setup_shell(
-            run_id=run_id, commands=gatk, cwd=output_vcf.parent,
-            **self.sh_config,
-            env={
-                'JAVA_TOOL_OPTIONS': self.generate_gatk_java_options(
-                    n_cpu=self.n_cpu, memory_mb=self.memory_mb
-                )
-            }
-        )
-        self.run_shell(
-            args=(
-                f'set -e && {gatk} GenotypeGVCFs'
-                + f' --reference {fa}'
-                + f' --variant {gvcf}'
-                + f' --dbsnp {dbsnp_vcf}'
-                + f' --intervals {evaluation_interval}'
-                + f' --output {output_vcf}'
-                + ' --disable-bam-index-caching '
-                + str(self.cf['save_memory']).lower()
-            ),
-            input_files_or_dirs=[gvcf, fa, dbsnp_vcf, evaluation_interval],
-            output_files_or_dirs=[output_vcf, f'{output_vcf}.tbi']
-        )
-
-
-@requires(GenotypeHaplotypeCallerGvcf, CallVariantsWithHaplotypeCaller,
-          FetchReferenceFasta, SplitEvaluationIntervals,
-          CreateSequenceDictionary)
+          SplitEvaluationIntervals, CreateSequenceDictionary)
 class ScoreVariantsWithCnn(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
@@ -297,9 +246,9 @@ class ScoreVariantsWithCnn(VclineTask):
 
     def run(self):
         input_vcf = Path(self.input()[0][0].path)
-        input_cram = Path(self.input()[1][2].path)
-        fa = Path(self.input()[2][0].path)
-        intervals = [Path(i.path) for i in self.input()[3]]
+        input_cram = Path(self.input()[0][2].path)
+        fa = Path(self.input()[1][0].path)
+        intervals = [Path(i.path) for i in self.input()[2]]
         skip_interval_split = (len(intervals) == 1)
         output_vcf = Path(self.output()[0].path)
         output_path_prefix = '.'.join(str(output_vcf).split('.')[:-2])
@@ -320,7 +269,7 @@ class ScoreVariantsWithCnn(VclineTask):
                 sh_config=self.sh_config
             ) for o, s in zip(intervals, tmp_prefixes)
         ]
-        run_id = '.'.join(output_vcf.name.split('.')[:-3])
+        run_id = '.'.join(output_vcf.name.split('.')[:-2])
         self.print_log(f'Score variants with CNN:\t{run_id}')
         gatk = self.cf['gatk']
         self.setup_shell(
@@ -381,7 +330,7 @@ class CNNScoreVariants(VclineTask):
         output_files = [Path(o.path) for o in self.output()]
         output_vcf = output_files[0]
         self.setup_shell(
-            run_id='.'.join(output_vcf.name.split('.')[:-3]),
+            run_id='.'.join(output_vcf.name.split('.')[:-2]),
             commands=[self.gatk, self.python], cwd=output_vcf.parent,
             **self.sh_config,
             env={
