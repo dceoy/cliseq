@@ -336,23 +336,20 @@ class DenoiseReadCounts(VclineTask):
             output_files_or_dirs=[standardized_cr_tsv, denoised_cr_tsv]
         )
         if self.create_plots:
-            plots_dir = run_dir.joinpath(f'{run_id}.plots')
             self.run_shell(
                 args=(
                     f'set -e && {gatk} PlotDenoisedCopyRatios'
                     + f' --standardized-copy-ratios {standardized_cr_tsv}'
                     + f' --denoised-copy-ratios {denoised_cr_tsv}'
                     + f' --sequence-dictionary {seq_dict}'
-                    + f' --output {plots_dir}'
+                    + f' --output {run_dir}'
                     + f' --output-prefix {run_id}'
 
                 ),
                 input_files_or_dirs=[
                     standardized_cr_tsv, denoised_cr_tsv, seq_dict
                 ],
-                output_files_or_dirs=[
-                    plots_dir.joinpath(f'{run_id}.denoised.png'), plots_dir
-                ]
+                output_files_or_dirs=run_dir.joinpath(f'{run_id}.denoised.png')
             )
 
 
