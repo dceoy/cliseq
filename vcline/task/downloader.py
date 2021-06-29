@@ -152,6 +152,53 @@ class WritePassingAfOnlyVcf(VclineTask):
         )
 
 
+class CreateWgsIntervalList(VclineTask):
+    fa_path = luigi.Parameter()
+    dest_dir_path = luigi.Parameter(default='.')
+    gatk = luigi.Parameter(default='gatk')
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
+    priority = 10
+
+    def output(self):
+        return luigi.LocalTarget(
+            Path(self.dest_dir_path).resolve().joinpath(
+                Path(self.fa_path).stem + '.wgs.interval_list'
+            )
+        )
+
+    def run(self):
+        fa = Path(self.fa_path).resolve()
+        run_id = fa.stem
+        self.print_log(f'Create a WGS interval list:\t{run_id}')
+        output_interval = Path(self.output().path)
+        dest_dir = output_interval.parent
+        raw_interval = dest_dir.joinpath(f'{fa.stem}.raw.interval_list')
+        self.setup_shell(
+            run_id=run_id, commands=self.gatk, cwd=dest_dir, **self.sh_config,
+            env={'JAVA_TOOL_OPTIONS': '-Xmx{}m'.format(int(self.memory_mb))}
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {self.gatk} ScatterIntervalsByNs'
+                + f' --REFERENCE {fa}'
+                + ' --OUTPUT_TYPE ACGT'
+                + f' --OUTPUT {raw_interval}'
+            ),
+            input_files_or_dirs=fa, output_files_or_dirs=raw_interval
+        )
+        self.run_shell(
+            args=(
+                'set -e && grep'
+                + ' -e \'^@\' -e \'^chr[0-9XYM]\\+\\s\''
+                + f' {raw_interval} > {output_interval}'
+            ),
+            input_files_or_dirs=raw_interval,
+            output_files_or_dirs=output_interval
+        )
+        self.remove_files_and_dirs(raw_interval)
+
+
 class PreprocessResources(luigi.Task):
     src_url_dict = luigi.DictParameter()
     dest_dir_path = luigi.Parameter(default='.')
@@ -194,7 +241,7 @@ class PreprocessResources(luigi.Task):
     def output(self):
         path_dict = self._fetch_input_path_dict()
         fa = Path(path_dict['ref_fa'])
-        interval = Path(path_dict['evaluation_interval'])
+        interval = fa.parent.joinpath(f'{fa.stem}.wgs.interval_list')
         gnomad_vcf = Path(path_dict['gnomad_vcf'])
         cnv_blacklist = Path(path_dict['cnv_blacklist'])
         return [
@@ -227,6 +274,11 @@ class PreprocessResources(luigi.Task):
 
     def run(self):
         path_dict = self._fetch_input_path_dict()
+        evaluation_interval_target = yield CreateWgsIntervalList(
+            fa_path=path_dict['ref_fa'], dest_dir_path=self.dest_dir_path,
+            gatk=self.gatk, memory_mb=self.memory_mb, sh_config=self.sh_config
+        )
+        evaluation_interval_path = evaluation_interval_target.path
         cf = {
             'pigz': self.pigz, 'pbzip2': self.pbzip2, 'bgzip': self.bgzip,
             'bwa': self.bwa, 'samtools': self.samtools, 'tabix': self.tabix,
@@ -236,14 +288,14 @@ class PreprocessResources(luigi.Task):
         }
         yield [
             CreateExclusionIntervalListBed(
-                evaluation_interval_path=path_dict['evaluation_interval'],
+                evaluation_interval_path=evaluation_interval_path,
                 ref_fa_path=path_dict['ref_fa'], cf=cf, n_cpu=self.n_cpu,
                 sh_config=self.sh_config
             ),
             CreateGnomadBiallelicSnpVcf(
                 gnomad_vcf_path=path_dict['gnomad_vcf'],
                 ref_fa_path=path_dict['ref_fa'],
-                evaluation_interval_path=path_dict['evaluation_interval'],
+                evaluation_interval_path=evaluation_interval_path,
                 cf=cf, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
                 sh_config=self.sh_config
             ),
@@ -254,7 +306,7 @@ class PreprocessResources(luigi.Task):
             *[
                 PreprocessIntervals(
                     ref_fa_path=path_dict['ref_fa'],
-                    evaluation_interval_path=path_dict['evaluation_interval'],
+                    evaluation_interval_path=evaluation_interval_path,
                     cnv_blacklist_path=path_dict['cnv_blacklist'],
                     cf={'exome': bool(i), **cf}, n_cpu=self.n_cpu,
                     memory_mb=self.memory_mb, sh_config=self.sh_config
@@ -265,8 +317,8 @@ class PreprocessResources(luigi.Task):
                 sh_config=self.sh_config
             ),
             UncompressEvaluationIntervalListBed(
-                evaluation_interval_path=path_dict['evaluation_interval'],
-                cf=cf, n_cpu=self.n_cpu, sh_config=self.sh_config
+                evaluation_interval_path=evaluation_interval_path, cf=cf,
+                n_cpu=self.n_cpu, sh_config=self.sh_config
             )
         ]
 
