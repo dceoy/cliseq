@@ -46,7 +46,7 @@ RUN set -e \
       && /opt/conda/bin/conda update -n base -c defaults conda \
       && /opt/conda/bin/python3 /tmp/get-pip.py \
       && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
-        cutadapt https://github.com/dceoy/ftarc/archive/main.tar.gz \
+        cnvkit cutadapt https://github.com/dceoy/ftarc/archive/main.tar.gz \
         https://github.com/dceoy/vanqc/archive/main.tar.gz /tmp/vcline \
       && /opt/conda/bin/conda clean -yaf \
       && /opt/conda/envs/gatk/bin/python -m pip uninstall -y h5py \
@@ -54,6 +54,13 @@ RUN set -e \
       && find /opt/conda -follow -type f -name '*.a' -delete \
       && find /opt/conda -follow -type f -name '*.pyc' -delete \
       && rm -rf /root/.cache/pip /tmp/get-pip.py
+
+RUN set -e \
+      && R -e "\
+options(repos = c(CRAN = 'https://cloud.r-project.org/')); \
+install.packages('BiocManager', dependencies = TRUE, clean = TRUE); \
+BiocManager::install('DNAcopy'); \
+library('DNAcopy')"
 
 RUN set -e \
       && cd /usr/local/src/bwa \
