@@ -25,10 +25,19 @@ setup(
     classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Console',
+        'Intended Audience :: Science/Research',
+        'Intended Audience :: Healthcare Industry',
         'License :: OSI Approved :: MIT License',
-        'Operating System :: OS Independent',
+        'Operating System :: MacOS',
+        'Operating System :: MacOS :: MacOS X',
+        'Operating System :: POSIX',
+        'Operating System :: POSIX :: Linux',
+        'Operating System :: Unix',
+        'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Topic :: Software Development'
+        'Topic :: Scientific/Engineering',
+        'Topic :: Scientific/Engineering :: Bio-Informatics',
+        'Topic :: Scientific/Engineering :: Medical Science Apps.'
     ],
     python_requires='>=3.6',
 )

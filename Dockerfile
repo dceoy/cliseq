@@ -20,7 +20,6 @@ COPY --from=dceoy/vep:latest /usr/local/src/kent /usr/local/src/kent
 COPY --from=dceoy/vep:latest /usr/local/src/bioperl-ext /usr/local/src/bioperl-ext
 COPY --from=dceoy/vep:latest /usr/local/src/ensembl-xs /usr/local/src/ensembl-xs
 COPY --from=dceoy/vep:latest /usr/local/src/ensembl-vep /usr/local/src/ensembl-vep
-ADD https://raw.githubusercontent.com/dceoy/print-github-tags/master/print-github-tags /usr/local/bin/print-github-tags
 ADD https://bootstrap.pypa.io/get-pip.py /tmp/get-pip.py
 ADD . /tmp/vcline
 
