@@ -4,9 +4,8 @@ import sys
 from pathlib import Path
 
 import luigi
-from ftarc.task.picard import CreateSequenceDictionary
-from ftarc.task.resource import (FetchReferenceFasta, FetchResourceFile,
-                                 FetchResourceVcf)
+from ftarc.task.resource import (CreateSequenceDictionary, FetchReferenceFasta,
+                                 FetchResourceFile, FetchResourceVcf)
 from luigi.util import requires
 
 from .core import VclineTask

@@ -5,8 +5,7 @@ from itertools import chain
 from pathlib import Path
 
 import luigi
-from ftarc.task.picard import CreateSequenceDictionary
-from ftarc.task.resource import FetchReferenceFasta
+from ftarc.task.resource import CreateSequenceDictionary, FetchReferenceFasta
 from luigi.util import requires
 
 from .core import VclineTask

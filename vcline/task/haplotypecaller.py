@@ -5,14 +5,13 @@ from itertools import chain
 from pathlib import Path
 
 import luigi
-from ftarc.task.picard import CreateSequenceDictionary
 from luigi.util import requires
 
 from .core import VclineTask
 from .cram import PrepareCramNormal
-from .resource import (Fetch1000gSnpsVcf, FetchDbsnpVcf,
-                       FetchEvaluationIntervalList, FetchHapmapVcf,
-                       FetchMillsIndelVcf, FetchReferenceFasta)
+from .resource import (CreateSequenceDictionary, Fetch1000gSnpsVcf,
+                       FetchDbsnpVcf, FetchEvaluationIntervalList,
+                       FetchHapmapVcf, FetchMillsIndelVcf, FetchReferenceFasta)
 
 
 @requires(FetchEvaluationIntervalList, FetchReferenceFasta,
