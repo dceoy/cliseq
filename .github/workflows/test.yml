@@ -19,7 +19,9 @@ jobs:
       - name: Install vcline
         run: |
           pip install -U \
-            autopep8 flake8 flake8-bugbear flake8-isort pep8-naming .
+            autopep8 flake8 flake8-bugbear flake8-isort pep8-naming \
+            https://github.com/dceoy/ftarc/archive/main.tar.gz \
+            https://github.com/dceoy/vanqc/archive/main.tar.gz .
       - name: Validate the codes using flake8
         run: |
           find . -name '*.py' | xargs flake8
