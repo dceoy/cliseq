@@ -9,13 +9,12 @@ from luigi.util import requires
 
 from .core import VclineTask
 from .cram import PrepareCramNormal
-from .resource import (CreateSequenceDictionary, Fetch1000gSnpsVcf,
-                       FetchDbsnpVcf, FetchEvaluationIntervalList,
-                       FetchHapmapVcf, FetchMillsIndelVcf, FetchReferenceFasta)
+from .resource import (Fetch1000gSnpsVcf, FetchDbsnpVcf,
+                       FetchEvaluationIntervalList, FetchHapmapVcf,
+                       FetchMillsIndelVcf, FetchReferenceFasta)
 
 
-@requires(FetchEvaluationIntervalList, FetchReferenceFasta,
-          CreateSequenceDictionary)
+@requires(FetchEvaluationIntervalList, FetchReferenceFasta)
 class SplitEvaluationIntervals(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
@@ -69,7 +68,7 @@ class SplitEvaluationIntervals(VclineTask):
 
 
 @requires(PrepareCramNormal, FetchReferenceFasta, FetchDbsnpVcf,
-          SplitEvaluationIntervals, CreateSequenceDictionary)
+          SplitEvaluationIntervals)
 class CallVariantsWithHaplotypeCaller(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
@@ -228,7 +227,7 @@ class HaplotypeCaller(VclineTask):
 
 
 @requires(CallVariantsWithHaplotypeCaller, FetchReferenceFasta,
-          SplitEvaluationIntervals, CreateSequenceDictionary)
+          SplitEvaluationIntervals)
 class ScoreVariantsWithCnn(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
@@ -358,7 +357,7 @@ class CNNScoreVariants(VclineTask):
 
 
 @requires(ScoreVariantsWithCnn, FetchReferenceFasta, FetchHapmapVcf,
-          FetchMillsIndelVcf, Fetch1000gSnpsVcf, CreateSequenceDictionary)
+          FetchMillsIndelVcf, Fetch1000gSnpsVcf)
 class FilterVariantTranches(VclineTask):
     cf = luigi.DictParameter()
     snp_tranches = luigi.ListParameter(default=[99.9, 99.95])

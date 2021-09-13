@@ -4,8 +4,8 @@ import sys
 from pathlib import Path
 
 import luigi
-from ftarc.task.resource import (CreateSequenceDictionary, FetchReferenceFasta,
-                                 FetchResourceFile, FetchResourceVcf)
+from ftarc.task.resource import (FetchReferenceFasta, FetchResourceFile,
+                                 FetchResourceVcf)
 from luigi.util import requires
 
 from .core import VclineTask
@@ -129,7 +129,7 @@ class FetchGnomadVcf(luigi.WrapperTask):
 
 
 @requires(FetchGnomadVcf, FetchReferenceFasta,
-          FetchEvaluationIntervalList, CreateSequenceDictionary)
+          FetchEvaluationIntervalList)
 class CreateGnomadBiallelicSnpVcf(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)

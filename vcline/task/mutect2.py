@@ -5,7 +5,7 @@ from itertools import chain
 from pathlib import Path
 
 import luigi
-from ftarc.task.resource import CreateSequenceDictionary, FetchReferenceFasta
+from ftarc.task.resource import FetchReferenceFasta
 from luigi.util import requires
 
 from .core import VclineTask
@@ -73,8 +73,7 @@ class GetPileupSummaries(VclineTask):
 
 
 @requires(PrepareCramTumor, PrepareCramNormal, FetchReferenceFasta,
-          FetchEvaluationIntervalList, CreateGnomadBiallelicSnpVcf,
-          CreateSequenceDictionary)
+          FetchEvaluationIntervalList, CreateGnomadBiallelicSnpVcf)
 class CalculateContamination(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
@@ -136,8 +135,7 @@ class CalculateContamination(VclineTask):
 
 
 @requires(PrepareCramTumor, PrepareCramNormal, FetchReferenceFasta,
-          SplitEvaluationIntervals, FetchGnomadVcf,
-          CreateSequenceDictionary)
+          SplitEvaluationIntervals, FetchGnomadVcf)
 class CallVariantsWithMutect2(VclineTask):
     sample_names = luigi.ListParameter()
     cf = luigi.DictParameter()
@@ -323,7 +321,7 @@ class Mutect2(VclineTask):
 
 
 @requires(CallVariantsWithMutect2, FetchReferenceFasta,
-          CalculateContamination, CreateSequenceDictionary)
+          CalculateContamination)
 class FilterMutectCalls(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)

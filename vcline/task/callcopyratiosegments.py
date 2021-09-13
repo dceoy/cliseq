@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 import luigi
-from ftarc.task.resource import CreateSequenceDictionary, FetchReferenceFasta
+from ftarc.task.resource import FetchReferenceFasta
 from luigi.util import requires
 
 from .core import VclineTask
@@ -14,7 +14,7 @@ from .resource import FetchCnvBlackList, FetchEvaluationIntervalList
 
 
 @requires(FetchEvaluationIntervalList, FetchCnvBlackList,
-          FetchReferenceFasta, CreateSequenceDictionary)
+          FetchReferenceFasta)
 class PreprocessIntervals(VclineTask):
     cf = luigi.DictParameter()
     param_dict = luigi.DictParameter(default=dict())
@@ -42,7 +42,6 @@ class PreprocessIntervals(VclineTask):
         evaluation_interval = Path(self.input()[0].path)
         cnv_blacklist = Path(self.input()[1].path)
         fa = Path(self.input()[2][0].path)
-        seq_dict = Path(self.input()[3].path)
         param_dict = (
             self.param_dict or (
                 {'bin-length': 0, 'padding': 250} if self.cf['exome']
@@ -63,20 +62,17 @@ class PreprocessIntervals(VclineTask):
                 f'set -e && {gatk} PreprocessIntervals'
                 + f' --intervals {evaluation_interval}'
                 + f' --exclude-intervals {cnv_blacklist}'
-                + f' --sequence-dictionary {seq_dict}'
                 + f' --reference {fa}'
                 + ''.join(f' --{k} {v}' for k, v in param_dict.items())
                 + ' --interval-merging-rule OVERLAPPING_ONLY'
                 + f' --output {preprocessed_interval}'
             ),
-            input_files_or_dirs=[
-                evaluation_interval, cnv_blacklist, seq_dict, fa
-            ],
+            input_files_or_dirs=[evaluation_interval, cnv_blacklist, fa],
             output_files_or_dirs=preprocessed_interval
         )
 
 
-@requires(FilterVariantTranches, FetchReferenceFasta, CreateSequenceDictionary)
+@requires(FilterVariantTranches, FetchReferenceFasta)
 class CreateCommonSnpIntervalList(VclineTask):
     cf = luigi.DictParameter()
     min_ab = luigi.FloatParameter(default=0.5)
@@ -186,8 +182,7 @@ class CollectAllelicCounts(VclineTask):
         )
 
 
-@requires(PrepareCramTumor, CreateCommonSnpIntervalList, FetchReferenceFasta,
-          CreateSequenceDictionary)
+@requires(PrepareCramTumor, CreateCommonSnpIntervalList, FetchReferenceFasta)
 class CollectAllelicCountsTumor(luigi.Task):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
@@ -212,8 +207,7 @@ class CollectAllelicCountsTumor(luigi.Task):
         )
 
 
-@requires(PrepareCramNormal, CreateCommonSnpIntervalList, FetchReferenceFasta,
-          CreateSequenceDictionary)
+@requires(PrepareCramNormal, CreateCommonSnpIntervalList, FetchReferenceFasta)
 class CollectAllelicCountsNormal(luigi.Task):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
@@ -503,8 +497,8 @@ class CallCopyRatioSegments(VclineTask):
 
 
 @requires(PrepareCramTumor, PrepareCramNormal, PreprocessIntervals,
-          FetchReferenceFasta, CreateSequenceDictionary,
-          CollectAllelicCountsTumor, CollectAllelicCountsNormal)
+          FetchReferenceFasta, CollectAllelicCountsTumor,
+          CollectAllelicCountsNormal)
 class CallCopyRatioSegmentsTumor(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
@@ -525,9 +519,9 @@ class CallCopyRatioSegmentsTumor(VclineTask):
             cram_path=self.input()[0][0].path,
             preprocessed_interval_path=self.input()[2].path,
             fa_path=self.input()[3][0].path,
-            seq_dict_path=self.input()[4].path,
-            case_allelic_counts_tsv_path=self.input()[5].path,
-            normal_allelic_counts_tsv_path=self.input()[6].path,
+            seq_dict_path=self.input()[3][2].path,
+            case_allelic_counts_tsv_path=self.input()[4].path,
+            normal_allelic_counts_tsv_path=self.input()[5].path,
             dest_dir_path=str(Path(self.output().path).parent), cf=self.cf,
             n_cpu=self.n_cpu, memory_mb=self.memory_mb,
             sh_config=self.sh_config
@@ -535,8 +529,7 @@ class CallCopyRatioSegmentsTumor(VclineTask):
 
 
 @requires(PrepareCramTumor, PrepareCramNormal, PreprocessIntervals,
-          FetchReferenceFasta, CreateSequenceDictionary,
-          CollectAllelicCountsNormal)
+          FetchReferenceFasta, CollectAllelicCountsNormal)
 class CallCopyRatioSegmentsNormal(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
@@ -559,8 +552,8 @@ class CallCopyRatioSegmentsNormal(VclineTask):
             cram_path=self.input()[1][0].path,
             preprocessed_interval_path=self.input()[2].path,
             fa_path=self.input()[3][0].path,
-            seq_dict_path=self.input()[4].path,
-            normal_allelic_counts_tsv_path=self.input()[5].path,
+            seq_dict_path=self.input()[3][2].path,
+            normal_allelic_counts_tsv_path=self.input()[4].path,
             dest_dir_path=str(Path(self.output().path).parent), cf=self.cf,
             n_cpu=self.n_cpu, memory_mb=self.memory_mb,
             sh_config=self.sh_config
