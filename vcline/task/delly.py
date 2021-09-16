@@ -77,6 +77,7 @@ class CreateExclusionIntervalListBed(VclineTask):
 @requires(PrepareCramTumor, PrepareCramNormal, FetchReferenceFasta,
           CreateExclusionIntervalListBed)
 class CallSomaticStructualVariantsWithDelly(VclineTask):
+    sample_names = luigi.ListParameter()
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)
@@ -90,12 +91,15 @@ class CallSomaticStructualVariantsWithDelly(VclineTask):
         return [
             luigi.LocalTarget(
                 run_dir.joinpath(run_dir.name + f'.delly.{s}')
-            ) for s in ['bcf', 'bcf.csi', 'vcf.gz', 'vcf.gz.tbi']
+            ) for s in [
+                'filtered.vcf.gz', 'filtered.vcf.gz.tbi', 'bcf', 'bcf.csi',
+                'filtered.bcf', 'filtered.bcf.csi'
+            ]
         ]
 
     def run(self):
-        output_bcf = Path(self.output()[0].path)
-        run_dir = output_bcf.parent
+        output_vcf = Path(self.output()[0].path)
+        run_dir = output_vcf.parent
         run_id = run_dir.name
         self.print_log(f'Call somatic SVs with Delly:\t{run_id}')
         delly = self.cf['delly']
@@ -103,7 +107,9 @@ class CallSomaticStructualVariantsWithDelly(VclineTask):
         input_crams = [Path(i[0].path) for i in self.input()[0:2]]
         fa = Path(self.input()[2][0].path)
         exclusion_bed = Path(self.input()[3][0].path)
-        output_vcf = Path(self.output()[2].path)
+        raw_bcf = Path(self.output()[2].path)
+        filtered_bcf = Path(self.output()[4].path)
+        samples_tsv = run_dir.joinpath(f'{raw_bcf.stem}.tsv')
         self.setup_shell(
             run_id=run_id, commands=[delly, bcftools], cwd=run_dir,
             **self.sh_config, env={'OMP_NUM_THREADS': str(self.n_cpu)}
@@ -113,14 +119,32 @@ class CallSomaticStructualVariantsWithDelly(VclineTask):
                 f'set -e && {delly} call'
                 + f' --genome {fa}'
                 + f' --exclude {exclusion_bed}'
-                + f' --outfile {output_bcf}'
+                + f' --outfile {raw_bcf}'
                 + ''.join(f' {p}' for p in input_crams)
             ),
             input_files_or_dirs=[*input_crams, fa, exclusion_bed],
-            output_files_or_dirs=[output_bcf, f'{output_bcf}.csi', run_dir]
+            output_files_or_dirs=[raw_bcf, f'{raw_bcf}.csi', run_dir]
+        )
+        self.run_shell(
+            args=(
+                'set -e && echo -e'
+                + ' "{0}\\ttumor\\n{1}\\tnormal\\n"'.format(*self.sample_names)
+                + f' | tee {samples_tsv}'
+            ),
+            output_files_or_dirs=samples_tsv
+        )
+        self.run_shell(
+            args=(
+                f'set -e && {delly} filter --filter somatic'
+                + f' --samples {samples_tsv}'
+                + f' --outfile {filtered_bcf}'
+                + f' {raw_bcf}'
+            ),
+            input_files_or_dirs=[raw_bcf, samples_tsv],
+            output_files_or_dirs=[filtered_bcf, f'{filtered_bcf}.csi']
         )
         self.bcftools_sort(
-            input_vcf_path=output_bcf, output_vcf_path=output_vcf,
+            input_vcf_path=filtered_bcf, output_vcf_path=output_vcf,
             bcftools=bcftools, n_cpu=self.n_cpu, memory_mb=self.memory_mb,
             index_vcf=True, remove_input=False
         )
