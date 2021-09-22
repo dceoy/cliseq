@@ -43,13 +43,15 @@ ENV PATH /opt/gatk/bin:/opt/conda/envs/gatk/bin:/opt/conda/bin:${PATH}
 RUN set -e \
       && source /opt/gatk/gatkenv.rc \
       && /opt/conda/bin/conda update -n base -c defaults conda \
+      && source deactivate \
       && /opt/conda/bin/python3 /tmp/get-pip.py \
+      && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
+        cython pip setuptools==57.5.0 \
       && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
         cnvkit cutadapt https://github.com/dceoy/ftarc/archive/main.tar.gz \
         https://github.com/dceoy/vanqc/archive/main.tar.gz /tmp/vcline \
       && cp /opt/gatk/gatkcondaenv.yml /tmp/gatkcondaenv.yml \
       && echo -e '- bioconductor-dnacopy' >> /tmp/gatkcondaenv.yml \
-      && source deactivate \
       && /opt/conda/bin/conda remove -n gatk --all \
       && /opt/conda/bin/conda env create -n gatk -f /opt/gatk/gatkcondaenv.yml \
       && /opt/conda/bin/conda clean -yaf \
