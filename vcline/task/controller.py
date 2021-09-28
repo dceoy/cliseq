@@ -19,7 +19,7 @@ from .core import VclineTask
 from .delly import CallSomaticStructualVariantsWithDelly
 from .haplotypecaller import FilterVariantTranches
 from .manta import CallSomaticStructualVariantsWithManta
-from .msisensorpro import ScoreMsiWithMsisensorPro
+from .msisensor import ScoreMsiWithMsisensor
 from .mutect2 import FilterMutectCalls
 from .strelka import (CallGermlineVariantsWithStrelka,
                       CallSomaticVariantsWithStrelka)
@@ -166,7 +166,7 @@ class RunVariantCaller(luigi.Task):
                 sh_config=self.sh_config
             )
         elif 'somatic_msi.msisensor' == self.caller:
-            return ScoreMsiWithMsisensorPro(
+            return ScoreMsiWithMsisensor(
                 fq_list=self.fq_list, cram_list=self.cram_list,
                 read_groups=self.read_groups, sample_names=self.sample_names,
                 ref_fa_path=self.ref_fa_path,

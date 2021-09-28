@@ -28,14 +28,14 @@ class ScanMicrosatellites(VclineTask):
         fa = Path(self.input()[0].path)
         run_id = fa.stem
         self.print_log(f'Scan microsatellites:\t{run_id}')
-        msisensor_pro = self.cf['msisensor-pro']
+        msisensor = self.cf['msisensor']
         output_tsv = Path(self.output().path)
         self.setup_shell(
-            run_id=run_id, commands=msisensor_pro, cwd=fa.parent,
+            run_id=run_id, commands=msisensor, cwd=fa.parent,
             **self.sh_config
         )
         self.run_shell(
-            args=f'set -e && {msisensor_pro} scan -d {fa} -o {output_tsv}',
+            args=f'set -e && {msisensor} scan -d {fa} -o {output_tsv}',
             input_files_or_dirs=fa, output_files_or_dirs=output_tsv
         )
 
@@ -72,7 +72,7 @@ class UncompressEvaluationIntervalListBed(VclineTask):
 
 @requires(PrepareCramTumor, PrepareCramNormal, FetchReferenceFasta,
           ScanMicrosatellites, UncompressEvaluationIntervalListBed)
-class ScoreMsiWithMsisensorPro(VclineTask):
+class ScoreMsiWithMsisensor(VclineTask):
     cf = luigi.DictParameter()
     n_cpu = luigi.IntParameter(default=1)
     sh_config = luigi.DictParameter(default=dict())
@@ -84,7 +84,7 @@ class ScoreMsiWithMsisensorPro(VclineTask):
         )
         return [
             luigi.LocalTarget(
-                run_dir.joinpath(f'{run_dir.name}.msisensor_pro.tsv{s}')
+                run_dir.joinpath(f'{run_dir.name}.msisensor.tsv{s}')
             ) for s in ['', '_dis', '_germline', '_somatic']
         ]
 
@@ -103,19 +103,19 @@ class ScoreMsiWithMsisensorPro(VclineTask):
             ) for i in self.input()[0:2]
         ]
         run_id = run_dir.name
-        self.print_log(f'Score MSI with MSIsensor-pro:\t{run_id}')
-        msisensor_pro = self.cf['msisensor-pro']
+        self.print_log(f'Score MSI with MSIsensor:\t{run_id}')
+        msisensor = self.cf['msisensor']
         bams = [Path(i[0].path) for i in input_targets]
         microsatellites_list = Path(self.input()[3].path)
         bed = Path(self.input()[4].path)
         output_path_prefix = output_files[0].name
         self.setup_shell(
-            run_id=run_id, commands=msisensor_pro, cwd=run_dir,
+            run_id=run_id, commands=msisensor, cwd=run_dir,
             **self.sh_config
         )
         self.run_shell(
             args=(
-                f'set -e && {msisensor_pro} msi'
+                f'set -e && {msisensor} msi'
                 + f' -t {bams[0]} -n {bams[1]}'
                 + f' -d {microsatellites_list} -e {bed}'
                 + f' -o {output_path_prefix}'

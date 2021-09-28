@@ -10,8 +10,7 @@ from ftarc.task.downloader import DownloadAndProcessResourceFiles
 from .callcopyratiosegments import PreprocessIntervals
 from .core import VclineTask
 from .delly import CreateExclusionIntervalListBed
-from .msisensorpro import (ScanMicrosatellites,
-                           UncompressEvaluationIntervalListBed)
+from .msisensor import ScanMicrosatellites, UncompressEvaluationIntervalListBed
 from .resource import CreateCnvBlackListBed, CreateGnomadBiallelicSnpVcf
 
 
@@ -213,7 +212,7 @@ class PreprocessResources(luigi.Task):
     tabix = luigi.Parameter(default='tabix')
     gatk = luigi.Parameter(default='gatk')
     bedtools = luigi.Parameter(default='bedtools')
-    msisensor_pro = luigi.Parameter(default='msisensor-pro')
+    msisensor = luigi.Parameter(default='msisensor')
     n_cpu = luigi.IntParameter(default=1)
     memory_mb = luigi.FloatParameter(default=4096)
     sh_config = luigi.DictParameter(default=dict())
@@ -283,8 +282,7 @@ class PreprocessResources(luigi.Task):
             'pigz': self.pigz, 'pbzip2': self.pbzip2, 'bgzip': self.bgzip,
             'bwa': self.bwa, 'samtools': self.samtools, 'tabix': self.tabix,
             'gatk': self.gatk, 'bedtools': self.bedtools,
-            'msisensor-pro': self.msisensor_pro,
-            'use_bwa_mem2': self.use_bwa_mem2
+            'msisensor': self.msisensor, 'use_bwa_mem2': self.use_bwa_mem2
         }
         yield [
             CreateExclusionIntervalListBed(

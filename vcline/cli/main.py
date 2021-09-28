@@ -98,7 +98,7 @@ def main():
                 'bwa': fetch_executable(
                     'bwa-mem2' if args['--use-bwa-mem2'] else 'bwa'
                 ),
-                'msisensor_pro': fetch_executable('msisensor-pro'),
+                'msisensor': fetch_executable('msisensor'),
                 **{
                     c: fetch_executable(c) for c in [
                         'wget', 'pbzip2', 'bgzip', 'pigz', 'samtools', 'tabix',
