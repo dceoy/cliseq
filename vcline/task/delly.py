@@ -6,12 +6,11 @@ from itertools import product
 from pathlib import Path
 
 import luigi
-from ftarc.task.resource import FetchReferenceFasta
 from luigi.util import requires
 
 from .core import VclineTask
 from .cram import PrepareCramNormal, PrepareCramTumor
-from .resource import CreateEvaluationIntervalListBed
+from .resource import CreateEvaluationIntervalListBed, FetchReferenceFasta
 
 
 @requires(CreateEvaluationIntervalListBed, FetchReferenceFasta)

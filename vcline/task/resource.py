@@ -4,22 +4,62 @@ import sys
 from pathlib import Path
 
 import luigi
-from ftarc.task.resource import (FetchReferenceFasta, FetchResourceFile,
-                                 FetchResourceVcf)
+from ftarc.task.picard import CreateSequenceDictionary
+from ftarc.task.resource import FetchResourceFile, FetchResourceVcf
+from ftarc.task.samtools import SamtoolsFaidx
 from luigi.util import requires
 
 from .core import VclineTask
+
+
+class FetchReferenceFasta(luigi.WrapperTask):
+    ref_fa_path = luigi.Parameter()
+    cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
+    memory_mb = luigi.FloatParameter(default=4096)
+    sh_config = luigi.DictParameter(default=dict())
+    priority = 100
+
+    def requires(self):
+        return FetchResourceFile(
+            src_path=self.ref_fa_path, pigz=self.cf['pigz'],
+            pbzip2=self.cf['pbzip2'], n_cpu=self.n_cpu,
+            sh_config=self.sh_config
+        )
+
+    def output(self):
+        fa = Path(self.input().path)
+        return [
+            luigi.LocalTarget(fa),
+            luigi.LocalTarget(f'{fa}.fai'),
+            luigi.LocalTarget(fa.parent.joinpath(f'{fa.stem}.dict'))
+        ]
+
+    def run(self):
+        fa_path = self.input().path
+        yield [
+            SamtoolsFaidx(
+                fa_path=fa_path, samtools=self.cf['samtools'],
+                sh_config=self.sh_config
+            ),
+            CreateSequenceDictionary(
+                fa_path=fa_path, gatk=self.cf['gatk'], n_cpu=self.n_cpu,
+                memory_mb=self.memory_mb, sh_config=self.sh_config
+            )
+        ]
 
 
 class FetchDbsnpVcf(luigi.WrapperTask):
     dbsnp_vcf_path = luigi.Parameter()
     sh_config = luigi.DictParameter(default=dict())
     cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
     priority = 70
 
     def requires(self):
         return FetchResourceVcf(
-            src_path=self.dbsnp_vcf_path, cf=self.cf, sh_config=self.sh_config
+            src_path=self.dbsnp_vcf_path, bgzip=self.cf['bgzip'],
+            tabix=self.cf['tabix'], n_cpu=self.n_cpu, sh_config=self.sh_config
         )
 
     def output(self):
@@ -30,12 +70,13 @@ class FetchMillsIndelVcf(luigi.WrapperTask):
     mills_indel_vcf_path = luigi.Parameter()
     sh_config = luigi.DictParameter(default=dict())
     cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
     priority = 70
 
     def requires(self):
         return FetchResourceVcf(
-            src_path=self.mills_indel_vcf_path, cf=self.cf,
-            sh_config=self.sh_config
+            src_path=self.mills_indel_vcf_path, bgzip=self.cf['bgzip'],
+            tabix=self.cf['tabix'], n_cpu=self.n_cpu, sh_config=self.sh_config
         )
 
     def output(self):
@@ -46,12 +87,13 @@ class FetchKnownIndelVcf(luigi.WrapperTask):
     known_indel_vcf_path = luigi.Parameter()
     sh_config = luigi.DictParameter(default=dict())
     cf = luigi.DictParameter()
+    n_cpu = luigi.IntParameter(default=1)
     priority = 70
 
     def requires(self):
         return FetchResourceVcf(
-            src_path=self.known_indel_vcf_path, cf=self.cf,
-            sh_config=self.sh_config
+            src_path=self.known_indel_vcf_path, bgzip=self.cf['bgzip'],
+            tabix=self.cf['tabix'], n_cpu=self.n_cpu, sh_config=self.sh_config
         )
 
 
@@ -64,8 +106,9 @@ class FetchEvaluationIntervalList(luigi.WrapperTask):
 
     def requires(self):
         return FetchResourceFile(
-            src_path=self.evaluation_interval_path, cf=self.cf,
-            n_cpu=self.n_cpu, sh_config=self.sh_config
+            src_path=self.evaluation_interval_path, pigz=self.cf['pigz'],
+            pbzip2=self.cf['pbzip2'], n_cpu=self.n_cpu,
+            sh_config=self.sh_config
         )
 
     def output(self):
@@ -120,8 +163,8 @@ class FetchGnomadVcf(luigi.WrapperTask):
 
     def requires(self):
         return FetchResourceVcf(
-            src_path=self.gnomad_vcf_path, cf=self.cf, n_cpu=self.n_cpu,
-            sh_config=self.sh_config
+            src_path=self.gnomad_vcf_path, bgzip=self.cf['bgzip'],
+            tabix=self.cf['tabix'], n_cpu=self.n_cpu, sh_config=self.sh_config
         )
 
     def output(self):
@@ -191,7 +234,8 @@ class FetchCnvBlackList(luigi.WrapperTask):
 
     def requires(self):
         return FetchResourceFile(
-            src_path=self.cnv_blacklist_path, cf=self.cf, n_cpu=self.n_cpu,
+            src_path=self.cnv_blacklist_path, pigz=self.cf['pigz'],
+            pbzip2=self.cf['pbzip2'], n_cpu=self.n_cpu,
             sh_config=self.sh_config
         )
 
@@ -250,8 +294,8 @@ class FetchHapmapVcf(luigi.WrapperTask):
 
     def requires(self):
         return FetchResourceVcf(
-            src_path=self.hapmap_vcf_path, cf=self.cf, n_cpu=self.n_cpu,
-            sh_config=self.sh_config
+            src_path=self.hapmap_vcf_path, bgzip=self.cf['bgzip'],
+            tabix=self.cf['tabix'], n_cpu=self.n_cpu, sh_config=self.sh_config
         )
 
     def output(self):
@@ -267,8 +311,8 @@ class Fetch1000gSnpsVcf(luigi.WrapperTask):
 
     def requires(self):
         return FetchResourceVcf(
-            src_path=self.kg_snps_vcf_path, cf=self.cf,
-            n_cpu=self.n_cpu, sh_config=self.sh_config
+            src_path=self.kg_snps_vcf_path, bgzip=self.cf['bgzip'],
+            tabix=self.cf['tabix'], n_cpu=self.n_cpu, sh_config=self.sh_config
         )
 
     def output(self):

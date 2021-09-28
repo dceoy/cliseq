@@ -3,13 +3,12 @@
 from pathlib import Path
 
 import luigi
-from ftarc.task.resource import FetchReferenceFasta
 from ftarc.task.samtools import SamtoolsView
 from luigi.util import requires
 
 from .core import VclineTask
 from .cram import PrepareCramNormal, PrepareCramTumor
-from .resource import CreateEvaluationIntervalListBed
+from .resource import CreateEvaluationIntervalListBed, FetchReferenceFasta
 
 
 @requires(FetchReferenceFasta)

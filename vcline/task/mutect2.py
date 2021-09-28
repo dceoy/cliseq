@@ -5,14 +5,14 @@ from itertools import chain
 from pathlib import Path
 
 import luigi
-from ftarc.task.resource import FetchReferenceFasta
 from luigi.util import requires
 
 from .core import VclineTask
 from .cram import PrepareCramNormal, PrepareCramTumor
 from .haplotypecaller import SplitEvaluationIntervals
 from .resource import (CreateGnomadBiallelicSnpVcf,
-                       FetchEvaluationIntervalList, FetchGnomadVcf)
+                       FetchEvaluationIntervalList, FetchGnomadVcf,
+                       FetchReferenceFasta)
 
 
 class GetPileupSummaries(VclineTask):
