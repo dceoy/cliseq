@@ -7,5 +7,5 @@ known_indel_vcf: https://storage.googleapis.com/genomics-public-data/resources/b
 hapmap_vcf: https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/hapmap_3.3.hg38.vcf.gz
 kg_snps_vcf: https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/1000G_phase1.snps.high_confidence.hg38.vcf.gz
 cnv_blacklist: https://storage.googleapis.com/gatk-best-practices/somatic-hg38/CNV_and_centromere_blacklist.hg38liftover.list
-# refflat_txt: https://hgdownload.cse.ucsc.edu/goldenpath/hg38/database/refFlat.txt.gz
+refflat_txt: https://hgdownload.cse.ucsc.edu/goldenpath/hg38/database/refFlat.txt.gz
 # evaluation_interval: https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/wgs_calling_regions.hg38.interval_list

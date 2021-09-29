@@ -15,6 +15,7 @@ from vanqc.task.snpeff import AnnotateVariantsWithSnpeff
 from vanqc.task.vep import AnnotateVariantsWithEnsemblVep
 
 from .callcopyratiosegments import CallCopyRatioSegmentsMatched
+from .cnvkit import CallSomaticCnvWithCnvkit
 from .core import VclineTask
 from .delly import CallSomaticStructualVariantsWithDelly
 from .haplotypecaller import FilterVariantTranches
@@ -58,6 +59,8 @@ class RunVariantCaller(luigi.Task):
     kg_snps_vcf_path = luigi.Parameter(default='')
     gnomad_vcf_path = luigi.Parameter(default='')
     cnv_blacklist_path = luigi.Parameter(default='')
+    access_bed_path = luigi.Parameter(default='')
+    refflat_txt_path = luigi.Parameter(default='')
     funcotator_somatic_data_dir_path = luigi.Parameter(default='')
     funcotator_germline_data_dir_path = luigi.Parameter(default='')
     snpeff_db_data_dir_path = luigi.Parameter(default='')
@@ -164,6 +167,19 @@ class RunVariantCaller(luigi.Task):
                 cnv_blacklist_path=self.cnv_blacklist_path, cf=self.cf,
                 n_cpu=self.n_cpu, memory_mb=self.memory_mb,
                 sh_config=self.sh_config
+            )
+        elif 'somatic_cnv.cnvkit' == self.caller:
+            assert bool(self.access_bed_path and self.refflat_txt_path)
+            return CallSomaticCnvWithCnvkit(
+                tumor_cram_path=self.cram_list[0],
+                normal_cram_path=self.cram_list[1], fa_path=self.ref_fa_path,
+                refflat_txt_path=self.refflat_txt_path,
+                access_bed_path=self.access_bed_path,
+                dest_dir_path=self.cf['somatic_cnv_cnvkit_dir_path'],
+                cnvkitpy=self.cf['cnvkit.py'], samtools=self.cf['samtools'],
+                rscript=self.cf['Rscript'],
+                seq_method=('hybrid' if self.cf['exome'] else 'wgs'),
+                n_cpu=self.n_cpu, sh_config=self.sh_config
             )
         elif 'somatic_msi.msisensor' == self.caller:
             return ScoreMsiWithMsisensor(

@@ -12,6 +12,7 @@ callers:
     delly: true
   somatic_cnv:
     gatk: true
+    cnvkit: true
   somatic_msi:
     msisensor: true
   germline_snv_indel:
@@ -34,6 +35,8 @@ resources:
   gnomad_vcf: /path/to/gnomad.genomes.v3.1.sites.af-only.vcf.gz
   evaluation_interval: /path/to/wgs_calling_regions.hg38.interval_list
   cnv_blacklist: /path/to/CNV_and_centromere_blacklist.hg38liftover.list
+  access_bed: /path/to/GRCh38_full_analysis_set_plus_decoy_hla.access.bed
+  refflat_txt: /path/to/refFlat.txt
   funcotator_germline_data_dir: /path/to/funcotator_dataSources.v1.7.20200521g
   funcotator_somatic_data_dir: /path/to/funcotator_dataSources.v1.7.20200521s
   snpeff_db_data_dir: /path/to/snpeff_data/GRCh38.86

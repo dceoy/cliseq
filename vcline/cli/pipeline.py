@@ -113,6 +113,10 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
                 *({'delly'} if 'somatic_sv.delly' in callers else set()),
                 *({'python', 'R'} if 'somatic_cnv.gatk' in callers else set()),
                 *(
+                    {'cnvkit.py', 'samtools', 'Rscript'}
+                    if 'somatic_cnv.cnvkit' in callers else set()
+                ),
+                *(
                     {'msisensor'} if 'somatic_msi.msisensor' in callers
                     else set()
                 ),
@@ -178,6 +182,10 @@ def run_analytical_pipeline(config_yml_path, dest_dir_path=None,
             *(
                 {'hapmap_vcf', 'kg_snps_vcf', 'cnv_blacklist'}
                 if 'somatic_cnv.gatk' in callers else set()
+            ),
+            *(
+                {'access_bed', 'refflat_txt'}
+                if 'somatic_cnv.cnvkit' in callers else set()
             ),
             *(
                 {'funcotator_somatic_data_dir', 'funcotator_germline_data_dir'}
