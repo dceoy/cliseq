@@ -125,10 +125,12 @@ class CallSomaticStructualVariantsWithDelly(VclineTask):
             output_files_or_dirs=[raw_bcf, f'{raw_bcf}.csi', run_dir]
         )
         self.run_shell(
-            args=(
-                'set -e && echo -e'
-                + ' "{0}\\ttumor\\n{1}\\tnormal\\n"'.format(*self.sample_names)
-                + f' | tee {samples_tsv}'
+            args='set -e && echo -ne "{0}" | tee {1}'.format(
+                ''.join([
+                    f'{n}\\t{t}\\n'
+                    for n, t in zip(self.sample_names, ['tumor', 'control'])
+                ]),
+                samples_tsv
             ),
             output_files_or_dirs=samples_tsv
         )
