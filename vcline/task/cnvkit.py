@@ -19,6 +19,10 @@ class CallSomaticCnvWithCnvkit(VclineTask):
     rscript = luigi.Parameter(default='Rscript')
     seq_method = luigi.Parameter(default='wgs')
     n_cpu = luigi.IntParameter(default=1)
+    drop_low_coverage = luigi.BoolParameter(default=True)
+    short_names = luigi.BoolParameter(default=True)
+    diagram = luigi.BoolParameter(default=True)
+    scatter = luigi.BoolParameter(default=True)
     sh_config = luigi.DictParameter(default=dict())
     priority = 20
 
@@ -28,19 +32,26 @@ class CallSomaticCnvWithCnvkit(VclineTask):
         )
         tumor_stem = Path(self.tumor_cram_path).stem
         normal_stem = Path(self.normal_cram_path).stem
+        access_stem = Path(self.access_bed_path).stem
         return [
             luigi.LocalTarget(run_dir.joinpath(n)) for n in (
                 [
-                    (tumor_stem + s) for s in [
-                        '.call.seg', '.call.cns', '.cns', '.bintest.cns',
-                        '.cnr', '.targetcoverage.cnn',
-                        '.antitargetcoverage.cnn', '-diagram.pdf',
-                        '-scatter.png'
-                    ]
+                    (tumor_stem + s) for s in (
+                        [
+                            '.call.seg', '.seg', '.call.cns', '.cns',
+                            '.bintest.cns', '.cnr', '.targetcoverage.cnn',
+                            '.antitargetcoverage.cnn'
+                        ] + (['.diagram.pdf'] if self.diagram else list())
+                        + (['.scatter.pdf'] if self.scatter else list())
+                    )
                 ] + [
                     (normal_stem + s) for s in [
                         '.targetcoverage.cnn', '.antitargetcoverage.cnn',
                         '.reference.cnn'
+                    ]
+                ] + [
+                    (access_stem + s) for s in [
+                        '.target.bed', '.antitarget.bed'
                     ]
                 ]
             )
@@ -57,10 +68,10 @@ class CallSomaticCnvWithCnvkit(VclineTask):
         access_bed = Path(self.access_bed_path).resolve()
         refflat_txt = Path(self.refflat_txt_path).resolve()
         output_files = [Path(o.path) for o in self.output()]
-        output_call_cns = output_files[0]
-        run_dir = output_call_cns.parent
+        run_dir = output_files[0].parent
         output_ref_cnn = run_dir.joinpath(f'{normal_cram.stem}.reference.cnn')
-        output_call_seg = run_dir.joinpath(f'{output_call_cns.stem}.seg')
+        output_call_cns = output_files[2]
+        output_cns = output_files[3]
         self.setup_shell(
             run_id=run_id,
             commands=[self.cnvkitpy, self.samtools, self.rscript], cwd=run_dir,
@@ -74,7 +85,8 @@ class CallSomaticCnvWithCnvkit(VclineTask):
                 + f' --access={access_bed}'
                 + f' --annotate={refflat_txt}'
                 + f' --processes={self.n_cpu}'
-                + ' --drop-low-coverage --diagram --scatter'
+                + (' --drop-low-coverage' if self.drop_low_coverage else '')
+                + (' --short-names' if self.short_names else '')
                 + f' --output-dir={run_dir}'
                 + f' --output-reference={output_ref_cnn}'
                 + f' --normal={normal_cram}'
@@ -83,17 +95,30 @@ class CallSomaticCnvWithCnvkit(VclineTask):
             input_files_or_dirs=[
                 tumor_cram, normal_cram, fa, access_bed, refflat_txt
             ],
-            output_files_or_dirs=output_files[1:]
+            output_files_or_dirs=[
+                *[f for f in output_files[2:] if f.suffix != '.pdf'], run_dir
+            ]
         )
-        self.run_shell(
-            args=(
-                f'set -e && {self.cnvkitpy} export seg'
-                + f' --output={output_call_seg}'
-                + f' {output_call_cns}'
-            ),
-            input_files_or_dirs=output_call_cns,
-            output_files_or_dirs=output_call_seg
-        )
+        for o in [output_call_cns, output_cns]:
+            output_seg = run_dir.joinpath(f'{o.stem}.seg')
+            self.run_shell(
+                args=(
+                    f'set -e && {self.cnvkitpy} export seg'
+                    + f' --output={output_seg} {o}'
+                ),
+                input_files_or_dirs=o, output_files_or_dirs=output_seg
+            )
+        for c in ['diagram', 'scatter']:
+            if getattr(self, c):
+                graph_pdf = run_dir.joinpath(f'{output_cns.stem}.{c}.pdf')
+                self.run_shell(
+                    args=(
+                        f'set -e && {self.cnvkitpy} {c}'
+                        + f' --output={graph_pdf} {output_cns}'
+                    ),
+                    input_files_or_dirs=output_cns,
+                    output_files_or_dirs=graph_pdf
+                )
 
 
 if __name__ == '__main__':

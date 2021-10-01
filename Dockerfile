@@ -50,10 +50,10 @@ RUN set -e \
       && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
         cnvkit cutadapt https://github.com/dceoy/ftarc/archive/main.tar.gz \
         https://github.com/dceoy/vanqc/archive/main.tar.gz /tmp/vcline \
-      && cp /opt/gatk/gatkcondaenv.yml /tmp/gatkcondaenv.yml \
-      && echo -e '- bioconductor-dnacopy' >> /tmp/gatkcondaenv.yml \
-      && /opt/conda/bin/conda remove -n gatk --all \
-      && /opt/conda/bin/conda env create -n gatk -f /opt/gatk/gatkcondaenv.yml \
+      && echo >> /opt/gatk/gatkcondaenv.yml \
+      && echo -e '# CNVkit' >> /opt/gatk/gatkcondaenv.yml \
+      && echo -e '- bioconductor-dnacopy' >> /opt/gatk/gatkcondaenv.yml \
+      && /opt/conda/bin/conda env update -n gatk -f /opt/gatk/gatkcondaenv.yml \
       && /opt/conda/bin/conda clean -yaf \
       && find /opt/conda -follow -type f -name '*.a' -delete \
       && find /opt/conda -follow -type f -name '*.pyc' -delete \
@@ -183,5 +183,6 @@ ENV CLASSPATH /opt/gatk/gatk.jar:${CLASSPATH}
 ENV BCFTOOLS_PLUGINS /usr/local/src/bcftools/plugins
 ENV PYTHONPATH /opt/manta/lib/python:/opt/strelka/lib/python:${PYTHONPATH}
 ENV PATH /opt/gatk/bin:/opt/conda/envs/gatk/bin:/opt/conda/bin:/opt/manta/bin:/opt/strelka/bin:/opt/snpEff/bin:${PATH}
+ENV MPLCONFIGDIR /tmp/cnvkit
 
 ENTRYPOINT ["/opt/conda/bin/vcline"]
