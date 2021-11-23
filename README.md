@@ -10,7 +10,9 @@ Installation
 ------------
 
 ```sh
-$ pip install -U https://github.com/dceoy/vcline/archive/master.tar.gz
+$ pip install -U \
+  https://github.com/dceoy/sagvc/archive/main.tar.gz \
+  https://github.com/dceoy/vcline/archive/master.tar.gz
 ```
 
 Dependent commands:
@@ -20,6 +22,7 @@ Dependent commands:
 - `bgzip`
 - `tabix`
 - `samtools`
+- `bedtools`
 - `bcftools`
 - `java`
 - `gatk`
@@ -27,13 +30,15 @@ Dependent commands:
 - `fastqc`
 - `trim_galore`
 - `bwa` or `bwa-mem2`
-- `python3`
+- `python` (Python 3)
 - `python2`
 - `configManta.py`
 - `configureStrelkaSomaticWorkflow.py`
 - `configureStrelkaGermlineWorkflow.py`
 - `delly`
 - `R`
+- `Rscript`
+- `cnvkit.py`
 - `msisensor-pro`
 - `snpEff` (`java -jar /path/to/snpEff.jar`)
 - `vep`

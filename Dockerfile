@@ -15,6 +15,7 @@ COPY --from=dceoy/manta:latest /opt/manta /opt/manta
 COPY --from=dceoy/strelka:latest /opt/strelka /opt/strelka
 COPY --from=dceoy/delly:latest /usr/local/bin/delly /usr/local/bin/delly
 COPY --from=dceoy/msisensor:latest /usr/local/bin/msisensor /usr/local/bin/msisensor
+COPY --from=dceoy/msisensor-pro:latest /usr/local/bin/msisensor-pro /usr/local/bin/msisensor-pro
 COPY --from=dceoy/snpeff:latest /opt/snpEff /opt/snpEff
 COPY --from=dceoy/vep:latest /usr/local/src/kent /usr/local/src/kent
 COPY --from=dceoy/vep:latest /usr/local/src/bioperl-ext /usr/local/src/bioperl-ext
@@ -41,15 +42,12 @@ RUN set -e \
 ENV PATH /opt/gatk/bin:/opt/conda/envs/gatk/bin:/opt/conda/bin:${PATH}
 
 RUN set -e \
-      && source /opt/gatk/gatkenv.rc \
-      && /opt/conda/bin/conda update -n base -c defaults conda \
-      && source deactivate \
       && /opt/conda/bin/python3 /tmp/get-pip.py \
       && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
-        cython pip setuptools==57.5.0 \
-      && /opt/conda/bin/python3 -m pip install -U --no-cache-dir \
         cnvkit cutadapt https://github.com/dceoy/ftarc/archive/main.tar.gz \
-        https://github.com/dceoy/vanqc/archive/main.tar.gz /tmp/vcline \
+        https://github.com/dceoy/sagvc/archive/main.tar.gz \
+        https://github.com/dceoy/vanqc/archive/main.tar.gz /tmp/sagvc \
+      && /opt/conda/bin/conda update -n base -c defaults conda \
       && echo >> /opt/gatk/gatkcondaenv.yml \
       && echo -e '# CNVkit' >> /opt/gatk/gatkcondaenv.yml \
       && echo -e '- bioconductor-dnacopy' >> /opt/gatk/gatkcondaenv.yml \
@@ -161,7 +159,7 @@ RUN set -eo pipefail \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*
 
-RUN set -eo pipefail \
+RUN set -e \
       && unlink /usr/lib/ssl/openssl.cnf \
       && echo -e 'openssl_conf = default_conf' > /usr/lib/ssl/openssl.cnf \
       && echo >> /usr/lib/ssl/openssl.cnf \
@@ -183,6 +181,6 @@ ENV CLASSPATH /opt/gatk/gatk.jar:${CLASSPATH}
 ENV BCFTOOLS_PLUGINS /usr/local/src/bcftools/plugins
 ENV PYTHONPATH /opt/manta/lib/python:/opt/strelka/lib/python:${PYTHONPATH}
 ENV PATH /opt/gatk/bin:/opt/conda/envs/gatk/bin:/opt/conda/bin:/opt/manta/bin:/opt/strelka/bin:/opt/snpEff/bin:${PATH}
-ENV MPLCONFIGDIR /tmp/cnvkit
+ENV MPLCONFIGDIR /tmp/mpl
 
 ENTRYPOINT ["/opt/conda/bin/vcline"]
